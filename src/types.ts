@@ -1,12 +1,17 @@
-export type UserRole = 'admin' | 'user' | 'coordinator';
+export type UserRole = 'admin' | 'user';
 
 export interface UserProfile {
-  uid: string;
+  id: string;
   fullName: string;
   mobileNumber: string;
   role: UserRole;
   photoURL?: string;
   createdAt: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: UserProfile;
 }
 
 export type AccountType = 'New' | 'Renewal' | 'Restructure' | 'Additional';
@@ -64,5 +69,6 @@ export interface Assignment {
   ndiPercentage?: 30 | 40 | 50;
   ndiValue?: number;
   validationResults?: ValidationResults;
+  deniedComments?: string;
   createdAt: string;
 }
