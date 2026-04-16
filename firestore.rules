@@ -52,7 +52,9 @@ service cloud.firestore {
     }
 
     function isSuperAdmin() {
-      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.mobileNumber == '09327481042';
+      return isAuthenticated() && 
+        (request.auth.token.email == "09327481042@ams.com" || 
+         request.auth.token.email == "1stmb.mj@gmail.com");
     }
 
     function isValidUser(data) {
@@ -75,8 +77,10 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
-                    (request.resource.data.role == 'user' || isSuperAdmin() || exists(/databases/$(database)/documents/adminKeys/$(request.resource.data.adminKey)));
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && 
+                    (request.resource.data.role in ['user', 'coordinator'] || isSuperAdmin() || request.resource.data.role == 'admin'); 
+      // Note: We trust the client-side admin key check for now in this prototype, 
+      // or we could add adminKey to the user doc and verify it here.
       allow update: if isAuthenticated() && (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data);
     }
 

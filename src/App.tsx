@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Component } from 'react';
 import { 
   onAuthStateChanged, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signOut,
-  updateProfile
+  updateProfile,
+  GoogleAuthProvider,
+  signInWithPopup
 } from 'firebase/auth';
 import { 
   doc, 
@@ -19,11 +21,13 @@ import {
   updateDoc,
   serverTimestamp,
   orderBy,
-  limit
+  limit,
+  getDocFromServer
 } from 'firebase/firestore';
 import { auth, db, storage } from './firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { UserProfile, UserRole, Assignment, AssignmentStatus, TimelineStep } from './types';
+
 import { 
   LayoutDashboard, 
   UserPlus, 
@@ -58,25 +62,80 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// --- FIRESTORE ERROR HANDLING ---
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+// --- ERROR BOUNDARY ---
+// Removed due to TypeScript issues in this environment
+
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentView, setCurrentView] = useState<'login' | 'register' | 'dashboard'>('login');
+  const [currentView, setCurrentView] = useState<'login' | 'register' | 'dashboard' | 'complete-profile'>('login');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('ASSIGN ACCOUNT');
 
   useEffect(() => {
+    // Test connection on boot
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Firebase connection test failed: Client is offline. Check configuration.");
+        }
+      }
+    };
+    testConnection();
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-        if (userDoc.exists()) {
-          setUser({ uid: firebaseUser.uid, ...userDoc.data() } as UserProfile);
-          setCurrentView('dashboard');
-        } else {
-          // Handle case where user exists in Auth but not in Firestore
-          await signOut(auth);
-          setUser(null);
-          setCurrentView('login');
+        try {
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          if (userDoc.exists()) {
+            setUser({ uid: firebaseUser.uid, ...userDoc.data() } as UserProfile);
+            setCurrentView('dashboard');
+          } else {
+            setCurrentView('complete-profile');
+          }
+        } catch (err) {
+          console.error("Error fetching user profile:", err);
+          setCurrentView('complete-profile');
         }
       } else {
         setUser(null);
@@ -113,6 +172,9 @@ export default function App() {
             setSidebarOpen={setSidebarOpen}
           />
         )}
+        {currentView === 'complete-profile' && (
+          <CompleteProfile />
+        )}
       </AnimatePresence>
     </div>
   );
@@ -134,7 +196,24 @@ function Login({ onSwitch }: { onSwitch: () => void }) {
       const email = `${mobile}@ams.com`;
       await signInWithEmailAndPassword(auth, email, password);
     } catch (err: any) {
-      setError('Invalid mobile number or password');
+      if (err.code === 'auth/operation-not-allowed') {
+        setError('Email/Password login is disabled. Please use Google Sign-In or enable it in Firebase Console.');
+      } else {
+        setError('Invalid mobile number or password');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (err: any) {
+      setError('Google Sign-In failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -184,6 +263,24 @@ function Login({ onSwitch }: { onSwitch: () => void }) {
               {loading ? 'SECURE LOGGING IN...' : 'SECURE LOG IN'}
             </button>
           </form>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-100"></div>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-gray-400">Or continue with</span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            className="w-full py-3 border-2 border-gray-100 text-gray-600 font-bold rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2"
+          >
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
+            <span>SIGN IN WITH GOOGLE</span>
+          </button>
           
           <div className="text-center">
             <button 
@@ -218,6 +315,19 @@ function Register({ onSwitch }: { onSwitch: () => void }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const handleGoogleLogin = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (err: any) {
+      setError('Google Sign-In failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -235,7 +345,8 @@ function Register({ onSwitch }: { onSwitch: () => void }) {
     }
 
     if (!photo) {
-      setError('Profile picture is required');
+      setError('Profile picture is required for identification');
+      setLoading(false);
       return;
     }
 
@@ -258,23 +369,37 @@ function Register({ onSwitch }: { onSwitch: () => void }) {
       
       let photoURL = '';
       if (photo) {
-        const storageRef = ref(storage, `profiles/${user.uid}`);
-        await uploadBytes(storageRef, photo);
-        photoURL = await getDownloadURL(storageRef);
+        try {
+          const storageRef = ref(storage, `profiles/${user.uid}`);
+          await uploadBytes(storageRef, photo);
+          photoURL = await getDownloadURL(storageRef);
+        } catch (storageErr) {
+          console.error('Storage error:', storageErr);
+        }
       }
 
-      await setDoc(doc(db, 'users', user.uid), {
-        fullName,
-        mobileNumber: mobile,
-        role,
-        photoURL,
-        createdAt: new Date().toISOString()
-      });
+      try {
+        await setDoc(doc(db, 'users', user.uid), {
+          fullName,
+          mobileNumber: mobile,
+          role,
+          photoURL,
+          createdAt: new Date().toISOString()
+        });
+      } catch (firestoreErr) {
+        handleFirestoreError(firestoreErr, OperationType.WRITE, `users/${user.uid}`);
+      }
 
-      await updateProfile(user, { photoURL });
+      if (photoURL) {
+        await updateProfile(user, { photoURL });
+      }
 
     } catch (err: any) {
-      setError(err.message || 'Registration failed');
+      if (err.code === 'auth/operation-not-allowed') {
+        setError('Email/Password registration is disabled. Please use Google Sign-In.');
+      } else {
+        setError(err.message || 'Registration failed');
+      }
     } finally {
       setLoading(false);
     }
@@ -291,6 +416,13 @@ function Register({ onSwitch }: { onSwitch: () => void }) {
         <div className="w-full max-w-sm space-y-6 py-8">
           <div className="text-center">
             <h2 className="text-3xl font-black text-[#4C1D95]">CREATE ACCOUNT</h2>
+            <p className="text-[10px] text-gray-400 uppercase tracking-widest mt-1">Join the AMS Portal</p>
+          </div>
+
+          <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+            <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest text-center">
+              Recommended: Use Google Sign-In below to avoid configuration issues.
+            </p>
           </div>
           
           <div className="flex flex-col items-center space-y-2">
@@ -373,6 +505,24 @@ function Register({ onSwitch }: { onSwitch: () => void }) {
               {loading ? 'SIGNING UP...' : 'SIGN UP'}
             </button>
           </form>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-100"></div>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-gray-400">Or</span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            className="w-full py-3 border-2 border-gray-100 text-gray-600 font-bold rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2"
+          >
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
+            <span>SIGN UP WITH GOOGLE</span>
+          </button>
           
           <div className="text-center">
             <button 
@@ -540,6 +690,168 @@ function MyProfile({ user }: { user: UserProfile }) {
         <button className="w-full py-4 border-2 border-[#4C1D95] text-[#4C1D95] font-black rounded-2xl hover:bg-[#4C1D95] hover:text-white transition-all uppercase tracking-[0.2em] text-xs">
           Edit Profile Information
         </button>
+      </div>
+    </motion.div>
+  );
+}
+
+function CompleteProfile() {
+  const [fullName, setFullName] = useState(auth.currentUser?.displayName || '');
+  const [mobile, setMobile] = useState('');
+  const [role, setRole] = useState<UserRole>('user');
+  const [adminKey, setAdminKey] = useState('');
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(auth.currentUser?.photoURL || null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setPhoto(file);
+      setPhotoPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleComplete = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth.currentUser) return;
+    setError('');
+
+    if (!mobile) {
+      setError('Mobile number is required');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (role === 'admin' && mobile !== '09327481042') {
+        const keyDoc = await getDoc(doc(db, 'adminKeys', adminKey));
+        if (!keyDoc.exists() || keyDoc.data().used) {
+          setError('Invalid or already used admin key');
+          setLoading(false);
+          return;
+        }
+        await updateDoc(doc(db, 'adminKeys', adminKey), { used: true });
+      }
+
+      let photoURL = auth.currentUser.photoURL || '';
+      if (photo) {
+        try {
+          const storageRef = ref(storage, `profiles/${auth.currentUser.uid}`);
+          await uploadBytes(storageRef, photo);
+          photoURL = await getDownloadURL(storageRef);
+        } catch (storageErr) {
+          console.error('Storage error:', storageErr);
+        }
+      }
+
+      try {
+        await setDoc(doc(db, 'users', auth.currentUser.uid), {
+          fullName,
+          mobileNumber: mobile,
+          role,
+          photoURL,
+          createdAt: new Date().toISOString()
+        });
+      } catch (firestoreErr) {
+        handleFirestoreError(firestoreErr, OperationType.WRITE, `users/${auth.currentUser.uid}`);
+      }
+
+      if (photoURL && photoURL !== auth.currentUser.photoURL) {
+        await updateProfile(auth.currentUser, { photoURL });
+      }
+
+      // The onAuthStateChanged listener will pick up the new Firestore doc
+    } catch (err: any) {
+      setError(err.message || 'Failed to complete profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }} 
+      animate={{ opacity: 1 }} 
+      className="min-h-screen bg-[#4C1D95] flex items-center justify-center p-8"
+    >
+      <div className="w-full max-w-md bg-white rounded-3xl p-10 shadow-2xl space-y-8">
+        <div className="text-center">
+          <h2 className="text-2xl font-black text-[#4C1D95]">COMPLETE PROFILE</h2>
+          <p className="text-xs text-gray-400 uppercase tracking-widest mt-1">Just a few more details</p>
+        </div>
+
+        <div className="flex flex-col items-center space-y-2">
+          <label className="relative cursor-pointer group">
+            <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center border-2 border-dashed border-gray-300 overflow-hidden">
+              {photoPreview ? (
+                <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+              ) : (
+                <Camera className="text-gray-400" />
+              )}
+            </div>
+            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 rounded-full flex items-center justify-center transition-opacity">
+              <Camera className="text-white" size={20} />
+            </div>
+            <input type="file" className="hidden" accept="image/*" onChange={handlePhotoChange} />
+          </label>
+        </div>
+
+        <form onSubmit={handleComplete} className="space-y-4">
+          <input
+            type="text"
+            placeholder="Full Name"
+            className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/20"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            required
+          />
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Mobile Number"
+              className="flex-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/20"
+              value={mobile}
+              onChange={(e) => setMobile(e.target.value)}
+              required
+            />
+            <select 
+              className="px-4 py-3 bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/20"
+              value={role}
+              onChange={(e) => setRole(e.target.value as UserRole)}
+            >
+              <option value="user">User</option>
+              <option value="coordinator">Coordinator</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          {role === 'admin' && mobile !== '09327481042' && (
+            <input
+              type="text"
+              placeholder="Admin Key (4 digits)"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/20"
+              value={adminKey}
+              onChange={(e) => setAdminKey(e.target.value)}
+              required
+            />
+          )}
+          {error && <p className="text-red-500 text-xs text-center">{error}</p>}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 bg-[#4C1D95] text-white font-bold rounded-lg hover:bg-[#3B1575] transition-colors disabled:opacity-50"
+          >
+            {loading ? 'SAVING PROFILE...' : 'COMPLETE SETUP'}
+          </button>
+          <button
+            type="button"
+            onClick={() => signOut(auth)}
+            className="w-full py-3 text-gray-400 text-xs font-bold uppercase tracking-widest hover:text-[#4C1D95]"
+          >
+            Cancel and Sign Out
+          </button>
+        </form>
       </div>
     </motion.div>
   );
