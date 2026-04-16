@@ -1,0 +1,5 @@
+{
+  "name": "AMS Portal",
+  "description": "Modern Attendance and Loan Management System for Employee Portal.",
+  "requestFramePermissions": ["camera", "microphone"]
+}
