@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserProfile, UserRole, Assignment, AssignmentStatus, TimelineStep, AuthResponse } from './types';
+import { UserProfile, UserRole, Assignment, AssignmentStatus, TimelineStep, AuthResponse, Liability, CashflowMonth, CashflowReport } from './types';
 import { 
   BarChart, 
   Bar, 
@@ -2020,6 +2020,11 @@ function AccountStatus({ user }: { user: UserProfile }) {
       return;
     }
 
+    if (assignment.status === 'Cashflowing' && !assignment.cashflowReport) {
+      alert('Please complete and save the Cashflow Report before proceeding to the next step.');
+      return;
+    }
+
     const currentIndex = steps.indexOf(assignment.status);
     if (currentIndex === -1 || currentIndex >= steps.length - 1) return;
 
@@ -2228,6 +2233,11 @@ function AccountStatus({ user }: { user: UserProfile }) {
             {/* Credit Scoring Module */}
             {(selected.status === 'Field CIBI' || selected.creditScore) && (
               <CreditScoringModule assignment={selected} user={user} />
+            )}
+
+            {/* Cashflow Module */}
+            {(selected.status === 'Cashflowing' || selected.cashflowReport) && (
+              <CashflowModule assignment={selected} user={user} />
             )}
           </div>
         ) : (
@@ -2513,6 +2523,308 @@ function CreditScoringModule({ assignment, user }: { assignment: Assignment, use
   );
 }
 
+function CashflowModule({ assignment, user }: { assignment: Assignment, user: UserProfile }) {
+  const [liabilities, setLiabilities] = useState<Liability[]>(assignment.cashflowReport?.liabilities || []);
+  const [businessIncome, setBusinessIncome] = useState(assignment.cashflowReport?.businessIncome || {
+    january: { gross: 0, expenses: 0, net: 0 },
+    february: { gross: 0, expenses: 0, net: 0 },
+    march: { gross: 0, expenses: 0, net: 0 },
+    average: { gross: 0, expenses: 0, net: 0 }
+  });
+  const [householdExpenses, setHouseholdExpenses] = useState(assignment.cashflowReport?.householdExpenses || {
+    food: 0, rent: 0, electricity: 0, water: 0, insurance: 0, clothing: 0, lpg: 0, association: 0,
+    loanPayments: 0, vehicle: 0, transportation: 0, internet: 0, education: 0, medical: 0, miscellaneous: 0, total: 0
+  });
+  const [ciRecommendation, setCiRecommendation] = useState(assignment.cashflowReport?.ciRecommendation || {
+    loanAmount: assignment.requestedAmount, term: Number(assignment.term) || 0, interest: 0, rate: 4,
+    monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0
+  });
+  const [opRecommendation, setOpRecommendation] = useState(assignment.cashflowReport?.operationRecommendation || {
+    loanAmount: assignment.requestedAmount, term: Number(assignment.term) || 0, interest: 0, rate: 4,
+    monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0
+  });
+  const [ndiPercentage, setNdiPercentage] = useState(30);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Auto-calculations
+  useEffect(() => {
+    const calcMonth = (m: CashflowMonth) => ({ ...m, net: Number(m.gross) - Number(m.expenses) });
+    const jan = calcMonth(businessIncome.january);
+    const feb = calcMonth(businessIncome.february);
+    const mar = calcMonth(businessIncome.march);
+    const avg = {
+      gross: (jan.gross + feb.gross + mar.gross) / 3,
+      expenses: (jan.expenses + feb.expenses + mar.expenses) / 3,
+      net: (jan.net + feb.net + mar.net) / 3
+    };
+    setBusinessIncome({ january: jan, february: feb, march: mar, average: avg });
+  }, [businessIncome.january.gross, businessIncome.january.expenses, businessIncome.february.gross, businessIncome.february.expenses, businessIncome.march.gross, businessIncome.march.expenses]);
+
+  useEffect(() => {
+    const total = Object.entries(householdExpenses)
+      .filter(([key]) => key !== 'total')
+      .reduce((acc, [_, val]) => acc + Number(val), 0);
+    setHouseholdExpenses(prev => ({ ...prev, total }));
+  }, [
+    householdExpenses.food, householdExpenses.rent, householdExpenses.electricity, householdExpenses.water,
+    householdExpenses.insurance, householdExpenses.clothing, householdExpenses.lpg, householdExpenses.association,
+    householdExpenses.loanPayments, householdExpenses.vehicle, householdExpenses.transportation, householdExpenses.internet,
+    householdExpenses.education, householdExpenses.medical, householdExpenses.miscellaneous
+  ]);
+
+  const calcAmort = (rec: any) => {
+    const totalInt = Number(rec.loanAmount) * (Number(rec.rate) / 100) * Number(rec.term);
+    const totalPayable = Number(rec.loanAmount) + totalInt;
+    return {
+      interest: totalInt,
+      monthlyAmort: totalPayable / (Number(rec.term) || 1),
+      semiMonthlyAmort: totalPayable / ((Number(rec.term) || 1) * 2),
+      weeklyAmort: totalPayable / ((Number(rec.term) || 1) * 4)
+    };
+  };
+
+  const analysis = {
+    grossBusinessIncome: businessIncome.average.gross,
+    businessExpenses: businessIncome.average.expenses,
+    businessNetIncome: businessIncome.average.net,
+    additionalIncome: 0,
+    totalHouseholdExpenses: householdExpenses.total,
+    netIncome: businessIncome.average.net - householdExpenses.total,
+    ndiPercentage,
+    monthlyNdi: (businessIncome.average.net - householdExpenses.total) * (ndiPercentage / 100),
+    recommendedLoan: ((businessIncome.average.net - householdExpenses.total) * (ndiPercentage / 100) * Number(ciRecommendation.term)) / (1 + (Number(ciRecommendation.rate) / 100) * Number(ciRecommendation.term)),
+    loanableAmount: 0, // Simplified for now
+    difference: 0
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const report: CashflowReport = {
+        liabilities,
+        businessIncome,
+        householdExpenses,
+        analysis: { ...analysis, loanableAmount: 0, difference: 0 },
+        ciRecommendation: { ...ciRecommendation, ...calcAmort(ciRecommendation) },
+        operationRecommendation: { ...opRecommendation, ...calcAmort(opRecommendation) }
+      };
+      await api.patch(`/api/assignments/${assignment.id}`, { cashflowReport: report });
+      alert('Cashflow Report saved successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save Cashflow Report.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const addLiability = () => {
+    setLiabilities([...liabilities, {
+      source: '', loanType: '', loanAmount: 0, startDate: '', endDate: '',
+      lastUpdate: '', periodicity: 'MONTHLY', amortization: 0, balance: 0, status: '', remarks: ''
+    }]);
+  };
+
+  const removeLiability = (idx: number) => {
+    setLiabilities(liabilities.filter((_, i) => i !== idx));
+  };
+
+  const isReadOnly = assignment.status !== 'Cashflowing' || (user.role !== 'user' && !assignment.cashflowReport);
+
+  return (
+    <div className="bg-white border-2 border-[#4C1D95]/10 rounded-3xl p-8 space-y-12 shadow-xl shadow-[#4C1D95]/5">
+      <div className="flex justify-between items-center border-b-4 border-[#4C1D95]/5 pb-6">
+        <div>
+          <h3 className="text-xl font-black text-[#4C1D95] uppercase tracking-tight">Financial Cashflow Report</h3>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.3em]">CASHFLOW ANALYSIS SYSTEM v3.0</p>
+        </div>
+      </div>
+
+      {/* Liabilities Section */}
+      <section className="space-y-6">
+        <div className="flex justify-between items-center bg-[#4C1D95]/5 p-4 rounded-xl">
+          <h4 className="text-xs font-black text-[#4C1D95] uppercase tracking-widest">Client Liabilities</h4>
+          {!isReadOnly && (
+            <button onClick={addLiability} className="text-[10px] font-black uppercase tracking-widest text-[#4C1D95] hover:underline">+ Add Entry</button>
+          )}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[1000px]">
+            <thead>
+              <tr className="bg-gray-50 text-[9px] font-black uppercase text-gray-400 border-b border-gray-100 italic">
+                <th className="p-3">Source</th>
+                <th className="p-3">Loan Type</th>
+                <th className="p-3">Amount</th>
+                <th className="p-3">Start Date</th>
+                <th className="p-3">End Date</th>
+                <th className="p-3">Periodicity</th>
+                <th className="p-3">Amortization</th>
+                <th className="p-3">Balance</th>
+                <th className="p-3">Status</th>
+                {!isReadOnly && <th className="p-3">Action</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {liabilities.map((l, idx) => (
+                <tr key={idx} className="text-xs">
+                  <td className="p-2"><input disabled={isReadOnly} className="w-full bg-transparent border-b border-gray-100 py-1" value={l.source} onChange={e => { const nl = [...liabilities]; nl[idx].source = e.target.value; setLiabilities(nl); }} /></td>
+                  <td className="p-2"><input disabled={isReadOnly} className="w-full bg-transparent border-b border-gray-100 py-1" value={l.loanType} onChange={e => { const nl = [...liabilities]; nl[idx].loanType = e.target.value; setLiabilities(nl); }} /></td>
+                  <td className="p-2"><input disabled={isReadOnly} type="number" className="w-full bg-transparent border-b border-gray-100 py-1" value={l.loanAmount} onChange={e => { const nl = [...liabilities]; nl[idx].loanAmount = Number(e.target.value); setLiabilities(nl); }} /></td>
+                  <td className="p-2"><input disabled={isReadOnly} type="date" className="w-full bg-transparent border-b border-gray-100 py-1" value={l.startDate} onChange={e => { const nl = [...liabilities]; nl[idx].startDate = e.target.value; setLiabilities(nl); }} /></td>
+                  <td className="p-2"><input disabled={isReadOnly} type="date" className="w-full bg-transparent border-b border-gray-100 py-1" value={l.endDate} onChange={e => { const nl = [...liabilities]; nl[idx].endDate = e.target.value; setLiabilities(nl); }} /></td>
+                  <td className="p-2">
+                    <select disabled={isReadOnly} className="w-full bg-transparent border-b border-gray-100 py-1" value={l.periodicity} onChange={e => { const nl = [...liabilities]; nl[idx].periodicity = e.target.value; setLiabilities(nl); }}>
+                      <option value="MONTHLY">Monthly</option>
+                      <option value="SEMI-MONTHLY">Semi-Monthly</option>
+                      <option value="WEEKLY">Weekly</option>
+                    </select>
+                  </td>
+                  <td className="p-2"><input disabled={isReadOnly} type="number" className="w-full bg-transparent border-b border-gray-100 py-1" value={l.amortization} onChange={e => { const nl = [...liabilities]; nl[idx].amortization = Number(e.target.value); setLiabilities(nl); }} /></td>
+                  <td className="p-2"><input disabled={isReadOnly} type="number" className="w-full bg-transparent border-b border-gray-100 py-1" value={l.balance} onChange={e => { const nl = [...liabilities]; nl[idx].balance = Number(e.target.value); setLiabilities(nl); }} /></td>
+                  <td className="p-2"><input disabled={isReadOnly} className="w-full bg-transparent border-b border-gray-100 py-1" value={l.status} onChange={e => { const nl = [...liabilities]; nl[idx].status = e.target.value; setLiabilities(nl); }} /></td>
+                  {!isReadOnly && <td className="p-2"><button onClick={() => removeLiability(idx)} className="text-red-500"><Trash2 size={14} /></button></td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Financial Data Section */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-12">
+        {/* Business Income Section */}
+        <section className="space-y-6">
+          <h4 className="text-xs font-black text-[#4C1D95] bg-[#4C1D95]/5 px-4 py-2 rounded-lg uppercase tracking-widest whitespace-nowrap">Business Income (Sales vs Expenses)</h4>
+          <div className="grid grid-cols-4 gap-4">
+            <div className="space-y-4">
+              <div className="h-10" />
+              <p className="h-10 flex items-center text-[10px] font-black uppercase text-gray-400">Gross Sales</p>
+              <p className="h-10 flex items-center text-[10px] font-black uppercase text-gray-400">Expenses</p>
+              <p className="h-10 flex items-center text-[10px] font-black uppercase text-[#4C1D95]">Monthly Net</p>
+            </div>
+            {['january', 'february', 'march'].map((month) => (
+              <div key={month} className="space-y-4 text-center">
+                <p className="h-10 text-[10px] font-black uppercase text-gray-600 border-b-2 border-gray-100 flex items-center justify-center">{month}</p>
+                <input disabled={isReadOnly} type="number" className="w-full h-10 px-2 bg-gray-50 rounded-lg text-xs font-bold focus:ring-2 focus:ring-[#4C1D95]/20 focus:outline-none" value={(businessIncome as any)[month].gross} onChange={e => setBusinessIncome({ ...businessIncome, [month]: { ...(businessIncome as any)[month], gross: Number(e.target.value) } })} />
+                <input disabled={isReadOnly} type="number" className="w-full h-10 px-2 bg-gray-50 rounded-lg text-xs font-bold focus:ring-2 focus:ring-[#4C1D95]/20 focus:outline-none text-red-500" value={(businessIncome as any)[month].expenses} onChange={e => setBusinessIncome({ ...businessIncome, [month]: { ...(businessIncome as any)[month], expenses: Number(e.target.value) } })} />
+                <div className="h-10 flex items-center justify-center text-xs font-black text-green-600">{(businessIncome as any)[month].net.toLocaleString()}</div>
+              </div>
+            ))}
+          </div>
+          <div className="bg-[#4C1D95] text-white p-4 rounded-2xl flex justify-between items-center shadow-lg shadow-[#4C1D95]/20">
+            <span className="text-[10px] font-black uppercase tracking-widest">Average Monthly Business Net Income</span>
+            <span className="text-xl font-black">₱ {businessIncome.average.net.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          </div>
+        </section>
+
+        {/* Household Expenses Section */}
+        <section className="space-y-6">
+          <h4 className="text-xs font-black text-[#4C1D95] bg-[#4C1D95]/5 px-4 py-2 rounded-lg uppercase tracking-widest whitespace-nowrap">Household Expenses Manifest</h4>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
+            {Object.entries(householdExpenses).filter(([k]) => k !== 'total').map(([key, val]) => (
+              <div key={key} className="space-y-1">
+                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{key.replace(/([A-Z])/g, ' $1')}</label>
+                <input disabled={isReadOnly} type="number" className="w-full px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg text-xs font-bold focus:ring-2 focus:ring-[#4C1D95]/20 focus:outline-none" value={val as number} onChange={e => setHouseholdExpenses({ ...householdExpenses, [key]: Number(e.target.value) })} />
+              </div>
+            ))}
+          </div>
+          <div className="bg-red-500 text-white p-4 rounded-2xl flex justify-between items-center shadow-lg shadow-red-500/20">
+            <span className="text-[10px] font-black uppercase tracking-widest">Total Monthly Household Expenses</span>
+            <span className="text-xl font-black">₱ {householdExpenses.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          </div>
+        </section>
+      </div>
+
+      {/* Analysis Summary */}
+      <section className="bg-gray-50 p-8 rounded-[40px] border border-gray-100 shadow-inner">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
+          <div className="space-y-6">
+            <h5 className="text-[10px] font-black text-[#4C1D95] uppercase tracking-[0.3em]">Cashflow Integrity</h5>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-[11px] font-bold text-gray-500 uppercase">Gross Business Net</span>
+                <span className="text-sm font-black text-gray-700">₱ {businessIncome.average.net.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[11px] font-bold text-gray-500 uppercase">Household Expenses</span>
+                <span className="text-sm font-black text-red-500">(₱ {householdExpenses.total.toLocaleString()})</span>
+              </div>
+              <div className="h-px bg-gray-200" />
+              <div className="flex justify-between items-center">
+                <span className="text-[11px] font-black text-[#4C1D95] uppercase">Residual Net Income</span>
+                <span className="text-lg font-black text-[#4C1D95]">₱ {analysis.netIncome.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-6 lg:border-l border-gray-200 lg:pl-12">
+            <h5 className="text-[10px] font-black text-[#4C1D95] uppercase tracking-[0.3em]">NDI Calibration</h5>
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Target NDI Policy (%)</label>
+                <div className="flex gap-2">
+                  {[30, 40, 50].map(p => (
+                    <button key={p} onClick={() => setNdiPercentage(p)} className={cn("flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all", ndiPercentage === p ? "bg-[#4C1D95] text-white" : "bg-white text-gray-400 border border-gray-100")}>{p}%</button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-[11px] font-bold text-gray-500 uppercase">Monthly Capacity (NDI @ {ndiPercentage}%)</p>
+                <p className="text-2xl font-black text-green-600">₱ {analysis.monthlyNdi.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-6 lg:border-l border-gray-200 lg:pl-12 bg-white/50 p-6 rounded-3xl">
+            <h5 className="text-[10px] font-black text-[#4C1D95] uppercase tracking-[0.3em]">Loanability Algorithm</h5>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-[11px] font-bold text-gray-500 uppercase">Recommended Loan</span>
+                <span className="text-xl font-black text-[#4C1D95]">₱ {analysis.recommendedLoan.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              </div>
+              <p className="text-[9px] text-gray-400 italic">Financial recommendation based on residual capacity and requested terms.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Action Block */}
+      <div className="flex flex-col md:flex-row gap-6 pt-12 border-t-4 border-[#4C1D95]/5">
+        <div className="flex-1 space-y-4">
+          <label className="text-xs font-black text-[#4C1D95] uppercase tracking-widest">Final CI Assessment (Recommended)</label>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Recommended Amount</label>
+              <input disabled={isReadOnly} type="number" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-black" value={ciRecommendation.loanAmount} onChange={e => setCiRecommendation({ ...ciRecommendation, loanAmount: Number(e.target.value) })} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Term (Months)</label>
+              <input disabled={isReadOnly} type="number" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-black" value={ciRecommendation.term} onChange={e => setCiRecommendation({ ...ciRecommendation, term: Number(e.target.value) })} />
+            </div>
+          </div>
+          <div className="p-4 bg-gray-50 rounded-2xl grid grid-cols-3 gap-4 text-center">
+            <div><p className="text-[8px] font-black text-gray-400 uppercase">Weekly</p><p className="text-xs font-black text-[#4C1D95]">₱ {calcAmort(ciRecommendation).weeklyAmort.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p></div>
+            <div><p className="text-[8px] font-black text-gray-400 uppercase">Semi-Monthly</p><p className="text-xs font-black text-[#4C1D95]">₱ {calcAmort(ciRecommendation).semiMonthlyAmort.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p></div>
+            <div><p className="text-[8px] font-black text-gray-400 uppercase">Monthly</p><p className="text-xs font-black text-[#4C1D95]">₱ {calcAmort(ciRecommendation).monthlyAmort.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p></div>
+          </div>
+        </div>
+
+        {!isReadOnly && (
+          <div className="md:w-64 flex items-end pb-1">
+            <button 
+              onClick={handleSave}
+              disabled={isSaving}
+              className="w-full py-5 bg-[#4C1D95] text-white text-[11px] font-black uppercase tracking-[0.2em] rounded-2xl hover:bg-[#3B1575] hover:-translate-y-1 transition-all active:translate-y-0 shadow-xl shadow-[#4C1D95]/20"
+            >
+              {isSaving ? 'Calculating...' : 'Commit Financial Diagnostic'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ProcessAccounts({ user }: { user: UserProfile }) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selected, setSelected] = useState<Assignment | null>(null);
@@ -2634,115 +2946,104 @@ function ProcessAccounts({ user }: { user: UserProfile }) {
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white w-full max-w-2xl rounded-3xl p-8 shadow-2xl space-y-6"
+              className="bg-white w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-[40px] p-12 shadow-2xl space-y-12"
             >
-              <div className="flex justify-between items-start">
+              <div className="flex justify-between items-start border-b border-gray-100 pb-8">
                 <div>
-                  <h3 className="text-2xl font-black text-[#4C1D95] uppercase">{selected.borrowerName}</h3>
-                  <p className="text-xs text-gray-400 uppercase tracking-widest">Process Account Approval</p>
+                  <h3 className="text-3xl font-black text-[#4C1D95] uppercase tracking-tight">{selected.borrowerName}</h3>
+                  <p className="text-xs text-gray-400 uppercase tracking-widest font-bold">Comprehensive Administrative Review & Determination</p>
                 </div>
-                <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-red-500"><X /></button>
+                <button onClick={() => setSelected(null)} className="w-12 h-12 flex items-center justify-center bg-gray-50 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all"><X /></button>
               </div>
 
-              {selected.creditScore && (
-                <div className="bg-gray-50 p-4 rounded-xl space-y-2">
-                  <div className="flex justify-between items-center border-b border-gray-200 pb-2">
-                    <h4 className="text-[10px] font-black text-[#4C1D95] uppercase">CI Credit Scoring</h4>
-                    <span className="text-[10px] font-bold text-gray-500">TOTAL: {selected.creditScore.totalScore}</span>
-                  </div>
-                  <div className="grid grid-cols-5 gap-2 text-center">
-                    <div><p className="text-[8px] text-gray-400 uppercase font-black">CHR</p><p className="text-xs font-bold">{selected.creditScore.character}</p></div>
-                    <div><p className="text-[8px] text-gray-400 uppercase font-black">CPY</p><p className="text-xs font-bold">{selected.creditScore.capacity}</p></div>
-                    <div><p className="text-[8px] text-gray-400 uppercase font-black">CPT</p><p className="text-xs font-bold">{selected.creditScore.capital}</p></div>
-                    <div><p className="text-[8px] text-gray-400 uppercase font-black">CDN</p><p className="text-xs font-bold">{selected.creditScore.condition}</p></div>
-                    <div><p className="text-[8px] text-gray-400 uppercase font-black">CLT</p><p className="text-xs font-bold">{selected.creditScore.collateral}</p></div>
-                  </div>
-                  <div className="pt-2">
-                    <p className="text-[8px] text-gray-400 uppercase font-black">Recommendation: <span className={cn(
-                      "ml-1",
-                      selected.creditScore.recommendation === 'Approved' ? 'text-green-600' : 'text-red-600'
-                    )}>{selected.creditScore.recommendation}</span></p>
-                    <p className="text-[10px] text-gray-600 italic mt-1 font-medium leading-relaxed">"{selected.creditScore.ciRemarks}"</p>
-                  </div>
-                </div>
-              )}
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-12">
+                <div className="space-y-12">
+                  {selected.creditScore && (
+                    <div className="space-y-4">
+                      <h4 className="text-[10px] font-black text-[#4C1D95] bg-[#4C1D95]/5 px-4 py-2 rounded-lg uppercase tracking-widest inline-block">Diagnostic Performance Summary</h4>
+                      <CreditScoringModule assignment={selected} user={user} />
+                    </div>
+                  )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Approved Amount</label>
-                  <input 
-                    type="number" 
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm"
-                    value={processData.amount}
-                    onChange={e => setProcessData({...processData, amount: e.target.value})}
-                  />
+                  {selected.cashflowReport && (
+                    <div className="space-y-4">
+                      <h4 className="text-[10px] font-black text-[#4C1D95] bg-[#4C1D95]/5 px-4 py-2 rounded-lg uppercase tracking-widest inline-block">Liquidity & Cashflow Assessment</h4>
+                      <CashflowModule assignment={selected} user={user} />
+                    </div>
+                  )}
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Term</label>
-                  <input 
-                    type="text" 
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm"
-                    value={processData.term}
-                    onChange={e => setProcessData({...processData, term: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Int. Rate (%)</label>
-                  <input 
-                    type="number" 
-                    step="0.01"
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm"
-                    value={processData.intRate}
-                    onChange={e => setProcessData({...processData, intRate: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">MOP</label>
-                  <select 
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm"
-                    value={processData.mop}
-                    onChange={e => setProcessData({...processData, mop: e.target.value as any})}
-                  >
-                    <option value="Weekly">Weekly</option>
-                    <option value="Semi-Monthly">Semi-Monthly</option>
-                    <option value="Monthly">Monthly</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">TOP</label>
-                  <select 
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm"
-                    value={processData.top}
-                    onChange={e => setProcessData({...processData, top: e.target.value as any})}
-                  >
-                    <option value="Collection">Collection</option>
-                    <option value="PDC">PDC</option>
-                  </select>
-                </div>
-              </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Crecom Comments</label>
-                <textarea 
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm h-24"
-                  value={processData.comments}
-                  onChange={e => setProcessData({...processData, comments: e.target.value})}
-                ></textarea>
-              </div>
+                <div className="space-y-8 bg-gray-50 p-8 rounded-[40px] sticky top-0 h-fit border border-gray-100">
+                  <h4 className="text-sm font-black text-[#4C1D95] uppercase tracking-widest mb-6">Final Determination Payload</h4>
+                  
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Final Approved Amount</label>
+                      <input 
+                        type="number" 
+                        className="w-full h-14 px-6 bg-white border-2 border-gray-100 rounded-2xl text-lg font-black focus:border-[#4C1D95] focus:outline-none transition-all"
+                        value={processData.amount}
+                        onChange={e => setProcessData({...processData, amount: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Amortization Term</label>
+                      <input 
+                        type="text" 
+                        className="w-full h-14 px-6 bg-white border-2 border-gray-100 rounded-2xl text-lg font-black focus:border-[#4C1D95] focus:outline-none transition-all"
+                        value={processData.term}
+                        onChange={e => setProcessData({...processData, term: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Yield / Int. Rate (%)</label>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        className="w-full h-14 px-6 bg-white border-2 border-gray-100 rounded-2xl text-lg font-black focus:border-[#4C1D95] focus:outline-none transition-all"
+                        value={processData.intRate}
+                        onChange={e => setProcessData({...processData, intRate: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">MOP</label>
+                      <select 
+                        className="w-full h-14 px-6 bg-white border-2 border-gray-100 rounded-2xl text-sm font-black focus:border-[#4C1D95] focus:outline-none transition-all"
+                        value={processData.mop}
+                        onChange={e => setProcessData({...processData, mop: e.target.value as any})}
+                      >
+                        <option value="Weekly">Weekly</option>
+                        <option value="Semi-Monthly">Semi-Monthly</option>
+                        <option value="Monthly">Monthly</option>
+                      </select>
+                    </div>
+                  </div>
 
-              <div className="flex gap-4">
-                <button 
-                  onClick={handleApprove}
-                  className="flex-1 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition-colors uppercase tracking-widest text-xs"
-                >
-                  Approve Account
-                </button>
-                <button 
-                  onClick={handleDeny}
-                  className="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors uppercase tracking-widest text-xs"
-                >
-                  Deny Account
-                </button>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Admin / Crecom Disposition</label>
+                    <textarea 
+                      className="w-full px-6 py-4 bg-white border-2 border-gray-100 rounded-2xl text-sm h-32 focus:border-[#4C1D95] focus:outline-none transition-all"
+                      placeholder="Provide final justification for the approval or denial..."
+                      value={processData.comments}
+                      onChange={e => setProcessData({...processData, comments: e.target.value})}
+                    />
+                  </div>
+
+                  <div className="flex gap-4">
+                    <button 
+                      onClick={handleDeny}
+                      className="flex-1 py-5 bg-red-50 text-red-600 font-black rounded-2xl hover:bg-red-500 hover:text-white transition-all uppercase tracking-[0.2em] text-[10px]"
+                    >
+                      Deny Application
+                    </button>
+                    <button 
+                      onClick={handleApprove}
+                      className="flex-[2] py-5 bg-[#4C1D95] text-white font-black rounded-3xl hover:bg-[#3B1575] hover:-translate-y-1 active:translate-y-0 transition-all uppercase tracking-[0.3em] text-[10px] shadow-xl shadow-[#4C1D95]/20"
+                    >
+                      Approve & Grant Credit
+                    </button>
+                  </div>
+                </div>
               </div>
             </motion.div>
           </motion.div>
@@ -2952,6 +3253,9 @@ function ReportsView({ user }: { user: UserProfile }) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
     const q = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
@@ -2966,11 +3270,27 @@ function ReportsView({ user }: { user: UserProfile }) {
     return () => unsubscribe();
   }, []);
 
-  const filtered = assignments.filter(a => 
-    a.borrowerName.toLowerCase().includes(search.toLowerCase()) ||
-    a.ciOfficerName.toLowerCase().includes(search.toLowerCase()) ||
-    a.status.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = assignments.filter(a => {
+    const matchesSearch = 
+      a.borrowerName.toLowerCase().includes(search.toLowerCase()) ||
+      a.ciOfficerName.toLowerCase().includes(search.toLowerCase());
+    
+    const matchesStatus = statusFilter === 'All' || a.status === statusFilter;
+    
+    const assignmentDate = new Date(a.createdAt);
+    let matchesDate = true;
+    if (startDate) {
+      matchesDate = matchesDate && assignmentDate >= new Date(startDate);
+    }
+    if (endDate) {
+      // Set end date to end of day
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      matchesDate = matchesDate && assignmentDate <= end;
+    }
+
+    return matchesSearch && matchesStatus && matchesDate;
+  });
 
   const exportToExcel = () => {
     const worksheet = XLSX.utils.json_to_sheet(filtered.map(a => ({
@@ -2997,6 +3317,8 @@ function ReportsView({ user }: { user: UserProfile }) {
     doc.setFontSize(10);
     doc.setTextColor(100);
     doc.text(`Generated by: ${user.fullName} | ${format(new Date(), 'MMM d, yyyy h:mm a')}`, 14, 30);
+    if (statusFilter !== 'All') doc.text(`Status: ${statusFilter}`, 14, 35);
+    if (startDate || endDate) doc.text(`Range: ${startDate || 'Start'} to ${endDate || 'End'}`, 14, 40);
     
     const tableColumn = ["Borrower", "Type", "CI Officer", "Status", "Created At"];
     const tableRows = filtered.map(a => [
@@ -3010,7 +3332,7 @@ function ReportsView({ user }: { user: UserProfile }) {
     autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
-      startY: 35,
+      startY: (statusFilter !== 'All' || startDate || endDate) ? 45 : 35,
       theme: 'grid',
       headStyles: { fillColor: [76, 29, 149], textColor: [255, 255, 255], fontStyle: 'bold' },
       styles: { fontSize: 8, cellPadding: 3 }
@@ -3018,6 +3340,19 @@ function ReportsView({ user }: { user: UserProfile }) {
     
     doc.save(`AMS_Report_${format(new Date(), 'yyyyMMdd_HHmm')}.pdf`);
   };
+
+  const statusOptions = [
+    'All',
+    'Assigned',
+    'Start to Perform Assignment',
+    'Reviewing',
+    'Field CIBI',
+    'Cashflowing',
+    'Report Submitted',
+    'Completed',
+    'Approved',
+    'Denied'
+  ];
 
   if (loading) return (
     <div className="h-full flex items-center justify-center">
@@ -3027,39 +3362,100 @@ function ReportsView({ user }: { user: UserProfile }) {
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-        <div>
-          <h2 className="text-xl font-black text-[#4C1D95] uppercase tracking-tight">Report Engine</h2>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Generate Excel or PDF reports</p>
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+        <div className="space-y-1">
+          <h2 className="text-2xl font-black text-[#4C1D95] uppercase tracking-tight">Reporting Command</h2>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] flex items-center gap-2">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" /> Live Repository Data
+          </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-4">
           <button 
             onClick={exportToExcel}
-            className="flex items-center gap-2 px-6 py-3 bg-[#1D6F42] text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-[#155231] transition-all shadow-lg shadow-green-900/10 active:scale-95"
+            className="group flex items-center gap-3 px-8 py-3.5 bg-[#1D6F42] text-white text-[11px] font-black uppercase tracking-widest rounded-2xl hover:bg-[#155231] transition-all shadow-xl shadow-green-900/10 active:scale-95"
           >
-            <Download size={14} /> Export Excel
+            <Download size={16} className="group-hover:translate-y-0.5 transition-transform" /> Export Master Ledger (.xlsx)
           </button>
           <button 
             onClick={exportToPDF}
-            className="flex items-center gap-2 px-6 py-3 bg-[#E11D48] text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-[#BE123C] transition-all shadow-lg shadow-red-900/10 active:scale-95"
+            className="group flex items-center gap-3 px-8 py-3.5 bg-[#E11D48] text-white text-[11px] font-black uppercase tracking-widest rounded-2xl hover:bg-[#BE123C] transition-all shadow-xl shadow-red-900/10 active:scale-95"
           >
-            <Download size={14} /> Export PDF
+            <Download size={16} className="group-hover:translate-y-0.5 transition-transform" /> Generate PDF Manifest
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-gray-100 bg-gray-50/50">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input 
-              type="text" 
-              placeholder="Search reports by borrower, officer, or status..."
-              className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/10 font-medium"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 overflow-hidden">
+        <div className="p-8 border-b border-gray-100 bg-gray-50/30 space-y-6">
+          <div className="flex flex-col xl:flex-row gap-6">
+            <div className="flex-1 space-y-2">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Search Identifier</label>
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input 
+                  type="text" 
+                  placeholder="Filter by borrower or CI officer name..."
+                  className="w-full pl-12 pr-6 py-3.5 bg-white border-2 border-gray-50 rounded-2xl text-sm focus:outline-none focus:border-[#4C1D95]/20 font-medium transition-all"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 xl:w-2/3">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Lifecycle Status</label>
+                <select 
+                  className="w-full px-5 py-3.5 bg-white border-2 border-gray-50 rounded-2xl text-sm font-bold appearance-none cursor-pointer focus:border-[#4C1D95]/20 focus:outline-none transition-all"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  {statusOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Commencement Date</label>
+                <input 
+                  type="date" 
+                  className="w-full px-5 py-3.5 bg-white border-2 border-gray-50 rounded-2xl text-sm font-bold focus:border-[#4C1D95]/20 focus:outline-none transition-all"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Termination Date</label>
+                <input 
+                  type="date" 
+                  className="w-full px-5 py-3.5 bg-white border-2 border-gray-50 rounded-2xl text-sm font-bold focus:border-[#4C1D95]/20 focus:outline-none transition-all"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+            </div>
           </div>
+          
+          {(statusFilter !== 'All' || startDate || endDate || search) && (
+            <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-100">
+              <div className="flex gap-2">
+                {statusFilter !== 'All' && <span className="px-3 py-1 bg-[#4C1D95]/5 text-[#4C1D95] text-[10px] font-black rounded-lg uppercase tracking-tight">Status: {statusFilter}</span>}
+                {startDate && <span className="px-3 py-1 bg-[#4C1D95]/5 text-[#4C1D95] text-[10px] font-black rounded-lg uppercase tracking-tight">From: {startDate}</span>}
+                {endDate && <span className="px-3 py-1 bg-[#4C1D95]/5 text-[#4C1D95] text-[10px] font-black rounded-lg uppercase tracking-tight">To: {endDate}</span>}
+              </div>
+              <button 
+                onClick={() => {
+                  setSearch('');
+                  setStatusFilter('All');
+                  setStartDate('');
+                  setEndDate('');
+                }}
+                className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline"
+              >
+                Reset System Filters
+              </button>
+            </div>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">

@@ -42,6 +42,85 @@ export interface ValidationResults {
   didExplainDeductions: boolean;
 }
 
+export interface Liability {
+  source: string;
+  loanType: string;
+  loanAmount: number;
+  startDate: string;
+  endDate: string;
+  lastUpdate: string;
+  periodicity: string;
+  amortization: number;
+  balance: number;
+  status: string;
+  remarks: string;
+}
+
+export interface CashflowMonth {
+  gross: number;
+  expenses: number;
+  net: number;
+}
+
+export interface CashflowReport {
+  liabilities: Liability[];
+  businessIncome: {
+    january: CashflowMonth;
+    february: CashflowMonth;
+    march: CashflowMonth;
+    average: CashflowMonth;
+  };
+  householdExpenses: {
+    food: number;
+    rent: number;
+    electricity: number;
+    water: number;
+    insurance: number;
+    clothing: number;
+    lpg: number;
+    association: number;
+    loanPayments: number;
+    vehicle: number;
+    transportation: number;
+    internet: number;
+    education: number;
+    medical: number;
+    miscellaneous: number;
+    total: number;
+  };
+  analysis: {
+    grossBusinessIncome: number;
+    businessExpenses: number;
+    businessNetIncome: number;
+    additionalIncome: number;
+    totalHouseholdExpenses: number;
+    netIncome: number;
+    ndiPercentage: number;
+    monthlyNdi: number;
+    recommendedLoan: number;
+    loanableAmount: number;
+    difference: number;
+  };
+  ciRecommendation: {
+    loanAmount: number;
+    term: number;
+    interest: number;
+    rate: number;
+    monthlyAmort: number;
+    semiMonthlyAmort: number;
+    weeklyAmort: number;
+  };
+  operationRecommendation: {
+    loanAmount: number;
+    term: number;
+    interest: number;
+    rate: number;
+    monthlyAmort: number;
+    semiMonthlyAmort: number;
+    weeklyAmort: number;
+  };
+}
+
 export interface CreditScore {
   // Character
   neighbor1: 'Good' | 'Poor';
@@ -128,6 +207,7 @@ export interface Assignment {
   ndiValue?: number;
   validationResults?: ValidationResults;
   creditScore?: CreditScore;
+  cashflowReport?: CashflowReport;
   deniedComments?: string;
   createdAt: string;
 }

@@ -96,6 +96,17 @@
             "ciRemarks": { "type": "string" }
           }
         },
+        "cashflowReport": {
+          "type": "object",
+          "properties": {
+            "liabilities": { "type": "array" },
+            "businessIncome": { "type": "object" },
+            "householdExpenses": { "type": "object" },
+            "analysis": { "type": "object" },
+            "ciRecommendation": { "type": "object" },
+            "operationRecommendation": { "type": "object" }
+          }
+        },
         "deniedComments": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
