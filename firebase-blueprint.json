@@ -101,10 +101,22 @@
           "properties": {
             "liabilities": { "type": "array" },
             "businessIncome": { "type": "object" },
+            "otherIncome": { "type": "number" },
             "householdExpenses": { "type": "object" },
             "analysis": { "type": "object" },
-            "ciRecommendation": { "type": "object" },
-            "operationRecommendation": { "type": "object" }
+            "ciRecommendation": { 
+              "type": "object",
+              "properties": {
+                "remarks": { "type": "string" },
+                "rate": { "type": "number" }
+              }
+            },
+            "operationRecommendation": { 
+              "type": "object",
+              "properties": {
+                "remarks": { "type": "string" }
+              }
+            }
           }
         },
         "deniedComments": { "type": "string" },

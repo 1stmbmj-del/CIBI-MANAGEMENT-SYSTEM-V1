@@ -2526,73 +2526,136 @@ function CreditScoringModule({ assignment, user }: { assignment: Assignment, use
 function CashflowModule({ assignment, user }: { assignment: Assignment, user: UserProfile }) {
   const [liabilities, setLiabilities] = useState<Liability[]>(assignment.cashflowReport?.liabilities || []);
   const [businessIncome, setBusinessIncome] = useState(assignment.cashflowReport?.businessIncome || {
-    january: { gross: 0, expenses: 0, net: 0 },
-    february: { gross: 0, expenses: 0, net: 0 },
-    march: { gross: 0, expenses: 0, net: 0 },
-    average: { gross: 0, expenses: 0, net: 0 }
+    gross: 0, expenses: 0, net: 0
   });
+  const [otherIncome, setOtherIncome] = useState(assignment.cashflowReport?.otherIncome || 0);
   const [householdExpenses, setHouseholdExpenses] = useState(assignment.cashflowReport?.householdExpenses || {
     food: 0, rent: 0, electricity: 0, water: 0, insurance: 0, clothing: 0, lpg: 0, association: 0,
     loanPayments: 0, vehicle: 0, transportation: 0, internet: 0, education: 0, medical: 0, miscellaneous: 0, total: 0
   });
   const [ciRecommendation, setCiRecommendation] = useState(assignment.cashflowReport?.ciRecommendation || {
     loanAmount: assignment.requestedAmount, term: Number(assignment.term) || 0, interest: 0, rate: 4,
-    monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0
+    monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: ''
   });
   const [opRecommendation, setOpRecommendation] = useState(assignment.cashflowReport?.operationRecommendation || {
     loanAmount: assignment.requestedAmount, term: Number(assignment.term) || 0, interest: 0, rate: 4,
-    monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0
+    monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: ''
   });
   const [ndiPercentage, setNdiPercentage] = useState(30);
   const [isSaving, setIsSaving] = useState(false);
 
+  useEffect(() => {
+    if (assignment.cashflowReport) {
+      setLiabilities(assignment.cashflowReport.liabilities || []);
+      setBusinessIncome(assignment.cashflowReport.businessIncome || { gross: 0, expenses: 0, net: 0 });
+      setOtherIncome(assignment.cashflowReport.otherIncome || 0);
+      setHouseholdExpenses(assignment.cashflowReport.householdExpenses || {
+        food: 0, rent: 0, electricity: 0, water: 0, insurance: 0, clothing: 0, lpg: 0, association: 0,
+        loanPayments: 0, vehicle: 0, transportation: 0, internet: 0, education: 0, medical: 0, miscellaneous: 0, total: 0
+      });
+      setCiRecommendation(assignment.cashflowReport.ciRecommendation || {
+        loanAmount: assignment.requestedAmount, term: Number(assignment.term) || 0, interest: 0, rate: 4,
+        monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: ''
+      });
+      setOpRecommendation(assignment.cashflowReport.operationRecommendation || {
+        loanAmount: assignment.requestedAmount, term: Number(assignment.term) || 0, interest: 0, rate: 4,
+        monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: ''
+      });
+    } else {
+      setLiabilities([]);
+      setBusinessIncome({ gross: 0, expenses: 0, net: 0 });
+      setOtherIncome(0);
+      setHouseholdExpenses({
+        food: 0, rent: 0, electricity: 0, water: 0, insurance: 0, clothing: 0, lpg: 0, association: 0,
+        loanPayments: 0, vehicle: 0, transportation: 0, internet: 0, education: 0, medical: 0, miscellaneous: 0, total: 0
+      });
+      setCiRecommendation({
+        loanAmount: assignment.requestedAmount, term: Number(assignment.term) || 0, interest: 0, rate: 4,
+        monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: ''
+      });
+      setOpRecommendation({
+        loanAmount: assignment.requestedAmount, term: Number(assignment.term) || 0, interest: 0, rate: 4,
+        monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: ''
+      });
+    }
+  }, [assignment.id, assignment.cashflowReport]);
+
   // Auto-calculations
   useEffect(() => {
-    const calcMonth = (m: CashflowMonth) => ({ ...m, net: Number(m.gross) - Number(m.expenses) });
-    const jan = calcMonth(businessIncome.january);
-    const feb = calcMonth(businessIncome.february);
-    const mar = calcMonth(businessIncome.march);
-    const avg = {
-      gross: (jan.gross + feb.gross + mar.gross) / 3,
-      expenses: (jan.expenses + feb.expenses + mar.expenses) / 3,
-      net: (jan.net + feb.net + mar.net) / 3
-    };
-    setBusinessIncome({ january: jan, february: feb, march: mar, average: avg });
-  }, [businessIncome.january.gross, businessIncome.january.expenses, businessIncome.february.gross, businessIncome.february.expenses, businessIncome.march.gross, businessIncome.march.expenses]);
+    setBusinessIncome(prev => ({
+      ...prev,
+      net: Number(prev.gross) - Number(prev.expenses)
+    }));
+  }, [businessIncome.gross, businessIncome.expenses]);
 
   useEffect(() => {
-    const total = Object.entries(householdExpenses)
-      .filter(([key]) => key !== 'total')
-      .reduce((acc, [_, val]) => acc + Number(val), 0);
-    setHouseholdExpenses(prev => ({ ...prev, total }));
+    const sumLiabilities = liabilities.reduce((acc, curr) => acc + Number(curr.amortization), 0);
+    const baseSum = Number(householdExpenses.food) + 
+                    Number(householdExpenses.rent) + 
+                    Number(householdExpenses.electricity) + 
+                    Number(householdExpenses.water) + 
+                    Number(householdExpenses.insurance) + 
+                    Number(householdExpenses.clothing) + 
+                    Number(householdExpenses.lpg) + 
+                    Number(householdExpenses.association) + 
+                    Number(householdExpenses.vehicle) + 
+                    Number(householdExpenses.transportation) + 
+                    Number(householdExpenses.internet) + 
+                    Number(householdExpenses.education) + 
+                    Number(householdExpenses.medical);
+
+    const loanPayments = sumLiabilities;
+    const miscellaneous = (baseSum + loanPayments) * 0.05;
+    const total = baseSum + loanPayments + miscellaneous;
+
+    setHouseholdExpenses(prev => ({ 
+      ...prev, 
+      loanPayments,
+      miscellaneous,
+      total 
+    }));
   }, [
+    liabilities,
     householdExpenses.food, householdExpenses.rent, householdExpenses.electricity, householdExpenses.water,
     householdExpenses.insurance, householdExpenses.clothing, householdExpenses.lpg, householdExpenses.association,
-    householdExpenses.loanPayments, householdExpenses.vehicle, householdExpenses.transportation, householdExpenses.internet,
-    householdExpenses.education, householdExpenses.medical, householdExpenses.miscellaneous
+    householdExpenses.vehicle, householdExpenses.transportation, householdExpenses.internet,
+    householdExpenses.education, householdExpenses.medical
   ]);
 
   const calcAmort = (rec: any) => {
-    const totalInt = Number(rec.loanAmount) * (Number(rec.rate) / 100) * Number(rec.term);
-    const totalPayable = Number(rec.loanAmount) + totalInt;
+    const months = Number(rec.term) || 1;
+    const rate = (Number(rec.rate) || 0) / 100;
+    const loan = Number(rec.loanAmount) || 0;
+
+    // Flat Rate Interest Calculation
+    const totalInterest = loan * rate * months;
+    const totalPayable = loan + totalInterest;
+
+    // Installment Count Mapping
+    // Monthly: months
+    // Semi-Monthly: months * 2
+    // Weekly: (months < 5) ? (months * 4 + 1) : (months * 4 + 2)
+    const semiCount = months * 2;
+    const weeklyCount = months < 5 ? (months * 4 + 1) : (months * 4 + 2);
+
     return {
-      interest: totalInt,
-      monthlyAmort: totalPayable / (Number(rec.term) || 1),
-      semiMonthlyAmort: totalPayable / ((Number(rec.term) || 1) * 2),
-      weeklyAmort: totalPayable / ((Number(rec.term) || 1) * 4)
+      interest: totalInterest,
+      monthlyAmort: totalPayable / months,
+      semiMonthlyAmort: totalPayable / semiCount,
+      weeklyAmort: totalPayable / weeklyCount
     };
   };
 
   const analysis = {
-    grossBusinessIncome: businessIncome.average.gross,
-    businessExpenses: businessIncome.average.expenses,
-    businessNetIncome: businessIncome.average.net,
-    additionalIncome: 0,
+    grossBusinessIncome: businessIncome.gross,
+    businessExpenses: businessIncome.expenses,
+    businessNetIncome: businessIncome.net,
+    additionalIncome: Number(otherIncome),
     totalHouseholdExpenses: householdExpenses.total,
-    netIncome: businessIncome.average.net - householdExpenses.total,
+    netIncome: Number(businessIncome.net) + Number(otherIncome) - householdExpenses.total,
     ndiPercentage,
-    monthlyNdi: (businessIncome.average.net - householdExpenses.total) * (ndiPercentage / 100),
-    recommendedLoan: ((businessIncome.average.net - householdExpenses.total) * (ndiPercentage / 100) * Number(ciRecommendation.term)) / (1 + (Number(ciRecommendation.rate) / 100) * Number(ciRecommendation.term)),
+    monthlyNdi: (Number(businessIncome.net) + Number(otherIncome) - householdExpenses.total) * (ndiPercentage / 100),
+    recommendedLoan: ((Number(businessIncome.net) + Number(otherIncome) - householdExpenses.total) * (ndiPercentage / 100) * Number(ciRecommendation.term)) / (1 + (Number(ciRecommendation.rate) / 100) * Number(ciRecommendation.term)),
     loanableAmount: 0, // Simplified for now
     difference: 0
   };
@@ -2603,16 +2666,30 @@ function CashflowModule({ assignment, user }: { assignment: Assignment, user: Us
       const report: CashflowReport = {
         liabilities,
         businessIncome,
+        otherIncome: Number(otherIncome),
         householdExpenses,
         analysis: { ...analysis, loanableAmount: 0, difference: 0 },
         ciRecommendation: { ...ciRecommendation, ...calcAmort(ciRecommendation) },
         operationRecommendation: { ...opRecommendation, ...calcAmort(opRecommendation) }
       };
-      await api.patch(`/api/assignments/${assignment.id}`, { cashflowReport: report });
-      alert('Cashflow Report saved successfully!');
+
+      const updatePayload: any = { cashflowReport: report };
+      
+      // If committing during the Cashflowing phase, advance to the next step automatically
+      if (assignment.status === 'Cashflowing') {
+        const nextStatus = 'Report Submitted';
+        updatePayload.status = nextStatus;
+        updatePayload.timeline = [
+          ...assignment.timeline, 
+          { step: nextStatus, timestamp: new Date().toISOString() }
+        ];
+      }
+
+      await api.patch(`/api/assignments/${assignment.id}`, updatePayload);
+      alert('Financial Diagnostic Committed & Saved Successfully!');
     } catch (err) {
       console.error(err);
-      alert('Failed to save Cashflow Report.');
+      alert('Failed to save and commit Cashflow Report.');
     } finally {
       setIsSaving(false);
     }
@@ -2669,7 +2746,7 @@ function CashflowModule({ assignment, user }: { assignment: Assignment, user: Us
                 <tr key={idx} className="text-xs">
                   <td className="p-2"><input disabled={isReadOnly} className="w-full bg-transparent border-b border-gray-100 py-1" value={l.source} onChange={e => { const nl = [...liabilities]; nl[idx].source = e.target.value; setLiabilities(nl); }} /></td>
                   <td className="p-2"><input disabled={isReadOnly} className="w-full bg-transparent border-b border-gray-100 py-1" value={l.loanType} onChange={e => { const nl = [...liabilities]; nl[idx].loanType = e.target.value; setLiabilities(nl); }} /></td>
-                  <td className="p-2"><input disabled={isReadOnly} type="number" className="w-full bg-transparent border-b border-gray-100 py-1" value={l.loanAmount} onChange={e => { const nl = [...liabilities]; nl[idx].loanAmount = Number(e.target.value); setLiabilities(nl); }} /></td>
+                  <td className="p-2"><input disabled={isReadOnly} type="number" className="w-full bg-transparent border-b border-gray-100 py-1" value={l.loanAmount === 0 ? '' : l.loanAmount} onChange={e => { const nl = [...liabilities]; nl[idx].loanAmount = e.target.value === '' ? 0 : Number(e.target.value); setLiabilities(nl); }} /></td>
                   <td className="p-2"><input disabled={isReadOnly} type="date" className="w-full bg-transparent border-b border-gray-100 py-1" value={l.startDate} onChange={e => { const nl = [...liabilities]; nl[idx].startDate = e.target.value; setLiabilities(nl); }} /></td>
                   <td className="p-2"><input disabled={isReadOnly} type="date" className="w-full bg-transparent border-b border-gray-100 py-1" value={l.endDate} onChange={e => { const nl = [...liabilities]; nl[idx].endDate = e.target.value; setLiabilities(nl); }} /></td>
                   <td className="p-2">
@@ -2679,8 +2756,8 @@ function CashflowModule({ assignment, user }: { assignment: Assignment, user: Us
                       <option value="WEEKLY">Weekly</option>
                     </select>
                   </td>
-                  <td className="p-2"><input disabled={isReadOnly} type="number" className="w-full bg-transparent border-b border-gray-100 py-1" value={l.amortization} onChange={e => { const nl = [...liabilities]; nl[idx].amortization = Number(e.target.value); setLiabilities(nl); }} /></td>
-                  <td className="p-2"><input disabled={isReadOnly} type="number" className="w-full bg-transparent border-b border-gray-100 py-1" value={l.balance} onChange={e => { const nl = [...liabilities]; nl[idx].balance = Number(e.target.value); setLiabilities(nl); }} /></td>
+                  <td className="p-2"><input disabled={isReadOnly} type="number" className="w-full bg-transparent border-b border-gray-100 py-1" value={l.amortization === 0 ? '' : l.amortization} onChange={e => { const nl = [...liabilities]; nl[idx].amortization = e.target.value === '' ? 0 : Number(e.target.value); setLiabilities(nl); }} /></td>
+                  <td className="p-2"><input disabled={isReadOnly} type="number" className="w-full bg-transparent border-b border-gray-100 py-1" value={l.balance === 0 ? '' : l.balance} onChange={e => { const nl = [...liabilities]; nl[idx].balance = e.target.value === '' ? 0 : Number(e.target.value); setLiabilities(nl); }} /></td>
                   <td className="p-2"><input disabled={isReadOnly} className="w-full bg-transparent border-b border-gray-100 py-1" value={l.status} onChange={e => { const nl = [...liabilities]; nl[idx].status = e.target.value; setLiabilities(nl); }} /></td>
                   {!isReadOnly && <td className="p-2"><button onClick={() => removeLiability(idx)} className="text-red-500"><Trash2 size={14} /></button></td>}
                 </tr>
@@ -2694,26 +2771,46 @@ function CashflowModule({ assignment, user }: { assignment: Assignment, user: Us
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-12">
         {/* Business Income Section */}
         <section className="space-y-6">
-          <h4 className="text-xs font-black text-[#4C1D95] bg-[#4C1D95]/5 px-4 py-2 rounded-lg uppercase tracking-widest whitespace-nowrap">Business Income (Sales vs Expenses)</h4>
-          <div className="grid grid-cols-4 gap-4">
-            <div className="space-y-4">
-              <div className="h-10" />
-              <p className="h-10 flex items-center text-[10px] font-black uppercase text-gray-400">Gross Sales</p>
-              <p className="h-10 flex items-center text-[10px] font-black uppercase text-gray-400">Expenses</p>
-              <p className="h-10 flex items-center text-[10px] font-black uppercase text-[#4C1D95]">Monthly Net</p>
-            </div>
-            {['january', 'february', 'march'].map((month) => (
-              <div key={month} className="space-y-4 text-center">
-                <p className="h-10 text-[10px] font-black uppercase text-gray-600 border-b-2 border-gray-100 flex items-center justify-center">{month}</p>
-                <input disabled={isReadOnly} type="number" className="w-full h-10 px-2 bg-gray-50 rounded-lg text-xs font-bold focus:ring-2 focus:ring-[#4C1D95]/20 focus:outline-none" value={(businessIncome as any)[month].gross} onChange={e => setBusinessIncome({ ...businessIncome, [month]: { ...(businessIncome as any)[month], gross: Number(e.target.value) } })} />
-                <input disabled={isReadOnly} type="number" className="w-full h-10 px-2 bg-gray-50 rounded-lg text-xs font-bold focus:ring-2 focus:ring-[#4C1D95]/20 focus:outline-none text-red-500" value={(businessIncome as any)[month].expenses} onChange={e => setBusinessIncome({ ...businessIncome, [month]: { ...(businessIncome as any)[month], expenses: Number(e.target.value) } })} />
-                <div className="h-10 flex items-center justify-center text-xs font-black text-green-600">{(businessIncome as any)[month].net.toLocaleString()}</div>
+          <h4 className="text-xs font-black text-[#4C1D95] bg-[#4C1D95]/5 px-4 py-2 rounded-lg uppercase tracking-widest whitespace-nowrap">Business & Other Income</h4>
+          <div className="grid grid-cols-1 gap-6 p-6 bg-gray-50 rounded-3xl border border-gray-100">
+            <div className="grid grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Monthly Gross Sales</label>
+                <input 
+                  disabled={isReadOnly} 
+                  type="number" 
+                  className="w-full h-12 px-4 bg-white border-2 border-gray-100 rounded-xl text-sm font-black focus:border-[#4C1D95] focus:outline-none transition-all" 
+                  value={businessIncome.gross === 0 ? '' : businessIncome.gross} 
+                  onChange={e => setBusinessIncome({ ...businessIncome, gross: e.target.value === '' ? 0 : Number(e.target.value) })} 
+                />
               </div>
-            ))}
-          </div>
-          <div className="bg-[#4C1D95] text-white p-4 rounded-2xl flex justify-between items-center shadow-lg shadow-[#4C1D95]/20">
-            <span className="text-[10px] font-black uppercase tracking-widest">Average Monthly Business Net Income</span>
-            <span className="text-xl font-black">₱ {businessIncome.average.net.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Monthly Business Expenses</label>
+                <input 
+                  disabled={isReadOnly} 
+                  type="number" 
+                  className="w-full h-12 px-4 bg-white border-2 border-gray-100 rounded-xl text-sm font-black text-red-500 focus:border-[#4C1D95] focus:outline-none transition-all" 
+                  value={businessIncome.expenses === 0 ? '' : businessIncome.expenses} 
+                  onChange={e => setBusinessIncome({ ...businessIncome, expenses: e.target.value === '' ? 0 : Number(e.target.value) })} 
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Other Source of Income (Monthly)</label>
+              <input 
+                disabled={isReadOnly} 
+                type="number" 
+                className="w-full h-12 px-4 bg-white border-2 border-gray-100 rounded-xl text-sm font-black text-green-600 focus:border-[#4C1D95] focus:outline-none transition-all" 
+                value={otherIncome === 0 ? '' : otherIncome} 
+                onChange={e => setOtherIncome(e.target.value === '' ? 0 : Number(e.target.value))} 
+              />
+            </div>
+
+            <div className="pt-4 border-t border-gray-200 flex justify-between items-center">
+              <span className="text-[10px] font-black uppercase text-[#4C1D95]">Total Business Net</span>
+              <span className="text-xl font-black text-green-600">₱ {businessIncome.net.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            </div>
           </div>
         </section>
 
@@ -2721,12 +2818,28 @@ function CashflowModule({ assignment, user }: { assignment: Assignment, user: Us
         <section className="space-y-6">
           <h4 className="text-xs font-black text-[#4C1D95] bg-[#4C1D95]/5 px-4 py-2 rounded-lg uppercase tracking-widest whitespace-nowrap">Household Expenses Manifest</h4>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
-            {Object.entries(householdExpenses).filter(([k]) => k !== 'total').map(([key, val]) => (
-              <div key={key} className="space-y-1">
-                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{key.replace(/([A-Z])/g, ' $1')}</label>
-                <input disabled={isReadOnly} type="number" className="w-full px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg text-xs font-bold focus:ring-2 focus:ring-[#4C1D95]/20 focus:outline-none" value={val as number} onChange={e => setHouseholdExpenses({ ...householdExpenses, [key]: Number(e.target.value) })} />
-              </div>
-            ))}
+            {Object.entries(householdExpenses).filter(([k]) => k !== 'total').map(([key, val]) => {
+              const autoFields = ['loanPayments', 'miscellaneous'];
+              const isAuto = autoFields.includes(key);
+              return (
+                <div key={key} className="space-y-1">
+                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                    {key.replace(/([A-Z])/g, ' $1')}
+                    {isAuto && <span className="ml-1 text-[8px] text-[#4C1D95] opacity-50">(AUTO)</span>}
+                  </label>
+                  <input 
+                    disabled={isReadOnly || isAuto} 
+                    type="number" 
+                    className={cn(
+                      "w-full px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg text-xs font-bold focus:ring-2 focus:ring-[#4C1D95]/20 focus:outline-none",
+                      isAuto && "bg-[#4C1D95]/5 text-[#4C1D95]"
+                    )} 
+                    value={val === 0 ? '' : val} 
+                    onChange={e => setHouseholdExpenses({ ...householdExpenses, [key]: e.target.value === '' ? 0 : Number(e.target.value) })} 
+                  />
+                </div>
+              );
+            })}
           </div>
           <div className="bg-red-500 text-white p-4 rounded-2xl flex justify-between items-center shadow-lg shadow-red-500/20">
             <span className="text-[10px] font-black uppercase tracking-widest">Total Monthly Household Expenses</span>
@@ -2742,8 +2855,12 @@ function CashflowModule({ assignment, user }: { assignment: Assignment, user: Us
             <h5 className="text-[10px] font-black text-[#4C1D95] uppercase tracking-[0.3em]">Cashflow Integrity</h5>
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-[11px] font-bold text-gray-500 uppercase">Gross Business Net</span>
-                <span className="text-sm font-black text-gray-700">₱ {businessIncome.average.net.toLocaleString()}</span>
+                <span className="text-[11px] font-bold text-gray-500 uppercase">Business Net</span>
+                <span className="text-sm font-black text-gray-700">₱ {businessIncome.net.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[11px] font-bold text-gray-500 uppercase">Other Income</span>
+                <span className="text-sm font-black text-green-600">+₱ {otherIncome.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-[11px] font-bold text-gray-500 uppercase">Household Expenses</span>
@@ -2789,28 +2906,57 @@ function CashflowModule({ assignment, user }: { assignment: Assignment, user: Us
       </section>
 
       {/* Action Block */}
-      <div className="flex flex-col md:flex-row gap-6 pt-12 border-t-4 border-[#4C1D95]/5">
-        <div className="flex-1 space-y-4">
-          <label className="text-xs font-black text-[#4C1D95] uppercase tracking-widest">Final CI Assessment (Recommended)</label>
-          <div className="grid grid-cols-2 gap-4">
+      <div className="flex flex-col gap-8 pt-12 border-t-4 border-[#4C1D95]/5">
+        <div className="space-y-6">
+          <label className="text-xs font-black text-[#4C1D95] uppercase tracking-widest">CI Assessment & Recommendation</label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-1">
               <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Recommended Amount</label>
-              <input disabled={isReadOnly} type="number" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-black" value={ciRecommendation.loanAmount} onChange={e => setCiRecommendation({ ...ciRecommendation, loanAmount: Number(e.target.value) })} />
+              <input disabled={isReadOnly} type="number" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-black" value={ciRecommendation.loanAmount === 0 ? '' : ciRecommendation.loanAmount} onChange={e => setCiRecommendation({ ...ciRecommendation, loanAmount: Number(e.target.value) })} />
             </div>
             <div className="space-y-1">
               <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Term (Months)</label>
-              <input disabled={isReadOnly} type="number" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-black" value={ciRecommendation.term} onChange={e => setCiRecommendation({ ...ciRecommendation, term: Number(e.target.value) })} />
+              <input disabled={isReadOnly} type="number" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-black" value={ciRecommendation.term === 0 ? '' : ciRecommendation.term} onChange={e => setCiRecommendation({ ...ciRecommendation, term: Number(e.target.value) })} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Flat Int. Rate (% Monthly)</label>
+              <input disabled={isReadOnly} type="number" step="0.1" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-black" value={ciRecommendation.rate === 0 ? '' : ciRecommendation.rate} onChange={e => setCiRecommendation({ ...ciRecommendation, rate: Number(e.target.value) })} />
             </div>
           </div>
-          <div className="p-4 bg-gray-50 rounded-2xl grid grid-cols-3 gap-4 text-center">
-            <div><p className="text-[8px] font-black text-gray-400 uppercase">Weekly</p><p className="text-xs font-black text-[#4C1D95]">₱ {calcAmort(ciRecommendation).weeklyAmort.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p></div>
-            <div><p className="text-[8px] font-black text-gray-400 uppercase">Semi-Monthly</p><p className="text-xs font-black text-[#4C1D95]">₱ {calcAmort(ciRecommendation).semiMonthlyAmort.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p></div>
-            <div><p className="text-[8px] font-black text-gray-400 uppercase">Monthly</p><p className="text-xs font-black text-[#4C1D95]">₱ {calcAmort(ciRecommendation).monthlyAmort.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p></div>
+          
+          <div className="space-y-2">
+            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">CI Remarks & Justification</label>
+            <textarea 
+              disabled={isReadOnly}
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm h-24 focus:ring-2 focus:ring-[#4C1D95]/20 focus:outline-none"
+              placeholder="Provide detailed breakdown and justification for this recommendation..."
+              value={ciRecommendation.remarks}
+              onChange={e => setCiRecommendation({ ...ciRecommendation, remarks: e.target.value })}
+            />
+          </div>
+
+          <div className="p-6 bg-[#4C1D95]/5 rounded-3xl border border-[#4C1D95]/10 grid grid-cols-1 md:grid-cols-4 gap-6 text-center">
+            <div className="space-y-1">
+              <p className="text-[8px] font-black text-gray-400 uppercase">Total Interest</p>
+              <p className="text-sm font-black text-[#4C1D95]">₱ {calcAmort(ciRecommendation).interest.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[8px] font-black text-gray-400 uppercase">Weekly Amort</p>
+              <p className="text-sm font-black text-green-600">₱ {calcAmort(ciRecommendation).weeklyAmort.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[8px] font-black text-gray-400 uppercase">Semi-Monthly Amort</p>
+              <p className="text-sm font-black text-[#4C1D95]">₱ {calcAmort(ciRecommendation).semiMonthlyAmort.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[8px] font-black text-gray-400 uppercase">Monthly Amort</p>
+              <p className="text-sm font-black text-[#4C1D95]">₱ {calcAmort(ciRecommendation).monthlyAmort.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+            </div>
           </div>
         </div>
 
         {!isReadOnly && (
-          <div className="md:w-64 flex items-end pb-1">
+          <div className="pb-4">
             <button 
               onClick={handleSave}
               disabled={isSaving}

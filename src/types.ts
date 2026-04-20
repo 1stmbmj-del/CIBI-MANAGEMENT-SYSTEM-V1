@@ -64,12 +64,8 @@ export interface CashflowMonth {
 
 export interface CashflowReport {
   liabilities: Liability[];
-  businessIncome: {
-    january: CashflowMonth;
-    february: CashflowMonth;
-    march: CashflowMonth;
-    average: CashflowMonth;
-  };
+  businessIncome: CashflowMonth;
+  otherIncome: number;
   householdExpenses: {
     food: number;
     rent: number;
@@ -109,6 +105,7 @@ export interface CashflowReport {
     monthlyAmort: number;
     semiMonthlyAmort: number;
     weeklyAmort: number;
+    remarks: string;
   };
   operationRecommendation: {
     loanAmount: number;
@@ -118,6 +115,7 @@ export interface CashflowReport {
     monthlyAmort: number;
     semiMonthlyAmort: number;
     weeklyAmort: number;
+    remarks: string;
   };
 }
 
