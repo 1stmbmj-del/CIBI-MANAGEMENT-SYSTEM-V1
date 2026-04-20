@@ -45,61 +45,180 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { format, differenceInMinutes } from 'date-fns';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { auth, db } from './firebase';
+import { 
+  onAuthStateChanged, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut,
+  updateProfile,
+  updatePassword
+} from 'firebase/auth';
+import { 
+  doc, 
+  getDoc, 
+  getDocs, 
+  setDoc, 
+  updateDoc, 
+  deleteDoc, 
+  collection, 
+  query, 
+  where, 
+  onSnapshot,
+  orderBy,
+  limit,
+  Timestamp,
+  getDocFromServer
+} from 'firebase/firestore';
 
 // Utility for tailwind classes
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// API Helpers
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+// API Helpers (Migrated to Firebase)
 const api = {
-  get: async (url: string) => {
-    const token = localStorage.getItem('ams_token');
-    const res = await fetch(url, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (!res.ok) throw new Error(res.statusText);
-    return res.json();
-  },
-  post: async (url: string, data: any) => {
-    const token = localStorage.getItem('ams_token');
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}` 
-      },
-      body: JSON.stringify(data)
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || res.statusText);
+  get: async (path: string) => {
+    try {
+      if (path === '/api/assignments') {
+        const q = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      }
+      if (path === '/api/users') {
+        const snapshot = await getDocs(collection(db, 'users'));
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      }
+      if (path === '/api/officers') {
+        const snapshot = await getDocs(collection(db, 'users'));
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      }
+      if (path === '/api/admin-keys') {
+        const snapshot = await getDocs(collection(db, 'admin_keys'));
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      }
+      throw new Error('Endpoint not implemented in Firebase migration');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, path);
     }
-    return res.json();
   },
-  patch: async (url: string, data: any) => {
-    const token = localStorage.getItem('ams_token');
-    const res = await fetch(url, {
-      method: 'PATCH',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}` 
-      },
-      body: JSON.stringify(data)
-    });
-    if (!res.ok) throw new Error(res.statusText);
-    return res.json();
+  post: async (path: string, data: any) => {
+    try {
+      if (path === '/api/assignments') {
+        const docRef = doc(collection(db, 'assignments'));
+        await setDoc(docRef, { ...data, createdAt: new Date().toISOString() });
+        return { id: docRef.id };
+      }
+      if (path === '/api/admin-keys') {
+        const docRef = doc(db, 'admin_keys', data.key);
+        await setDoc(docRef, { ...data, createdAt: new Date().toISOString(), used: false });
+        return { success: true };
+      }
+      throw new Error('Endpoint not implemented in Firebase migration');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, path);
+    }
   },
-  delete: async (url: string) => {
-    const token = localStorage.getItem('ams_token');
-    const res = await fetch(url, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (!res.ok) throw new Error(res.statusText);
-    return res.json();
+  patch: async (path: string, data: any) => {
+    try {
+      const parts = path.split('/');
+      if (parts[1] === 'api' && parts[2] === 'assignments') {
+        const id = parts[3];
+        await updateDoc(doc(db, 'assignments', id), data);
+        return { success: true };
+      }
+      if (path === '/api/auth/profile') {
+        const user = auth.currentUser;
+        if (!user) throw new Error('Not authenticated');
+        if (data.fullName) {
+          await updateDoc(doc(db, 'users', user.uid), { fullName: data.fullName });
+        }
+        if (data.password) {
+          await updatePassword(user, data.password);
+        }
+        return { success: true };
+      }
+      throw new Error('Endpoint not implemented in Firebase migration');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, path);
+    }
+  },
+  delete: async (path: string) => {
+    try {
+      const parts = path.split('/');
+      if (parts[1] === 'api' && parts[2] === 'users') {
+        const id = parts[3];
+        await deleteDoc(doc(db, 'users', id));
+        return { success: true };
+      }
+      throw new Error('Endpoint not implemented in Firebase migration');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, path);
+    }
   }
 };
+
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if(error instanceof Error && error.message.includes('the client is offline')) {
+      console.error("Please check your Firebase configuration.");
+    }
+  }
+}
+testConnection();
 
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -109,15 +228,20 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('DASHBOARD');
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const token = localStorage.getItem('ams_token');
-      if (token) {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
         try {
-          const userData = await api.get('/api/auth/me');
-          setUser(userData);
-          setCurrentView('dashboard');
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          if (userDoc.exists()) {
+            setUser({ id: firebaseUser.uid, ...userDoc.data() } as UserProfile);
+            setCurrentView('dashboard');
+          } else {
+            await signOut(auth);
+            setUser(null);
+            setCurrentView('login');
+          }
         } catch (err) {
-          localStorage.removeItem('ams_token');
+          console.error('Error fetching user profile:', err);
           setUser(null);
           setCurrentView('login');
         }
@@ -126,12 +250,13 @@ export default function App() {
         setCurrentView('login');
       }
       setLoading(false);
-    };
-    checkAuth();
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('ams_token');
+  const handleLogout = async () => {
+    await signOut(auth);
     setUser(null);
     setCurrentView('login');
   };
@@ -197,12 +322,11 @@ function Login({
     setError('');
     setLoading(true);
     try {
-      const data = await api.post('/api/auth/login', { mobileNumber: mobile, password });
-      localStorage.setItem('ams_token', data.token);
-      setUser(data.user);
-      setCurrentView('dashboard');
+      const email = `${mobile}@ams.com`;
+      await signInWithEmailAndPassword(auth, email, password);
+      // onAuthStateChanged will handle the rest
     } catch (err: any) {
-      setError(err.message || 'Invalid mobile number or password');
+      setError('Invalid mobile number or password');
     } finally {
       setLoading(false);
     }
@@ -302,16 +426,29 @@ function Register({
 
     setLoading(true);
     try {
-      const data = await api.post('/api/auth/register', { 
-        fullName, 
-        mobileNumber: mobile, 
-        role, 
-        password, 
-        adminKey 
-      });
-      localStorage.setItem('ams_token', data.token);
-      setUser(data.user);
-      setCurrentView('dashboard');
+      // Admin key validation
+      if (role === 'admin' && mobile !== '09327481042') {
+        const keyDoc = await getDoc(doc(db, 'admin_keys', adminKey));
+        if (!keyDoc.exists() || keyDoc.data().used) {
+          throw new Error('Invalid or used admin key');
+        }
+        await updateDoc(doc(db, 'admin_keys', adminKey), { used: true });
+      }
+
+      const email = `${mobile}@ams.com`;
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      // Create user profile in Firestore
+      const userData = {
+        fullName,
+        mobileNumber: mobile,
+        role,
+        createdAt: new Date().toISOString()
+      };
+      await setDoc(doc(db, 'users', firebaseUser.uid), userData);
+      
+      // onAuthStateChanged will handle the rest
     } catch (err: any) {
       setError(err.message || 'Registration failed');
     } finally {
@@ -565,44 +702,41 @@ function DashboardOverview() {
   const [chartData, setChartData] = useState<any[]>([]);
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const assignments: Assignment[] = await api.get('/api/assignments');
-        setStats({
-          total: assignments.length,
-          pending: assignments.filter(a => !['Completed', 'Approved', 'Denied'].includes(a.status)).length,
-          completed: assignments.filter(a => a.status === 'Completed').length,
-          approved: assignments.filter(a => a.status === 'Approved').length,
-          denied: assignments.filter(a => a.status === 'Denied').length
-        });
+    const q = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const assignments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
+      
+      setStats({
+        total: assignments.length,
+        pending: assignments.filter(a => !['Completed', 'Approved', 'Denied'].includes(a.status)).length,
+        completed: assignments.filter(a => a.status === 'Completed').length,
+        approved: assignments.filter(a => a.status === 'Approved').length,
+        denied: assignments.filter(a => a.status === 'Denied').length
+      });
 
-        // Chart data for status distribution
-        const statusData = [
-          { name: 'Pending', value: assignments.filter(a => !['Completed', 'Approved', 'Denied'].includes(a.status)).length },
-          { name: 'Completed', value: assignments.filter(a => a.status === 'Completed').length },
-          { name: 'Approved', value: assignments.filter(a => a.status === 'Approved').length },
-          { name: 'Denied', value: assignments.filter(a => a.status === 'Denied').length }
-        ];
-        setChartData(statusData);
+      const statusData = [
+        { name: 'Pending', value: assignments.filter(a => !['Completed', 'Approved', 'Denied'].includes(a.status)).length },
+        { name: 'Completed', value: assignments.filter(a => a.status === 'Completed').length },
+        { name: 'Approved', value: assignments.filter(a => a.status === 'Approved').length },
+        { name: 'Denied', value: assignments.filter(a => a.status === 'Denied').length }
+      ];
+      setChartData(statusData);
 
-        // Extract recent activities from timelines
-        const activities = assignments.flatMap(a => 
-          a.timeline.map(t => ({
-            ...t,
-            borrowerName: a.borrowerName,
-            id: a.id
-          }))
-        ).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-        .slice(0, 10);
+      const activities = assignments.flatMap(a => 
+        a.timeline.map(t => ({
+          ...t,
+          borrowerName: a.borrowerName,
+          id: a.id
+        }))
+      ).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 10);
 
-        setRecentActivity(activities);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchStats();
-    const interval = setInterval(fetchStats, 10000);
-    return () => clearInterval(interval);
+      setRecentActivity(activities);
+    }, (err) => {
+      console.error('Firestore error in DashboardOverview:', err);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const exportToCSV = () => {
@@ -733,26 +867,24 @@ function UserManagement() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchUsers = async () => {
-    try {
-      const data = await api.get('/api/users');
-      setUsers(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchUsers();
+    const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setUsers(data);
+      setLoading(false);
+    }, (err) => {
+      console.error('Firestore error in UserManagement:', err);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this user?')) return;
     try {
       await api.delete(`/api/users/${id}`);
-      fetchUsers();
     } catch (err) {
       console.error(err);
     }
@@ -825,34 +957,34 @@ function CIDashboard({ user }: { user: UserProfile }) {
   const [performanceData, setPerformanceData] = useState<any[]>([]);
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const assignments: Assignment[] = await api.get('/api/assignments');
-        setStats({
-          total: assignments.length,
-          assigned: assignments.filter(a => a.status === 'Assigned').length,
-          completed: assignments.filter(a => a.status === 'Completed').length,
-          approved: assignments.filter(a => a.status === 'Approved').length
-        });
+    const q = query(collection(db, 'assignments'), where('ciOfficerId', '==', user.id));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const assignments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
+      
+      setStats({
+        total: assignments.length,
+        assigned: assignments.filter(a => a.status === 'Assigned').length,
+        completed: assignments.filter(a => a.status === 'Completed').length,
+        approved: assignments.filter(a => a.status === 'Approved').length
+      });
 
-        // Group by date for performance chart
-        const last7Days = Array.from({ length: 7 }, (_, i) => {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
-          return format(d, 'MMM d');
-        }).reverse();
+      const last7Days = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        return format(d, 'MMM d');
+      }).reverse();
 
-        const data = last7Days.map(day => {
-          const count = assignments.filter(a => format(new Date(a.createdAt), 'MMM d') === day).length;
-          return { name: day, tasks: count };
-        });
-        setPerformanceData(data);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchStats();
-  }, []);
+      const data = last7Days.map(day => {
+        const count = assignments.filter(a => format(new Date(a.createdAt), 'MMM d') === day).length;
+        return { name: day, tasks: count };
+      });
+      setPerformanceData(data);
+    }, (err) => {
+      console.error('Firestore error in CIDashboard:', err);
+    });
+
+    return () => unsubscribe();
+  }, [user.id]);
 
   return (
     <motion.div 
@@ -1031,15 +1163,15 @@ function AssignAccount({ user }: { user: UserProfile }) {
   });
 
   useEffect(() => {
-    const fetchOfficers = async () => {
-      try {
-        const officers = await api.get('/api/officers');
-        setCiOfficers(officers);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchOfficers();
+    const q = query(collection(db, 'users'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const officers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as UserProfile[];
+      setCiOfficers(officers);
+    }, (err) => {
+      console.error('Firestore error in AssignAccount:', err);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1239,20 +1371,18 @@ function AccountStatus({ user }: { user: UserProfile }) {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    const fetchAssignments = async () => {
-      try {
-        const data = await api.get('/api/assignments');
-        setAssignments(data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAssignments();
-    const interval = setInterval(fetchAssignments, 5000);
-    return () => clearInterval(interval);
-  }, [user]);
+    const q = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
+      setAssignments(data);
+      setLoading(false);
+    }, (err) => {
+      console.error('Firestore error in AccountStatus:', err);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const steps = [
     'Assigned',
@@ -1450,19 +1580,17 @@ function ProcessAccounts({ user }: { user: UserProfile }) {
   });
 
   useEffect(() => {
-    const fetchAssignments = async () => {
-      try {
-        const data = await api.get('/api/assignments');
-        setAssignments(data.filter((a: any) => a.status === 'Completed'));
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAssignments();
-    const interval = setInterval(fetchAssignments, 5000);
-    return () => clearInterval(interval);
+    const q = query(collection(db, 'assignments'), where('status', '==', 'Completed'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
+      setAssignments(data);
+      setLoading(false);
+    }, (err) => {
+      console.error('Firestore error in ProcessAccounts:', err);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const handleApprove = async () => {
@@ -1641,23 +1769,22 @@ function AdminKeys({ user }: { user: UserProfile }) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const fetchKeys = async () => {
-      try {
-        const data = await api.get('/api/admin-keys');
-        setKeys(data);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchKeys();
-    const interval = setInterval(fetchKeys, 5000);
-    return () => clearInterval(interval);
+    const q = query(collection(db, 'admin_keys'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setKeys(data);
+    }, (err) => {
+      console.error('Firestore error in AdminKeys:', err);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const generateKey = async () => {
     setLoading(true);
     try {
-      await api.post('/api/admin-keys', {});
+      const key = Math.random().toString(36).substring(2, 10).toUpperCase();
+      await api.post('/api/admin-keys', { key, createdBy: user.fullName });
     } catch (err) {
       console.error(err);
     } finally {
@@ -1708,17 +1835,15 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
   });
 
   useEffect(() => {
-    const fetchAssignments = async () => {
-      try {
-        const data = await api.get('/api/assignments');
-        setAssignments(data.filter((a: any) => a.status === 'Approved'));
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchAssignments();
-    const interval = setInterval(fetchAssignments, 5000);
-    return () => clearInterval(interval);
+    const q = query(collection(db, 'assignments'), where('status', '==', 'Approved'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
+      setAssignments(data);
+    }, (err) => {
+      console.error('Firestore error in ValidationSurvey:', err);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const handleSubmit = async () => {

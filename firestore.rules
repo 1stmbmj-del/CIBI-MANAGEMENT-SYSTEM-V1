@@ -1,0 +1,101 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (UID from Auth)
+    // Fields:
+    //   - fullName: string (required)
+    //   - mobileNumber: string (required)
+    //   - role: string (required, 'admin' or 'user')
+    //   - photoURL: string (optional)
+    //   - createdAt: string (required)
+    //
+    // Collection: admin_keys
+    // Document ID: key string
+    // Fields:
+    //   - key: string (required)
+    //   - used: bool (required)
+    //   - createdBy: string (optional)
+    //   - createdAt: string (required)
+    //
+    // Collection: assignments
+    // Document ID: auto-generated
+    // Fields:
+    //   - borrowerName: string (required)
+    //   - mobileNumber: string (required)
+    //   - ciOfficerId: string (required)
+    //   - status: string (required)
+    //   - timeline: list (required)
+    //   ... other fields
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "1stmb.mj@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['fullName', 'mobileNumber', 'role', 'createdAt']) &&
+             data.fullName is string && data.fullName.size() > 0 && data.fullName.size() < 100 &&
+             data.mobileNumber is string && data.mobileNumber.size() >= 10 &&
+             data.role in ['admin', 'user'] &&
+             data.createdAt is string;
+    }
+
+    function isValidAssignment(data) {
+      return data.keys().hasAll(['borrowerName', 'mobileNumber', 'ciOfficerId', 'status', 'timeline', 'createdAt']) &&
+             data.borrowerName is string && data.borrowerName.size() > 0 &&
+             data.mobileNumber is string &&
+             data.ciOfficerId is string &&
+             data.status is string &&
+             data.timeline is list &&
+             data.createdAt is string;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    (isOwner(userId) || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    (isOwner(userId) || isAdmin()) &&
+                    (request.resource.data.role == resource.data.role || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /admin_keys/{keyId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin();
+      allow update: if isAuthenticated() && (isAdmin() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used']) && request.resource.data.used == true));
+      allow delete: if isAdmin();
+    }
+
+    match /assignments/{assignmentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isValidAssignment(request.resource.data);
+      allow update: if isAuthenticated() && isValidAssignment(request.resource.data) &&
+                    (isAdmin() || request.auth.uid == resource.data.ciOfficerId);
+      allow delete: if isAdmin();
+    }
+  }
+}

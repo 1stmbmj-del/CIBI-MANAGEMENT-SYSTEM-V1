@@ -1,0 +1,79 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Application user profile",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string" },
+        "mobileNumber": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fullName", "mobileNumber", "role", "createdAt"]
+    },
+    "AdminKey": {
+      "title": "AdminKey",
+      "description": "Keys used to register as admin",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "used": { "type": "boolean" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["key", "used", "createdAt"]
+    },
+    "Assignment": {
+      "title": "Assignment",
+      "description": "Loan assignment details",
+      "type": "object",
+      "properties": {
+        "borrowerName": { "type": "string" },
+        "mobileNumber": { "type": "string" },
+        "accountType": { "type": "string" },
+        "location": { "type": "string" },
+        "tribe": { "type": "string" },
+        "businessPin": { "type": "string" },
+        "addressPin": { "type": "string" },
+        "requestedAmount": { "type": "number" },
+        "term": { "type": "string" },
+        "intRate": { "type": "number" },
+        "mop": { "type": "string" },
+        "top": { "type": "string" },
+        "ciOfficerId": { "type": "string" },
+        "ciOfficerName": { "type": "string" },
+        "status": { "type": "string" },
+        "timeline": { "type": "array", "items": { "type": "object" } },
+        "approvedAmount": { "type": "number" },
+        "approvedTerm": { "type": "string" },
+        "approvedIntRate": { "type": "number" },
+        "approvedMop": { "type": "string" },
+        "approvedTop": { "type": "string" },
+        "crecomComments": { "type": "string" },
+        "netIncome": { "type": "number" },
+        "ndiPercentage": { "type": "number" },
+        "ndiValue": { "type": "number" },
+        "validationResults": { "type": "object" },
+        "deniedComments": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["borrowerName", "mobileNumber", "accountType", "location", "tribe", "requestedAmount", "term", "intRate", "mop", "top", "ciOfficerId", "ciOfficerName", "status", "timeline", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/admin_keys/{keyId}": {
+      "schema": "AdminKey",
+      "description": "Registration keys"
+    },
+    "/assignments/{assignmentId}": {
+      "schema": "Assignment",
+      "description": "Loan assignments"
+    }
+  }
+}

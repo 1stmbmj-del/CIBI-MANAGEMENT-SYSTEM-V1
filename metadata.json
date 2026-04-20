@@ -1,5 +1,5 @@
 {
   "name": "AMS Portal",
-  "description": "Modern Attendance and Loan Management System for Employee Portal.",
+  "description": "Modern Attendance and Loan Management System with Firebase integration.",
   "requestFramePermissions": ["camera", "microphone"]
 }
