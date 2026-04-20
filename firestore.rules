@@ -37,35 +37,67 @@ service cloud.firestore {
     // ===============================================================
     // Helper Functions
     // ===============================================================
-    function isAuthenticated() {
+    function isSignedIn() {
       return request.auth != null;
     }
 
+    function isVerified() {
+      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.email == "1stmb.mj@gmail.com");
+    }
+
     function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
     function isAdmin() {
-      return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "1stmb.mj@gmail.com" && request.auth.token.email_verified == true));
+      return isVerified() && (
+        (request.auth.token.email == "1stmb.mj@gmail.com") ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")
+      );
     }
 
     function isValidUser(data) {
-      return data.keys().hasAll(['fullName', 'mobileNumber', 'role', 'createdAt']) &&
+      return data.keys().hasAll(['fullName', 'mobileNumber', 'email', 'role', 'createdAt']) &&
              data.fullName is string && data.fullName.size() > 0 && data.fullName.size() < 100 &&
-             data.mobileNumber is string && data.mobileNumber.size() >= 10 &&
+             data.mobileNumber is string && (data.mobileNumber == "" || data.mobileNumber.size() >= 10) &&
+             data.email is string && data.email.size() > 0 &&
              data.role in ['admin', 'user'] &&
              data.createdAt is string;
     }
 
     function isValidAssignment(data) {
       return data.keys().hasAll(['borrowerName', 'mobileNumber', 'ciOfficerId', 'status', 'timeline', 'createdAt']) &&
-             data.borrowerName is string && data.borrowerName.size() > 0 &&
+             data.borrowerName is string && data.borrowerName.size() > 0 && data.borrowerName.size() < 200 &&
              data.mobileNumber is string &&
              data.ciOfficerId is string &&
              data.status is string &&
              data.timeline is list &&
+             data.createdAt is string &&
+             (!data.keys().contains('creditScore') || (
+               data.creditScore is map &&
+               data.creditScore.character is number &&
+               data.creditScore.capacity is number &&
+               data.creditScore.capital is number &&
+               data.creditScore.condition is number &&
+               data.creditScore.collateral is number &&
+               data.creditScore.totalScore is number &&
+               data.creditScore.recommendation in ['Approved', 'Declined', 'Conditional'] &&
+               data.creditScore.ciRemarks is string
+             ));
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['userId', 'title', 'message', 'type', 'read', 'createdAt']) &&
+             data.userId is string &&
+             data.title is string && data.title.size() < 200 &&
+             data.message is string && data.message.size() < 1000 &&
+             data.type in ['info', 'assignment', 'status_change'] &&
+             data.read is bool &&
              data.createdAt is string;
     }
 
@@ -73,27 +105,37 @@ service cloud.firestore {
     // Rules
     // ===============================================================
 
+    match /notifications/{notificationId} {
+      // Use resource.data check for list since it's the recipient
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidNotification(request.resource.data);
+      allow update: if isOwner(resource.data.userId) && 
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidUser(request.resource.data) && 
                     (isOwner(userId) || isAdmin());
-      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
+      allow update: if isVerified() && isValidUser(request.resource.data) && 
                     (isOwner(userId) || isAdmin()) &&
                     (request.resource.data.role == resource.data.role || isAdmin());
       allow delete: if isAdmin();
     }
 
     match /admin_keys/{keyId} {
-      allow read: if isAuthenticated();
+      allow read: if isSignedIn();
       allow create: if isAdmin();
-      allow update: if isAuthenticated() && (isAdmin() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used']) && request.resource.data.used == true));
+      allow update: if isSignedIn() && (isAdmin() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used']) && request.resource.data.used == true));
       allow delete: if isAdmin();
     }
 
     match /assignments/{assignmentId} {
-      allow read: if isAuthenticated();
+      allow read: if isSignedIn();
       allow create: if isAdmin() && isValidAssignment(request.resource.data);
-      allow update: if isAuthenticated() && isValidAssignment(request.resource.data) &&
+      allow update: if isVerified() && isValidAssignment(request.resource.data) &&
                     (isAdmin() || request.auth.uid == resource.data.ciOfficerId);
       allow delete: if isAdmin();
     }

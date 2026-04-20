@@ -7,11 +7,12 @@
       "properties": {
         "fullName": { "type": "string" },
         "mobileNumber": { "type": "string" },
+        "email": { "type": "string" },
         "role": { "type": "string", "enum": ["admin", "user"] },
         "photoURL": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["fullName", "mobileNumber", "role", "createdAt"]
+      "required": ["fullName", "mobileNumber", "email", "role", "createdAt"]
     },
     "AdminKey": {
       "title": "AdminKey",
@@ -56,10 +57,64 @@
         "ndiPercentage": { "type": "number" },
         "ndiValue": { "type": "number" },
         "validationResults": { "type": "object" },
+        "creditScore": {
+          "type": "object",
+          "properties": {
+            "neighbor1": { "type": "string" },
+            "neighbor2": { "type": "string" },
+            "barangayVerification": { "type": "string" },
+            "loanHistory": { "type": "string" },
+            "goodCreditBackground": { "type": "string" },
+            "cooperationOfApplicant": { "type": "string" },
+            "totalAssetLiabilities": { "type": "string" },
+            "houseOwnership": { "type": "string" },
+            "childrenSchooling": { "type": "string" },
+            "residingDuration": { "type": "string" },
+            "houseMaterials": { "type": "string" },
+            "businessLocation": { "type": "string" },
+            "floodProne": { "type": "string" },
+            "footTraffic": { "type": "string" },
+            "businessSpace": { "type": "string" },
+            "permitType": { "type": "string" },
+            "businessDuration": { "type": "string" },
+            "inventoryVsSales": { "type": "string" },
+            "loanVsCashflow": { "type": "string" },
+            "otherIncome": { "type": "string" },
+            "businessKnowledge": { "type": "string" },
+            "watchBusiness": { "type": "string" },
+            "bankAccount": { "type": "string" },
+            "cicCmapFindings": { "type": "string" },
+            "medicalCondition": { "type": "string" },
+            "civilStatus": { "type": "string" },
+            "ageGroup": { "type": "string" },
+            "educationalAttainment": { "type": "string" },
+            "loanType": { "type": "string" },
+            "sectionGrades": { "type": "object" },
+            "totalGrade": { "type": "number" },
+            "riskScore": { "type": "number" },
+            "recommendation": { "type": "string", "enum": ["Approved", "Declined", "Conditional"] },
+            "ciRemarks": { "type": "string" }
+          }
+        },
         "deniedComments": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["borrowerName", "mobileNumber", "accountType", "location", "tribe", "requestedAmount", "term", "intRate", "mop", "top", "ciOfficerId", "ciOfficerName", "status", "timeline", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Real-time alerts for CI Officers",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["info", "assignment", "status_change"] },
+        "assignmentId": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "message", "type", "read", "createdAt"]
     }
   },
   "firestore": {
@@ -74,6 +129,10 @@
     "/assignments/{assignmentId}": {
       "schema": "Assignment",
       "description": "Loan assignments"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "User notifications"
     }
   }
 }

@@ -4,6 +4,7 @@ export interface UserProfile {
   id: string;
   fullName: string;
   mobileNumber: string;
+  email: string;
   role: UserRole;
   photoURL?: string;
   createdAt: string;
@@ -41,6 +42,63 @@ export interface ValidationResults {
   didExplainDeductions: boolean;
 }
 
+export interface CreditScore {
+  // Character
+  neighbor1: 'Good' | 'Poor';
+  neighbor2: 'Good' | 'Poor';
+  barangayVerification: 'No Bad Records' | 'With Bad Records';
+  loanHistory: 'Yes' | 'No';
+  goodCreditBackground: 'Yes' | 'No' | 'None';
+  cooperationOfApplicant: 'Very Cooperative' | 'Cooperative' | 'Poor';
+  
+  // Capital
+  totalAssetLiabilities: 'Yes' | 'No';
+  
+  // Stability
+  houseOwnership: 'Owned' | 'Mortgage' | 'Rented' | 'Residing w/ Relatives';
+  childrenSchooling: 'Yes' | 'No';
+  residingDuration: 'More Than 5yrs.' | '4yrs - 3yrs.' | 'Less than 1yr.';
+  houseMaterials: 'Concrete' | 'Semi-Concrete' | 'Light Materials';
+  
+  // Business Status
+  businessLocation: 'Commercial' | 'Residential' | 'Public Market';
+  floodProne: 'Yes' | 'No';
+  footTraffic: 'Good' | 'Poor';
+  businessSpace: 'Owned' | 'Rent Free' | 'Rented';
+  permitType: "Mayor's Permit" | 'Barangay / DTI';
+  businessDuration: 'More than 10 yrs.' | '5 yrs. - 10 yrs.' | '1 yr. - 5 yrs.';
+  inventoryVsSales: 'Good' | 'Minimal' | 'Poor';
+
+  // Financial & Maturity
+  loanVsCashflow: 'Yes' | 'No';
+  otherIncome: 'Yes' | 'No';
+  businessKnowledge: 'Yes' | 'No';
+  watchBusiness: 'Full Time' | 'Limited';
+  bankAccount: 'CA & SA' | 'CA or SA' | 'None';
+  cicCmapFindings: 'Current Status' | 'With Past Due' | 'None';
+
+  // Other Personal
+  medicalCondition: 'Yes' | 'No';
+  civilStatus: 'Married' | 'Live-in' | 'Single';
+  ageGroup: '20-65' | '<20 or >65';
+  educationalAttainment: 'College Graduate' | 'College Undergrad' | 'HS Graduate' | 'HS Undergrad' | 'Elem. Graduate' | 'Elem. Undergrad';
+  loanType: 'Renewal' | 'New' | 'New - APL';
+
+  // Summaries
+  sectionGrades: {
+    character: number;
+    capital: number;
+    stability: number;
+    businessStatus: number;
+    financialMaturity: number;
+    personalStatus: number;
+  };
+  totalGrade: number;
+  riskScore: number;
+  recommendation: 'Approved' | 'Declined' | 'Conditional';
+  ciRemarks: string;
+}
+
 export interface Assignment {
   id: string;
   borrowerName: string;
@@ -69,6 +127,18 @@ export interface Assignment {
   ndiPercentage?: 30 | 40 | 50;
   ndiValue?: number;
   validationResults?: ValidationResults;
+  creditScore?: CreditScore;
   deniedComments?: string;
+  createdAt: string;
+}
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'info' | 'assignment' | 'status_change';
+  assignmentId?: string;
+  read: boolean;
   createdAt: string;
 }

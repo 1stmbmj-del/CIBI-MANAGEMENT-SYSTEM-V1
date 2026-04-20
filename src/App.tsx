@@ -37,14 +37,19 @@ import {
   Search,
   Users,
   Trash2,
+  Pencil,
   Download,
   Settings as UserSettings,
-  FileText
+  FileText,
+  Bell
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, differenceInMinutes } from 'date-fns';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { auth, db } from './firebase';
 import { 
   onAuthStateChanged, 
@@ -52,7 +57,9 @@ import {
   createUserWithEmailAndPassword, 
   signOut,
   updateProfile,
-  updatePassword
+  updatePassword,
+  GoogleAuthProvider,
+  signInWithPopup
 } from 'firebase/auth';
 import { 
   doc, 
@@ -68,8 +75,11 @@ import {
   orderBy,
   limit,
   Timestamp,
-  getDocFromServer
+  getDocFromServer,
+  addDoc
 } from 'firebase/firestore';
+
+import { AppNotification } from './types';
 
 // Utility for tailwind classes
 function cn(...inputs: ClassValue[]) {
@@ -103,6 +113,22 @@ interface FirestoreErrorInfo {
     }[];
   }
 }
+
+const createNotification = async (userId: string, title: string, message: string, type: string, assignmentId?: string) => {
+  try {
+    await addDoc(collection(db, 'notifications'), {
+      userId,
+      title,
+      message,
+      type,
+      assignmentId: assignmentId || null,
+      read: false,
+      createdAt: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Failed to create notification:', err);
+  }
+};
 
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo: FirestoreErrorInfo = {
@@ -181,29 +207,56 @@ const api = {
       if (path === '/api/auth/profile') {
         const user = auth.currentUser;
         if (!user) throw new Error('Not authenticated');
-        if (data.fullName) {
-          await updateDoc(doc(db, 'users', user.uid), { fullName: data.fullName });
+        const updateData: any = {};
+        if (data.fullName) updateData.fullName = data.fullName;
+        if (data.mobileNumber) updateData.mobileNumber = data.mobileNumber;
+        
+        if (Object.keys(updateData).length > 0) {
+          await updateDoc(doc(db, 'users', user.uid), updateData);
         }
+        
         if (data.password) {
           await updatePassword(user, data.password);
         }
         return { success: true };
       }
-      throw new Error('Endpoint not implemented in Firebase migration');
+      if (parts[1] === 'api' && parts[2] === 'users') {
+        const id = parts[3];
+        await updateDoc(doc(db, 'users', id), data);
+        return { success: true };
+      }
+      throw new Error(`Endpoint not implemented: ${path}`);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
     }
   },
   delete: async (path: string) => {
+    console.log(`API DELETE: ${path}`);
     try {
       const parts = path.split('/');
-      if (parts[1] === 'api' && parts[2] === 'users') {
-        const id = parts[3];
-        await deleteDoc(doc(db, 'users', id));
-        return { success: true };
+      if (parts[1] === 'api') {
+        if (parts[2] === 'users') {
+          const id = parts[3];
+          console.log(`Deleting user: ${id}`);
+          await deleteDoc(doc(db, 'users', id));
+          return { success: true };
+        }
+        if (parts[2] === 'assignments') {
+          const id = parts[3];
+          console.log(`Deleting assignment: ${id}`);
+          await deleteDoc(doc(db, 'assignments', id));
+          return { success: true };
+        }
+        if (parts[2] === 'admin-keys') {
+          const id = parts[3];
+          console.log(`Deleting admin key: ${id}`);
+          await deleteDoc(doc(db, 'admin_keys', id));
+          return { success: true };
+        }
       }
-      throw new Error('Endpoint not implemented in Firebase migration');
+      throw new Error(`Endpoint not implemented: ${path}`);
     } catch (error) {
+      console.error('API DELETE ERROR:', error);
       handleFirestoreError(error, OperationType.DELETE, path);
     }
   }
@@ -232,16 +285,29 @@ export default function App() {
       if (firebaseUser) {
         try {
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          const superAdmins = ['1stmb.mj@gmail.com'];
+          const isSuperAdmin = superAdmins.includes(firebaseUser.email || '');
+
           if (userDoc.exists()) {
-            setUser({ id: firebaseUser.uid, ...userDoc.data() } as UserProfile);
+            const data = userDoc.data();
+            const role = isSuperAdmin ? 'admin' : data.role;
+            setUser({ id: firebaseUser.uid, ...data, role } as UserProfile);
             setCurrentView('dashboard');
           } else {
-            await signOut(auth);
-            setUser(null);
-            setCurrentView('login');
+            // Handle first-time Google sign-in by creating a profile
+            const userData = {
+              fullName: firebaseUser.displayName || 'Unnamed User',
+              mobileNumber: '',
+              email: firebaseUser.email || '',
+              role: isSuperAdmin ? 'admin' : 'user',
+              createdAt: new Date().toISOString()
+            };
+            await setDoc(doc(db, 'users', firebaseUser.uid), userData);
+            setUser({ id: firebaseUser.uid, ...userData } as UserProfile);
+            setCurrentView('dashboard');
           }
         } catch (err) {
-          console.error('Error fetching user profile:', err);
+          console.error('Error fetching/creating user profile:', err);
           setUser(null);
           setCurrentView('login');
         }
@@ -312,7 +378,7 @@ function Login({
   setUser: (u: UserProfile) => void; 
   setCurrentView: (v: any) => void; 
 }) {
-  const [mobile, setMobile] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -322,11 +388,24 @@ function Login({
     setError('');
     setLoading(true);
     try {
-      const email = `${mobile}@ams.com`;
       await signInWithEmailAndPassword(auth, email, password);
       // onAuthStateChanged will handle the rest
     } catch (err: any) {
-      setError('Invalid mobile number or password');
+      setError('Invalid email or password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      // onAuthStateChanged will handle profile creation if needed
+    } catch (err: any) {
+      setError(err.message || 'Google sign-in failed');
     } finally {
       setLoading(false);
     }
@@ -349,11 +428,11 @@ function Login({
           <form className="space-y-4" onSubmit={handleLogin}>
             <div>
               <input
-                type="text"
-                placeholder="Mobile Number"
+                type="email"
+                placeholder="Email Address"
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/20"
-                value={mobile}
-                onChange={(e) => setMobile(e.target.value)}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
               />
             </div>
@@ -376,6 +455,41 @@ function Login({
               {loading ? 'SECURE LOGGING IN...' : 'SECURE LOG IN'}
             </button>
           </form>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-100"></div>
+            </div>
+            <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
+              <span className="bg-white px-4 text-gray-400">Or continue with</span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleGoogleSignIn}
+            disabled={loading}
+            className="w-full py-3 bg-white border border-gray-100 text-gray-600 font-bold rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 shadow-sm"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <path
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                fill="#4285F4"
+              />
+              <path
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                fill="#34A853"
+              />
+              <path
+                d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.84z"
+                fill="#FBBC05"
+              />
+              <path
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                fill="#EA4335"
+              />
+            </svg>
+            GOOGLE
+          </button>
           
           <div className="text-center">
             <button 
@@ -408,6 +522,7 @@ function Register({
   setCurrentView: (v: any) => void; 
 }) {
   const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
   const [role, setRole] = useState<UserRole>('user');
   const [password, setPassword] = useState('');
@@ -419,6 +534,7 @@ function Register({
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    const superAdmins = ['1stmb.mj@gmail.com'];
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -427,7 +543,7 @@ function Register({
     setLoading(true);
     try {
       // Admin key validation
-      if (role === 'admin' && mobile !== '09327481042') {
+      if (role === 'admin' && !superAdmins.includes(email)) {
         const keyDoc = await getDoc(doc(db, 'admin_keys', adminKey));
         if (!keyDoc.exists() || keyDoc.data().used) {
           throw new Error('Invalid or used admin key');
@@ -435,15 +551,18 @@ function Register({
         await updateDoc(doc(db, 'admin_keys', adminKey), { used: true });
       }
 
-      const email = `${mobile}@ams.com`;
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
+
+      // Assign admin role if email matches a super admin
+      const assignedRole = superAdmins.includes(email) ? 'admin' : role;
 
       // Create user profile in Firestore
       const userData = {
         fullName,
         mobileNumber: mobile,
-        role,
+        email,
+        role: assignedRole,
         createdAt: new Date().toISOString()
       };
       await setDoc(doc(db, 'users', firebaseUser.uid), userData);
@@ -451,6 +570,20 @@ function Register({
       // onAuthStateChanged will handle the rest
     } catch (err: any) {
       setError(err.message || 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      // onAuthStateChanged will handle profile creation if needed
+    } catch (err: any) {
+      setError(err.message || 'Google sign-in failed');
     } finally {
       setLoading(false);
     }
@@ -485,6 +618,14 @@ function Register({
               onChange={(e) => setFullName(e.target.value)}
               required
             />
+            <input
+              type="email"
+              placeholder="Email Address"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/20"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
             <div className="flex gap-2">
               <input
                 type="text"
@@ -503,7 +644,7 @@ function Register({
                 <option value="admin">Admin</option>
               </select>
             </div>
-            {role === 'admin' && mobile !== '09327481042' && (
+            {role === 'admin' && !['1stmb.mj@gmail.com'].includes(email) && (
               <input
                 type="text"
                 placeholder="Admin Key (4 digits)"
@@ -538,6 +679,41 @@ function Register({
               {loading ? 'SIGNING UP...' : 'SIGN UP'}
             </button>
           </form>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-100"></div>
+            </div>
+            <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
+              <span className="bg-white px-4 text-gray-400">Or continue with</span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleGoogleSignIn}
+            disabled={loading}
+            className="w-full py-3 bg-white border border-gray-100 text-gray-600 font-bold rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 shadow-sm"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <path
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                fill="#4285F4"
+              />
+              <path
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                fill="#34A853"
+              />
+              <path
+                d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.84z"
+                fill="#FBBC05"
+              />
+              <path
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                fill="#EA4335"
+              />
+            </svg>
+            GOOGLE
+          </button>
           
           <div className="text-center">
             <button 
@@ -578,6 +754,42 @@ function Dashboard({
   handleLogout: () => void;
 }) {
   const isAdmin = user.role === 'admin';
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.id),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AppNotification[];
+      setNotifications(data);
+    }, (err) => {
+      console.error('Firestore notification listener error:', err);
+    });
+    return () => unsubscribe();
+  }, [user.id]);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const markAsRead = async (notifId: string) => {
+    try {
+      await updateDoc(doc(db, 'notifications', notifId), { read: true });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    const unread = notifications.filter(n => !n.read);
+    for (const n of unread) {
+      await updateDoc(doc(db, 'notifications', n.id), { read: true });
+    }
+    setShowNotifications(false);
+  };
 
   const menuItems = isAdmin ? [
     { id: 'DASHBOARD', icon: LayoutDashboard },
@@ -585,12 +797,14 @@ function Dashboard({
     { id: 'ASSIGN ACCOUNT', icon: UserPlus },
     { id: 'ACCOUNT STATUS', icon: ClipboardList },
     { id: 'PROCESS ACCOUNTS', icon: CheckCircle2 },
+    { id: 'REPORTS', icon: FileText },
     { id: 'ADMIN KEYS', icon: Key },
     { id: 'PROFILE', icon: UserSettings },
   ] : [
     { id: 'DASHBOARD', icon: LayoutDashboard },
     { id: 'ACCOUNT STATUS', icon: ClipboardList },
     { id: 'FOR VALIDATION & SURVEY', icon: CheckCircle2 },
+    { id: 'REPORTS', icon: FileText },
     { id: 'PROFILE', icon: UserSettings },
   ];
 
@@ -659,11 +873,74 @@ function Dashboard({
               />
             </div>
             
-            <div className="flex items-center space-x-4">
-              <button className="relative text-gray-400 hover:text-[#4C1D95]">
-                <AlertCircle size={20} />
-                <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+            <div className="flex items-center space-x-4 relative">
+              <button 
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="relative text-gray-400 hover:text-[#4C1D95] transition-colors"
+              >
+                <Bell size={20} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[8px] font-black flex items-center justify-center rounded-full border-2 border-white animate-bounce">
+                    {unreadCount}
+                  </span>
+                )}
               </button>
+
+              <AnimatePresence>
+                {showNotifications && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-30" 
+                      onClick={() => setShowNotifications(false)} 
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute right-0 top-10 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-40 overflow-hidden"
+                    >
+                      <div className="p-4 bg-[#4C1D95] text-white flex justify-between items-center">
+                        <h3 className="text-[10px] font-black uppercase tracking-widest">Notifications</h3>
+                        {unreadCount > 0 && (
+                          <button 
+                            onClick={markAllAsRead}
+                            className="text-[8px] font-bold uppercase tracking-widest hover:underline"
+                          >
+                            Mark all as read
+                          </button>
+                        )}
+                      </div>
+                      <div className="max-h-96 overflow-y-auto divide-y divide-gray-50">
+                        {notifications.length === 0 ? (
+                          <div className="p-8 text-center text-gray-400">
+                            <Bell size={24} className="mx-auto mb-2 opacity-20" />
+                            <p className="text-[10px] font-bold uppercase tracking-widest">No notifications yet</p>
+                          </div>
+                        ) : (
+                          notifications.map((n) => (
+                            <div 
+                              key={n.id} 
+                              onClick={() => markAsRead(n.id)}
+                              className={cn(
+                                "p-4 cursor-pointer hover:bg-gray-50 transition-colors",
+                                !n.read && "bg-blue-50/30"
+                              )}
+                            >
+                              <div className="flex justify-between items-start mb-1">
+                                <span className="text-[10px] font-black text-[#4C1D95] uppercase tracking-tight">{n.title}</span>
+                                <span className="text-[8px] font-mono text-gray-400">{format(new Date(n.createdAt), 'h:mm a')}</span>
+                              </div>
+                              <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">{n.message}</p>
+                              {!n.read && <div className="mt-2 w-1.5 h-1.5 bg-blue-500 rounded-full" />}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+
               <div className="text-[10px] text-gray-400 font-medium">
                 {format(new Date(), 'M/d/yyyy')}
               </div>
@@ -674,10 +951,11 @@ function Dashboard({
         <div className="flex-1 overflow-y-auto p-8">
           <AnimatePresence mode="wait">
             {activeTab === 'DASHBOARD' && (isAdmin ? <DashboardOverview /> : <CIDashboard user={user} />)}
-            {activeTab === 'USERS' && <UserManagement />}
+            {activeTab === 'USERS' && <UserManagement user={user} />}
             {activeTab === 'ASSIGN ACCOUNT' && <AssignAccount user={user} />}
             {activeTab === 'ACCOUNT STATUS' && <AccountStatus user={user} />}
             {activeTab === 'PROCESS ACCOUNTS' && <ProcessAccounts user={user} />}
+            {activeTab === 'REPORTS' && <ReportsView user={user} />}
             {activeTab === 'ADMIN KEYS' && <AdminKeys user={user} />}
             {activeTab === 'FOR VALIDATION & SURVEY' && <ValidationSurvey user={user} />}
             {activeTab === 'PROFILE' && <ProfileSettings user={user} setUser={setUser} />}
@@ -863,30 +1141,102 @@ function DashboardOverview() {
   );
 }
 
-function UserManagement() {
+function UserManagement({ user }: { user: UserProfile }) {
   const [users, setUsers] = useState<any[]>([]);
+  const [adminKeys, setAdminKeys] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [actionConfirm, setActionConfirm] = useState<{ type: 'delete' | 'edit' | 'deleteKey', id: string, name?: string } | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setUsers(data);
-      setLoading(false);
-    }, (err) => {
-      console.error('Firestore error in UserManagement:', err);
-      setLoading(false);
+    const qUsers = query(collection(db, 'users'));
+    const unsubUsers = onSnapshot(qUsers, (snapshot) => {
+      setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
-    return () => unsubscribe();
+    const qKeys = query(collection(db, 'admin_keys'));
+    const unsubKeys = onSnapshot(qKeys, (snapshot) => {
+      setAdminKeys(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => {
+      console.error('Firestore error in UserManagement (Keys):', err);
+    });
+
+    setLoading(false);
+    return () => {
+      unsubUsers();
+      unsubKeys();
+    };
   }, []);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
+  const handleDelete = async (id: string, name: string) => {
+    if (id === auth.currentUser?.uid) {
+      alert('You cannot delete your own account.');
+      return;
+    }
+    setActionConfirm({ type: 'delete', id, name });
+  };
+
+  const confirmDelete = async () => {
+    if (!actionConfirm) return;
     try {
-      await api.delete(`/api/users/${id}`);
+      await api.delete(`/api/users/${actionConfirm.id}`);
+      alert('User deleted successfully.');
+      setActionConfirm(null);
     } catch (err) {
       console.error(err);
+      alert('Failed to delete user.');
+    }
+  };
+
+  const handleEdit = (u: any) => {
+    setEditingUser({ ...u });
+  };
+
+  const updateUserInfo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    
+    setLoading(true);
+    try {
+      await api.patch(`/api/users/${editingUser.id}`, {
+        fullName: editingUser.fullName,
+        mobileNumber: editingUser.mobileNumber,
+        role: editingUser.role
+      });
+      alert('User updated successfully.');
+      setEditingUser(null);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update user.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateAdminKey = async () => {
+    const key = Math.floor(1000 + Math.random() * 9000).toString();
+    try {
+      await api.post('/api/admin-keys', { key });
+      alert(`Admin Key Generated: ${key}`);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to generate admin key');
+    }
+  };
+
+  const handleDeleteKey = async (id: string) => {
+    setActionConfirm({ type: 'deleteKey', id });
+  };
+
+  const confirmDeleteKey = async () => {
+    if (!actionConfirm) return;
+    try {
+      await api.delete(`/api/admin-keys/${actionConfirm.id}`);
+      alert('Admin key deleted successfully.');
+      setActionConfirm(null);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete admin key.');
     }
   };
 
@@ -894,6 +1244,14 @@ function UserManagement() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-black text-[#4C1D95] uppercase tracking-widest">User Management</h2>
+        {user.email === '1stmb.mj@gmail.com' && (
+          <button 
+            onClick={generateAdminKey}
+            className="px-4 py-2 bg-[#4C1D95] text-white text-[10px] font-bold uppercase tracking-widest rounded-lg flex items-center gap-2 hover:bg-[#5B21B6] transition-all"
+          >
+            <Key size={14} /> Generate 4-Digit Admin Key
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
@@ -928,21 +1286,242 @@ function UserManagement() {
                   </span>
                 </td>
                 <td className="px-6 py-4 text-[10px] font-mono text-gray-400">
-                  {format(new Date(u.createdAt), 'MMM d, yyyy')}
+                  {u.createdAt ? format(new Date(u.createdAt), 'MMM d, yyyy') : '---'}
                 </td>
                 <td className="px-6 py-4 text-right">
-                  <button 
-                    onClick={() => handleDelete(u.id)}
-                    className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  <div className="flex justify-end gap-2">
+                    <button 
+                      onClick={() => handleEdit(u)}
+                      className="p-2 text-gray-400 hover:text-[#4C1D95] transition-colors"
+                      title="Edit User"
+                    >
+                      <Pencil size={16} />
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(u.id, u.fullName)}
+                      className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                      title="Delete User"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* Edit User Modal */}
+      <AnimatePresence>
+        {editingUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setEditingUser(null)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="bg-[#4C1D95] p-6 text-white text-center">
+                <h3 className="text-lg font-black uppercase tracking-widest">Edit User Profile</h3>
+                <p className="text-[10px] text-white/60 uppercase tracking-widest mt-1">Update Member Information</p>
+              </div>
+              <form onSubmit={updateUserInfo} className="p-8 space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-relaxed">Full Name</label>
+                  <input 
+                    type="text" 
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
+                    value={editingUser.fullName}
+                    onChange={e => setEditingUser({...editingUser, fullName: e.target.value})}
+                    required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-relaxed">Mobile Number</label>
+                  <input 
+                    type="text" 
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
+                    value={editingUser.mobileNumber}
+                    onChange={e => setEditingUser({...editingUser, mobileNumber: e.target.value})}
+                    required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-relaxed">User Role</label>
+                  <select 
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
+                    value={editingUser.role}
+                    onChange={e => setEditingUser({...editingUser, role: e.target.value})}
+                  >
+                    <option value="user">User / CI Officer</option>
+                    <option value="admin">Administrator</option>
+                  </select>
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button 
+                    type="button"
+                    onClick={() => setEditingUser(null)}
+                    className="flex-1 py-3 border border-gray-100 text-gray-400 font-bold rounded-xl text-xs uppercase tracking-widest hover:bg-gray-50 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    disabled={loading}
+                    className="flex-1 py-3 bg-[#4C1D95] text-white font-black rounded-xl text-xs uppercase tracking-widest shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+                  >
+                    {loading ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {actionConfirm?.type === 'delete' && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setActionConfirm(null)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl p-8 text-center"
+            >
+              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Trash2 className="text-red-500" size={32} />
+              </div>
+              <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight mb-2">Delete Account?</h3>
+              <p className="text-sm text-gray-500 mb-8 leading-relaxed">
+                Are you sure you want to remove <span className="font-bold text-gray-900">{actionConfirm.name}</span>? This action cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setActionConfirm(null)}
+                  className="flex-1 py-3 border border-gray-100 text-gray-400 font-bold rounded-xl text-xs uppercase tracking-widest hover:bg-gray-50"
+                >
+                  No, Keep
+                </button>
+                <button 
+                  onClick={confirmDelete}
+                  className="flex-1 py-3 bg-red-500 text-white font-black rounded-xl text-xs uppercase tracking-widest shadow-lg shadow-red-200 hover:bg-red-600 active:scale-95 transition-all"
+                >
+                  Yes, Delete
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Delete Key Confirmation Modal */}
+        {actionConfirm?.type === 'deleteKey' && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setActionConfirm(null)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl p-8 text-center"
+            >
+              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Trash2 className="text-red-500" size={32} />
+              </div>
+              <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight mb-2">Delete Admin Key?</h3>
+              <p className="text-sm text-gray-500 mb-8 leading-relaxed">
+                Are you sure you want to remove this key? <span className="font-mono font-bold text-[#4C1D95]">{actionConfirm.id}</span>
+              </p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setActionConfirm(null)}
+                  className="flex-1 py-3 border border-gray-100 text-gray-400 font-bold rounded-xl text-xs uppercase tracking-widest hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={confirmDeleteKey}
+                  className="flex-1 py-3 bg-red-500 text-white font-black rounded-xl text-xs uppercase tracking-widest shadow-lg shadow-red-200 hover:bg-red-600 active:scale-95 transition-all"
+                >
+                  Yes, Remove
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {user.role === 'admin' && (
+        <div className="space-y-4">
+          <h3 className="text-sm font-black text-[#4C1D95] uppercase tracking-widest px-1">Active Admin Keys</h3>
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Key Code</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Created At</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {adminKeys.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-8 text-center text-gray-400 text-xs italic uppercase tracking-widest">
+                      No admin keys available
+                    </td>
+                  </tr>
+                ) : (
+                  adminKeys.map(k => (
+                    <tr key={k.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-6 py-4 font-mono text-sm font-bold tracking-widest text-[#4C1D95]">
+                        {k.id}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={cn(
+                          "text-[8px] font-black uppercase px-2 py-1 rounded tracking-widest",
+                          k.used ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"
+                        )}>
+                          {k.used ? 'Used' : 'Active'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-[10px] font-mono text-gray-400">
+                        {k.createdAt ? format(new Date(k.createdAt), 'MMM d, h:mm a') : '---'}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button 
+                          onClick={() => handleDeleteKey(k.id)}
+                          className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1036,6 +1615,7 @@ function CIDashboard({ user }: { user: UserProfile }) {
 function ProfileSettings({ user, setUser }: { user: UserProfile, setUser: (u: UserProfile) => void }) {
   const [formData, setFormData] = useState({
     fullName: user.fullName,
+    mobileNumber: user.mobileNumber || '',
     password: '',
     confirmPassword: ''
   });
@@ -1053,9 +1633,10 @@ function ProfileSettings({ user, setUser }: { user: UserProfile, setUser: (u: Us
     try {
       await api.patch('/api/auth/profile', {
         fullName: formData.fullName,
+        mobileNumber: formData.mobileNumber,
         password: formData.password || undefined
       });
-      setUser({ ...user, fullName: formData.fullName });
+      setUser({ ...user, fullName: formData.fullName, mobileNumber: formData.mobileNumber });
       setMessage({ type: 'success', text: 'Profile updated successfully' });
       setFormData({ ...formData, password: '', confirmPassword: '' });
     } catch (err: any) {
@@ -1083,6 +1664,18 @@ function ProfileSettings({ user, setUser }: { user: UserProfile, setUser: (u: Us
               className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
               value={formData.fullName}
               onChange={e => setFormData({...formData, fullName: e.target.value})}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Mobile Number</label>
+            <input 
+              type="text" 
+              required
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
+              value={formData.mobileNumber}
+              onChange={e => setFormData({...formData, mobileNumber: e.target.value})}
+              placeholder="e.g. 09123456789"
             />
           </div>
 
@@ -1168,7 +1761,7 @@ function AssignAccount({ user }: { user: UserProfile }) {
       const officers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as UserProfile[];
       setCiOfficers(officers);
     }, (err) => {
-      console.error('Firestore error in AssignAccount:', err);
+      console.error('Firestore AssignAccount listener error:', err);
     });
 
     return () => unsubscribe();
@@ -1179,12 +1772,28 @@ function AssignAccount({ user }: { user: UserProfile }) {
     setLoading(true);
     try {
       const officer = ciOfficers.find(o => o.id === formData.ciOfficerId);
-      await api.post('/api/assignments', {
+      const res = await api.post('/api/assignments', {
         ...formData,
         requestedAmount: Number(formData.requestedAmount),
         intRate: Number(formData.intRate),
-        ciOfficerName: officer?.fullName || 'Unknown'
+        ciOfficerName: officer?.fullName || 'Unknown',
+        status: 'Assigned',
+        timeline: [{
+          status: 'Assigned',
+          note: `Account assigned to ${officer?.fullName || 'Officer'}`,
+          timestamp: new Date().toISOString()
+        }]
       });
+      
+      if (res?.id) {
+        await createNotification(
+          formData.ciOfficerId,
+          'New Assignment',
+          `You have been assigned to evaluate ${formData.borrowerName}`,
+          'assignment',
+          res.id
+        );
+      }
       alert('Account assigned successfully!');
       setFormData({
         borrowerName: '',
@@ -1219,6 +1828,17 @@ function AssignAccount({ user }: { user: UserProfile }) {
               className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm"
               value={formData.borrowerName}
               onChange={e => setFormData({...formData, borrowerName: e.target.value})}
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Mobile Number</label>
+            <input 
+              type="text" 
+              className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm"
+              value={formData.mobileNumber}
+              onChange={e => setFormData({...formData, mobileNumber: e.target.value})}
+              placeholder="e.g. 09123456789"
               required
             />
           </div>
@@ -1377,7 +1997,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
       setAssignments(data);
       setLoading(false);
     }, (err) => {
-      console.error('Firestore error in AccountStatus:', err);
+      console.error('Firestore AccountStatus listener error:', err);
       setLoading(false);
     });
 
@@ -1395,6 +2015,11 @@ function AccountStatus({ user }: { user: UserProfile }) {
   ];
 
   const handleNextStep = async (assignment: Assignment) => {
+    if (assignment.status === 'Field CIBI' && !assignment.creditScore) {
+      alert('Please complete and save the Credit Scoring before proceeding to the next step.');
+      return;
+    }
+
     const currentIndex = steps.indexOf(assignment.status);
     if (currentIndex === -1 || currentIndex >= steps.length - 1) return;
 
@@ -1406,6 +2031,30 @@ function AccountStatus({ user }: { user: UserProfile }) {
         status: nextStatus,
         timeline: newTimeline
       });
+
+      // Notify relevant parties
+      if (user.role === 'admin') {
+        // Notify the assigned CI Officer
+        await createNotification(
+          assignment.ciOfficerId,
+          'Status Update',
+          `Admin updated ${assignment.borrowerName} to ${nextStatus}`,
+          'status_change',
+          assignment.id
+        );
+      } else {
+        // Notify Admins
+        const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'admin')));
+        adminsSnapshot.forEach(adminDoc => {
+          createNotification(
+            adminDoc.id,
+            'Status Update',
+            `CI Officer ${user.fullName} updated ${assignment.borrowerName} to ${nextStatus}`,
+            'status_change',
+            assignment.id
+          );
+        });
+      }
     } catch (err) {
       console.error(err);
     }
@@ -1428,6 +2077,18 @@ function AccountStatus({ user }: { user: UserProfile }) {
     a.borrowerName.toLowerCase().includes(search.toLowerCase()) ||
     a.mobileNumber.includes(search)
   );
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this assignment?')) return;
+    try {
+      await api.delete(`/api/assignments/${id}`);
+      setSelected(null);
+      alert('Assignment deleted successfully.');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete assignment.');
+    }
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[calc(100vh-160px)]">
@@ -1494,6 +2155,14 @@ function AccountStatus({ user }: { user: UserProfile }) {
                   Mark Next Step as Done
                 </button>
               )}
+              {user.role === 'admin' && (
+                <button 
+                  onClick={() => handleDelete(selected.id)}
+                  className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                >
+                  <Trash2 size={18} />
+                </button>
+              )}
             </div>
 
             {/* Visual Stepper */}
@@ -1530,30 +2199,36 @@ function AccountStatus({ user }: { user: UserProfile }) {
 
             {/* Timeline List */}
             <div className="space-y-4">
-              <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-2">Timeline</h4>
-              <div className="space-y-4">
-                {steps.map((step) => {
-                  const entry = selected.timeline.find(t => t.step === step);
-                  return (
-                    <div key={step} className="flex justify-between items-center text-xs">
-                      <span className={cn(
-                        "font-bold uppercase tracking-widest",
-                        entry ? "text-gray-900" : "text-gray-300"
-                      )}>
-                        {step}
+              <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-2">Full History Log</h4>
+              <div className="space-y-3">
+                {[...selected.timeline].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()).map((entry, idx) => (
+                  <div key={idx} className="flex flex-col space-y-1 p-3 bg-gray-50 rounded-xl">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-black uppercase tracking-widest text-[#4C1D95]">
+                        {entry.step}
                       </span>
-                      <span className="text-[10px] font-mono text-gray-400">
-                        {entry ? format(new Date(entry.timestamp), 'M/d/yyyy, h:mm:ss a') : 'PENDING'}
+                      <span className="text-[10px] font-mono font-bold text-gray-500">
+                        {format(new Date(entry.timestamp), 'MMM d, yyyy | h:mm:ss a')}
                       </span>
                     </div>
-                  );
-                })}
+                    {entry.note && (
+                      <p className="text-[10px] text-gray-400 italic">
+                        {entry.note}
+                      </p>
+                    )}
+                  </div>
+                ))}
               </div>
               <div className="pt-6 border-t border-gray-100 flex justify-between items-center">
                 <span className="text-[10px] font-black text-[#4C1D95] uppercase tracking-widest">Total Turn Around Time:</span>
                 <span className="text-sm font-black text-gray-900">{calculateTAT(selected.timeline)}</span>
               </div>
             </div>
+
+            {/* Credit Scoring Module */}
+            {(selected.status === 'Field CIBI' || selected.creditScore) && (
+              <CreditScoringModule assignment={selected} user={user} />
+            )}
           </div>
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-gray-300 space-y-4">
@@ -1561,6 +2236,278 @@ function AccountStatus({ user }: { user: UserProfile }) {
             <p className="text-xs font-bold uppercase tracking-widest">Select a client to view status</p>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function CreditScoringModule({ assignment, user }: { assignment: Assignment, user: UserProfile }) {
+  const SCORING_SHEET = {
+    CHARACTER: {
+      max: 20.5,
+      items: [
+        { id: 'neighbor1', label: 'Neighbor 1', options: [{ l: 'Good', p: 3 }, { l: 'Poor', p: 0 }] },
+        { id: 'neighbor2', label: 'Neighbor 2', options: [{ l: 'Good', p: 3 }, { l: 'Poor', p: 0 }] },
+        { id: 'barangayVerification', label: 'Barangay Verification', options: [{ l: 'No Bad Records', p: 3 }, { l: 'With Bad Records', p: 0 }] },
+        { id: 'loanHistory', label: 'Loan History (Other Inst.)', options: [{ l: 'Yes', p: 1 }, { l: 'No', p: 0 }] },
+        { id: 'goodCreditBackground', label: 'Good Credit Background', options: [{ l: 'Yes', p: 1 }, { l: 'No', p: 0.5 }, { l: 'None', p: 0 }] },
+        { id: 'cooperationOfApplicant', label: 'Cooperation of Applicant', options: [{ l: 'Very Cooperative', p: 3.5 }, { l: 'Cooperative', p: 2 }, { l: 'Poor', p: 0 }] },
+      ]
+    },
+    CAPITAL: {
+      max: 10.0,
+      items: [
+        { id: 'totalAssetLiabilities', label: 'Total Asset > Liabilities', options: [{ l: 'Yes', p: 10 }, { l: 'No', p: 0 }] },
+      ]
+    },
+    STABILITY: {
+      max: 18.0,
+      items: [
+        { id: 'houseOwnership', label: 'House Ownership', options: [{ l: 'Owned', p: 5 }, { l: 'Mortgage', p: 3 }, { l: 'Rented', p: 2 }, { l: 'Residing w/ Relatives', p: 1 }] },
+        { id: 'childrenSchooling', label: 'With Children are schooling?', options: [{ l: 'Yes', p: 3 }, { l: 'No', p: 1.5 }] },
+        { id: 'residingDuration', label: 'How long residing in address?', options: [{ l: 'More Than 5yrs.', p: 5 }, { l: '4yrs - 3yrs.', p: 3 }, { l: 'Less than 1yr.', p: 1 }] },
+        { id: 'houseMaterials', label: 'House are made of?', options: [{ l: 'Concrete', p: 5 }, { l: 'Semi-Concrete', p: 3 }, { l: 'Light Materials', p: 1 }] },
+      ]
+    },
+    BUSINESS_STATUS: {
+      max: 24.0,
+      items: [
+        { id: 'businessLocation', label: 'Business location', options: [{ l: 'Commercial', p: 5 }, { l: 'Residential', p: 3 }, { l: 'Public Market', p: 3 }] },
+        { id: 'floodProne', label: 'Flood prone area?', options: [{ l: 'No', p: 1 }, { l: 'Yes', p: 0 }] },
+        { id: 'footTraffic', label: 'Volume of foot traffic', options: [{ l: 'Good', p: 3 }, { l: 'Poor', p: 1 }] },
+        { id: 'businessSpace', label: 'Business space', options: [{ l: 'Owned', p: 3 }, { l: 'Rent Free', p: 2 }, { l: 'Rented', p: 1 }] },
+        { id: 'permitType', label: 'Type of Permit', options: [{ l: "Mayor's Permit", p: 3 }, { l: 'Barangay / DTI', p: 2 }] },
+        { id: 'businessDuration', label: 'How long business running?', options: [{ l: 'More than 10 yrs.', p: 5 }, { l: '5 yrs. - 10 yrs.', p: 4 }, { l: '1 yr. - 5 yrs.', p: 3 }] },
+        { id: 'inventoryVsSales', label: 'Business Inventory Vs. Sales', options: [{ l: 'Good', p: 2 }, { l: 'Minimal', p: 1 }, { l: 'Poor', p: 0 }] },
+      ]
+    },
+    FINANCIAL_MATURITY: {
+      max: 13.5,
+      items: [
+        { id: 'loanVsCashflow', label: 'Requested Amount > Cashflow', options: [{ l: 'No', p: 3 }, { l: 'Yes', p: 1 }] },
+        { id: 'otherIncome', label: 'Other source of Income?', options: [{ l: 'Yes', p: 3 }, { l: 'No', p: 0 }] },
+        { id: 'businessKnowledge', label: 'Business knowledge?', options: [{ l: 'Yes', p: 3 }, { l: 'No', p: 1 }] },
+        { id: 'watchBusiness', label: 'Often watch business?', options: [{ l: 'Full Time', p: 4 }, { l: 'Limited', p: 2 }] },
+        { id: 'bankAccount', label: 'Bank Account Type', options: [{ l: 'CA & SA', p: 3 }, { l: 'CA or SA', p: 1.5 }, { l: 'None', p: 0 }] },
+        { id: 'cicCmapFindings', label: 'CIC & CMAP Findings', options: [{ l: 'None', p: 3 }, { l: 'Current Status', p: 1.5 }, { l: 'With Past Due', p: 0 }] },
+      ]
+    },
+    PERSONAL_STATUS: {
+      max: 14.0,
+      items: [
+        { id: 'medicalCondition', label: 'Medical Condition (Family)', options: [{ l: 'No', p: 2 }, { l: 'Yes', p: 0 }] },
+        { id: 'civilStatus', label: 'Civil Status', options: [{ l: 'Married', p: 3 }, { l: 'Live-in', p: 2 }, { l: 'Single', p: 1 }] },
+        { id: 'ageGroup', label: 'Age Group', options: [{ l: '20-65', p: 2 }, { l: '<20 or >65', p: 1 }] },
+        { id: 'educationalAttainment', label: 'Educational Attainment', options: [{ l: 'College Graduate', p: 3 }, { l: 'College Undergrad', p: 2.3 }, { l: 'HS Graduate', p: 2 }, { l: 'HS Undergrad', p: 1.5 }, { l: 'Elem. Graduate', p: 1 }, { l: 'Elem. Undergrad', p: 0.5 }] },
+        { id: 'loanType', label: 'Type of Loan Application', options: [{ l: 'Renewal', p: 5 }, { l: 'New', p: 3 }, { l: 'New - APL', p: 2 }] },
+      ]
+    }
+  };
+
+  const getInitialState = () => ({
+    neighbor1: 'Good', neighbor2: 'Good', barangayVerification: 'No Bad Records', loanHistory: 'No', goodCreditBackground: 'None', cooperationOfApplicant: 'Cooperative',
+    totalAssetLiabilities: 'Yes',
+    houseOwnership: 'Rented', childrenSchooling: 'No', residingDuration: 'More Than 5yrs.', houseMaterials: 'Concrete',
+    businessLocation: 'Residential', floodProne: 'No', footTraffic: 'Good', businessSpace: 'Rented', permitType: 'Barangay / DTI', businessDuration: '1 yr. - 5 yrs.', inventoryVsSales: 'Good',
+    loanVsCashflow: 'No', otherIncome: 'No', businessKnowledge: 'Yes', watchBusiness: 'Full Time', bankAccount: 'None', cicCmapFindings: 'None',
+    medicalCondition: 'No', civilStatus: 'Single', ageGroup: '20-65', educationalAttainment: 'HS Graduate', loanType: 'New',
+    ciRemarks: '', recommendation: 'Approved'
+  });
+
+  const [formData, setFormData] = useState<any>(getInitialState());
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (assignment.creditScore) {
+      setFormData(assignment.creditScore);
+    } else {
+      setFormData(getInitialState());
+    }
+  }, [assignment.id, assignment.creditScore]);
+
+  const calculateGrades = () => {
+    const grades: any = {};
+    Object.entries(SCORING_SHEET).forEach(([section, data]) => {
+      let sum = 0;
+      data.items.forEach(item => {
+        const selected = item.options.find(o => o.l === formData[item.id]);
+        sum += selected ? selected.p : 0;
+      });
+      grades[section.toLowerCase().replace(/_([a-z])/g, (g) => g[1].toUpperCase())] = sum;
+    });
+    return grades;
+  };
+
+  const sectionGrades = calculateGrades();
+  const totalGrade = Object.values(sectionGrades).reduce((a: any, b: any) => a + b, 0) as number;
+  const riskScore = 100 - totalGrade;
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const scoringData = {
+        ...formData,
+        sectionGrades,
+        totalGrade,
+        riskScore
+      };
+      await api.patch(`/api/assignments/${assignment.id}`, {
+        creditScore: scoringData
+      });
+      alert('Detailed credit scoring saved successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save credit scoring.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const isReadOnly = assignment.status !== 'Field CIBI' || (user.role !== 'user' && !assignment.creditScore);
+
+  return (
+    <div className="bg-white border-2 border-[#4C1D95]/10 rounded-3xl p-8 space-y-12">
+      <div className="flex justify-between items-center border-b-4 border-[#4C1D95]/5 pb-6">
+        <div>
+          <h3 className="text-xl font-black text-[#4C1D95] uppercase tracking-tight">Credit Scoring Interface</h3>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.3em]">Technical Assessment Module v2.0</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <p className="text-[10px] font-black text-gray-400 uppercase">Controlled</p>
+            <p className="text-2xl font-black text-green-600">{totalGrade.toFixed(1)}</p>
+          </div>
+          <div className="w-px h-10 bg-gray-100" />
+          <div className="text-right">
+            <p className="text-[10px] font-black text-gray-400 uppercase">Risk</p>
+            <p className="text-2xl font-black text-red-600">{riskScore.toFixed(1)}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-12">
+        {Object.entries(SCORING_SHEET).map(([sectionKey, section]) => (
+          <section key={sectionKey} className="space-y-6">
+            <div className="flex items-center gap-4">
+              <h4 className="text-xs font-black text-[#4C1D95] bg-[#4C1D95]/5 px-4 py-2 rounded-lg uppercase tracking-widest whitespace-nowrap">
+                {sectionKey.replace(/_/g, ' ')}
+              </h4>
+              <div className="h-px w-full bg-gray-100" />
+              <span className="text-[10px] font-black text-gray-300">MAX: {section.max.toFixed(1)}</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+              {section.items.map((item) => (
+                <div key={item.id} className="space-y-3">
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide leading-tight">{item.label}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {item.options.map((opt) => {
+                      const isSelected = formData[item.id] === opt.l;
+                      return (
+                        <button
+                          key={opt.l}
+                          disabled={isReadOnly}
+                          onClick={() => setFormData({ ...formData, [item.id]: opt.l })}
+                          className={cn(
+                            "px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all border-2",
+                            isSelected 
+                              ? "bg-[#4C1D95] text-white border-[#4C1D95] shadow-lg shadow-[#4C1D95]/20 scale-105" 
+                              : "bg-gray-50 text-gray-400 border-transparent hover:border-gray-200"
+                          )}
+                        >
+                          {opt.l}
+                          <span className={cn(
+                            "ml-2 opacity-50",
+                            isSelected ? "text-white" : "text-gray-300"
+                          )}>[{opt.p}]</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-12 border-t-4 border-[#4C1D95]/5">
+        <div className="space-y-4">
+          <label className="text-xs font-black text-[#4C1D95] uppercase tracking-widest">Summary Grading Table</label>
+          <div className="bg-gray-50 rounded-2xl overflow-hidden border border-gray-100">
+            <table className="w-full text-[10px]">
+              <thead className="bg-[#4C1D95]">
+                <tr className="text-white">
+                  <th className="p-3 text-left font-black uppercase tracking-widest">Section</th>
+                  <th className="p-3 text-center font-black uppercase tracking-widest">Actual</th>
+                  <th className="p-3 text-center font-black uppercase tracking-widest">Overall</th>
+                  <th className="p-3 text-center font-black uppercase tracking-widest">Diff</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {Object.entries(SCORING_SHEET).map(([k, v]) => {
+                  const camelKey = k.toLowerCase().replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+                  const actual = sectionGrades[camelKey] || 0;
+                  const diff = v.max - actual;
+                  return (
+                    <tr key={k} className="hover:bg-gray-100/50 transition-colors">
+                      <td className="p-3 font-bold uppercase text-gray-500">{k.replace(/_/g, ' ')}</td>
+                      <td className="p-3 text-center font-black text-[#4C1D95]">{actual.toFixed(1)}</td>
+                      <td className="p-3 text-center font-mono opacity-50">{v.max.toFixed(1)}</td>
+                      <td className={cn(
+                        "p-3 text-center font-black",
+                        diff > 0 ? "text-red-500" : "text-green-600"
+                      )}>{diff.toFixed(1)}</td>
+                    </tr>
+                  );
+                })}
+                <tr className="bg-[#4C1D95]/5 font-black">
+                  <td className="p-4 uppercase text-[#4C1D95]">Total Cumulative</td>
+                  <td className="p-4 text-center text-lg text-[#4C1D95]">{totalGrade.toFixed(1)}</td>
+                  <td className="p-4 text-center text-gray-300">100.0</td>
+                  <td className="p-4 text-center text-lg text-red-500">{riskScore.toFixed(1)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-xs font-black text-[#4C1D95] uppercase tracking-widest">Final Status Recommendation</label>
+            <select 
+              disabled={isReadOnly}
+              className="w-full h-12 px-6 bg-gray-50 border-2 border-gray-100 rounded-xl text-sm font-black uppercase focus:border-[#4C1D95] focus:outline-none transition-all disabled:opacity-50"
+              value={formData.recommendation}
+              onChange={e => setFormData({ ...formData, recommendation: e.target.value })}
+            >
+              <option value="Approved">Approved - Controlled</option>
+              <option value="Declined">Declined - Out of Scope</option>
+              <option value="Conditional">Conditional - Manual Review</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-black text-[#4C1D95] uppercase tracking-widest">CI Diagnostic Remarks</label>
+            <textarea 
+              disabled={isReadOnly}
+              className="w-full px-6 py-4 bg-gray-50 border-2 border-gray-100 rounded-xl text-sm h-32 focus:border-[#4C1D95] focus:outline-none transition-all disabled:opacity-50"
+              placeholder="Provide justification for the above scoring results..."
+              value={formData.ciRemarks}
+              onChange={e => setFormData({ ...formData, ciRemarks: e.target.value })}
+            />
+          </div>
+
+          {!isReadOnly && (
+            <button 
+              onClick={handleSave}
+              disabled={isSaving}
+              className="w-full py-4 bg-[#4C1D95] text-white text-[11px] font-black uppercase tracking-[0.2em] rounded-xl hover:bg-[#3B1575] hover:-translate-y-1 transition-all active:translate-y-0 shadow-lg shadow-[#4C1D95]/20 disabled:opacity-50"
+            >
+              {isSaving ? 'Processing Diagnostic Data...' : 'Commit Assessment to Repository'}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1586,7 +2533,7 @@ function ProcessAccounts({ user }: { user: UserProfile }) {
       setAssignments(data);
       setLoading(false);
     }, (err) => {
-      console.error('Firestore error in ProcessAccounts:', err);
+      console.error('Firestore ProcessAccounts listener error:', err);
       setLoading(false);
     });
 
@@ -1606,6 +2553,15 @@ function ProcessAccounts({ user }: { user: UserProfile }) {
         crecomComments: processData.comments,
         timeline: [...selected.timeline, { step: 'Approved', timestamp: new Date().toISOString() }]
       });
+
+      await createNotification(
+        selected.ciOfficerId,
+        'Account Approved',
+        `The assignment for ${selected.borrowerName} has been APPROVED.`,
+        'status_change',
+        selected.id
+      );
+
       setSelected(null);
     } catch (err) {
       console.error(err);
@@ -1620,6 +2576,15 @@ function ProcessAccounts({ user }: { user: UserProfile }) {
         crecomComments: processData.comments,
         timeline: [...selected.timeline, { step: 'Denied', timestamp: new Date().toISOString() }]
       });
+
+      await createNotification(
+        selected.ciOfficerId,
+        'Account Denied',
+        `The assignment for ${selected.borrowerName} has been DENIED.`,
+        'status_change',
+        selected.id
+      );
+
       setSelected(null);
     } catch (err) {
       console.error(err);
@@ -1678,6 +2643,29 @@ function ProcessAccounts({ user }: { user: UserProfile }) {
                 </div>
                 <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-red-500"><X /></button>
               </div>
+
+              {selected.creditScore && (
+                <div className="bg-gray-50 p-4 rounded-xl space-y-2">
+                  <div className="flex justify-between items-center border-b border-gray-200 pb-2">
+                    <h4 className="text-[10px] font-black text-[#4C1D95] uppercase">CI Credit Scoring</h4>
+                    <span className="text-[10px] font-bold text-gray-500">TOTAL: {selected.creditScore.totalScore}</span>
+                  </div>
+                  <div className="grid grid-cols-5 gap-2 text-center">
+                    <div><p className="text-[8px] text-gray-400 uppercase font-black">CHR</p><p className="text-xs font-bold">{selected.creditScore.character}</p></div>
+                    <div><p className="text-[8px] text-gray-400 uppercase font-black">CPY</p><p className="text-xs font-bold">{selected.creditScore.capacity}</p></div>
+                    <div><p className="text-[8px] text-gray-400 uppercase font-black">CPT</p><p className="text-xs font-bold">{selected.creditScore.capital}</p></div>
+                    <div><p className="text-[8px] text-gray-400 uppercase font-black">CDN</p><p className="text-xs font-bold">{selected.creditScore.condition}</p></div>
+                    <div><p className="text-[8px] text-gray-400 uppercase font-black">CLT</p><p className="text-xs font-bold">{selected.creditScore.collateral}</p></div>
+                  </div>
+                  <div className="pt-2">
+                    <p className="text-[8px] text-gray-400 uppercase font-black">Recommendation: <span className={cn(
+                      "ml-1",
+                      selected.creditScore.recommendation === 'Approved' ? 'text-green-600' : 'text-red-600'
+                    )}>{selected.creditScore.recommendation}</span></p>
+                    <p className="text-[10px] text-gray-600 italic mt-1 font-medium leading-relaxed">"{selected.creditScore.ciRemarks}"</p>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
@@ -1774,7 +2762,7 @@ function AdminKeys({ user }: { user: UserProfile }) {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setKeys(data);
     }, (err) => {
-      console.error('Firestore error in AdminKeys:', err);
+      console.error('Firestore AdminKeys listener error:', err);
     });
 
     return () => unsubscribe();
@@ -1840,7 +2828,7 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
       setAssignments(data);
     }, (err) => {
-      console.error('Firestore error in ValidationSurvey:', err);
+      console.error('Firestore ValidationSurvey listener error:', err);
     });
 
     return () => unsubscribe();
@@ -1856,8 +2844,26 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
           didExplainPN: survey.didExplainPN,
           didExplainDeductions: survey.didExplainDeductions
         },
-        status: 'Completed'
+        status: 'Completed',
+        timeline: [...selected.timeline, { 
+          step: 'Completed', 
+          timestamp: new Date().toISOString(),
+          note: 'CI Officer submitted validation and survey results'
+        }]
       });
+
+      // Notify Admins
+      const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'admin')));
+      adminsSnapshot.forEach(adminDoc => {
+        createNotification(
+          adminDoc.id,
+          'Validation Completed',
+          `CI Officer ${user.fullName} completed validation for ${selected.borrowerName}`,
+          'status_change',
+          selected.id
+        );
+      });
+
       setSelected(null);
     } catch (err) {
       console.error(err);
@@ -1938,6 +2944,174 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function ReportsView({ user }: { user: UserProfile }) {
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    const q = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
+      setAssignments(data);
+      setLoading(false);
+    }, (err) => {
+      console.error('Firestore Reports listener error:', err);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const filtered = assignments.filter(a => 
+    a.borrowerName.toLowerCase().includes(search.toLowerCase()) ||
+    a.ciOfficerName.toLowerCase().includes(search.toLowerCase()) ||
+    a.status.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const exportToExcel = () => {
+    const worksheet = XLSX.utils.json_to_sheet(filtered.map(a => ({
+      'Borrower Name': a.borrowerName,
+      'Mobile Number': a.mobileNumber,
+      'Account Type': a.accountType,
+      'Location': a.location,
+      'Tribe': a.tribe,
+      'Requested Amount': a.requestedAmount,
+      'Term': a.term,
+      'CI Officer': a.ciOfficerName,
+      'Status': a.status,
+      'Created At': format(new Date(a.createdAt), 'MMM d, yyyy | h:mm a')
+    })));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Assignments");
+    XLSX.writeFile(workbook, `AMS_Report_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text("AMS - Assignment Report", 14, 22);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Generated by: ${user.fullName} | ${format(new Date(), 'MMM d, yyyy h:mm a')}`, 14, 30);
+    
+    const tableColumn = ["Borrower", "Type", "CI Officer", "Status", "Created At"];
+    const tableRows = filtered.map(a => [
+      a.borrowerName,
+      a.accountType,
+      a.ciOfficerName,
+      a.status,
+      format(new Date(a.createdAt), 'MMM d, yyyy')
+    ]);
+
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 35,
+      theme: 'grid',
+      headStyles: { fillColor: [76, 29, 149], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 8, cellPadding: 3 }
+    });
+    
+    doc.save(`AMS_Report_${format(new Date(), 'yyyyMMdd_HHmm')}.pdf`);
+  };
+
+  if (loading) return (
+    <div className="h-full flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4C1D95]" />
+    </div>
+  );
+
+  return (
+    <div className="space-y-8 max-w-6xl mx-auto">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+        <div>
+          <h2 className="text-xl font-black text-[#4C1D95] uppercase tracking-tight">Report Engine</h2>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Generate Excel or PDF reports</p>
+        </div>
+        <div className="flex gap-3">
+          <button 
+            onClick={exportToExcel}
+            className="flex items-center gap-2 px-6 py-3 bg-[#1D6F42] text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-[#155231] transition-all shadow-lg shadow-green-900/10 active:scale-95"
+          >
+            <Download size={14} /> Export Excel
+          </button>
+          <button 
+            onClick={exportToPDF}
+            className="flex items-center gap-2 px-6 py-3 bg-[#E11D48] text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-[#BE123C] transition-all shadow-lg shadow-red-900/10 active:scale-95"
+          >
+            <Download size={14} /> Export PDF
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-gray-100 bg-gray-50/50">
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input 
+              type="text" 
+              placeholder="Search reports by borrower, officer, or status..."
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/10 font-medium"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
+                <th className="px-6 py-4">Borrower Name</th>
+                <th className="px-6 py-4">Account Type</th>
+                <th className="px-6 py-4">CI Officer</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4">Created Date</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {filtered.map((a) => (
+                <tr key={a.id} className="hover:bg-gray-50/50 transition-colors">
+                  <td className="px-6 py-4 text-xs font-bold text-gray-700 uppercase tracking-tight">{a.borrowerName}</td>
+                  <td className="px-6 py-4">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase px-2 py-1 bg-gray-100 rounded-md">
+                      {a.accountType}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-xs text-gray-600 font-medium italic">{a.ciOfficerName}</td>
+                  <td className="px-6 py-4">
+                    <span className={cn(
+                      "text-[9px] font-black uppercase tracking-tight px-2.5 py-1 rounded-full",
+                      a.status === 'Completed' ? "bg-green-100 text-green-700" :
+                      a.status === 'Approved' ? "bg-blue-100 text-blue-700" :
+                      a.status === 'Denied' ? "bg-red-100 text-red-700" :
+                      "bg-amber-100 text-amber-700"
+                    )}>
+                      {a.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-[10px] font-mono text-gray-400 font-bold">
+                    {format(new Date(a.createdAt), 'MMM d, yyyy | h:mm a')}
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center">
+                    <div className="flex flex-col items-center justify-center text-gray-300 space-y-2">
+                      <FileText size={48} strokeWidth={1} />
+                      <p className="text-[10px] font-black uppercase tracking-widest">No matching records found</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
