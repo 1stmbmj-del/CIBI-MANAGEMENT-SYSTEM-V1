@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, UserRole, Assignment, AssignmentStatus, TimelineStep, AuthResponse, Liability, CashflowMonth, CashflowReport, MOP, TOP } from './types';
+import { UserProfile, UserRole, Assignment, AssignmentStatus, TimelineStep, AuthResponse, Liability, CashflowMonth, CashflowReport, MOP, TOP, LoanCategory, MCLCreditScore } from './types';
 import { 
   LineChart,
   Line,
@@ -2172,7 +2172,8 @@ function AssignAccount({ user }: { user: UserProfile }) {
     mop: 'Weekly',
     top: 'Collection',
     ciOfficerId: '',
-    isMCLReferral: false
+    isMCLReferral: false,
+    loanCategory: 'SME' as LoanCategory
   });
 
   useEffect(() => {
@@ -2198,6 +2199,7 @@ function AssignAccount({ user }: { user: UserProfile }) {
         intRate: Number(formData.intRate),
         ciOfficerName: officer?.fullName || 'Unknown',
         status: 'Assigned',
+        loanCategory: formData.loanCategory,
         timeline: [{
           status: 'Assigned',
           note: `Account assigned to ${officer?.fullName || 'Officer'}`,
@@ -2229,7 +2231,8 @@ function AssignAccount({ user }: { user: UserProfile }) {
         mop: 'Weekly',
         top: 'Collection',
         ciOfficerId: '',
-        isMCLReferral: false
+        isMCLReferral: false,
+        loanCategory: 'SME'
       });
     } catch (err) {
       console.error(err);
@@ -2341,6 +2344,17 @@ function AssignAccount({ user }: { user: UserProfile }) {
               <option value="Rizal">Rizal</option>
               <option value="Mindoro">Mindoro</option>
               <option value="Cavite">Cavite</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Loan Category</label>
+            <select 
+              className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm font-black text-[#4C1D95]"
+              value={formData.loanCategory}
+              onChange={e => setFormData({...formData, loanCategory: e.target.value as LoanCategory})}
+            >
+              <option value="SME">SME (Standard)</option>
+              <option value="MCL (Motorcycle Loan)">MCL (Motorcycle Loan)</option>
             </select>
           </div>
           <div className="space-y-4 pt-4">
@@ -2962,7 +2976,9 @@ function AccountStatus({ user }: { user: UserProfile }) {
 }
 
 function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { assignment: Assignment, user: UserProfile, isReadOnly?: boolean }) {
-  const SCORING_SHEET = {
+  const isMCL = assignment.loanCategory === 'MCL';
+
+  const SME_SCORING_SHEET = {
     CHARACTER: {
       max: 20.5,
       items: [
@@ -3024,30 +3040,101 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
     }
   };
 
-  const getInitialState = () => ({
+  const MCL_SCORING_SHEET = {
+    CHARACTER: {
+      max: 20.0,
+      items: [
+        { id: 'reputation', label: 'Reputation in community', options: [{ l: 'Excellent', p: 5 }, { l: 'Good', p: 4 }, { l: 'Average', p: 3 }, { l: 'Poor', p: 1 }] },
+        { id: 'repaymentHistory', label: 'Loan repayment history', options: [{ l: 'Excellent', p: 5 }, { l: 'Good', p: 4 }, { l: 'Average', p: 3 }, { l: 'Poor', p: 1 }] },
+        { id: 'creditBackground', label: 'Credit background', options: [{ l: 'Excellent', p: 5 }, { l: 'Good', p: 4 }, { l: 'Average', p: 3 }, { l: 'Poor', p: 1 }] },
+        { id: 'cooperation', label: 'Cooperation & honesty', options: [{ l: 'Excellent', p: 5 }, { l: 'Good', p: 4 }, { l: 'Average', p: 3 }, { l: 'Poor', p: 1 }] },
+      ]
+    },
+    INCOME_CAPACITY: {
+      max: 25.0,
+      items: [
+        { id: 'stability', label: 'Primary income stability', options: [{ l: 'Very Stable', p: 8 }, { l: 'Stable', p: 6 }, { l: 'Moderate', p: 4 }, { l: 'Unstable', p: 2 }] },
+        { id: 'incomeVsAmort', label: 'Income vs amortization', options: [{ l: 'Excellent', p: 10 }, { l: 'Good', p: 8 }, { l: 'Average', p: 6 }, { l: 'Tight', p: 3 }] },
+        { id: 'otherIncome', label: 'Other income sources', options: [{ l: 'Multiple', p: 4 }, { l: 'Single', p: 3 }, { l: 'Minimal', p: 2 }, { l: 'None', p: 1 }] },
+        { id: 'bankAccount', label: 'Bank account / discipline', options: [{ l: 'Disciplined', p: 3 }, { l: 'Average', p: 2 }, { l: 'Poor', p: 1 }, { l: 'None', p: 0 }] },
+      ]
+    },
+    EMPLOYMENT_BUSINESS: {
+      max: 20.0,
+      items: [
+        { id: 'typeOfWork', label: 'Type of work', options: [{ l: 'Professional', p: 6 }, { l: 'Skilled', p: 5 }, { l: 'Unskilled', p: 3 }, { l: 'Informal', p: 2 }] },
+        { id: 'lengthOfService', label: 'Length of employment/business', options: [{ l: '>10 Years', p: 7 }, { l: '5-10 Years', p: 5 }, { l: '1-5 Years', p: 3 }, { l: '<1 Year', p: 1 }] },
+        { id: 'consistency', label: 'Income consistency', options: [{ l: 'Consistent', p: 7 }, { l: 'Moderate', p: 5 }, { l: 'Fluctuating', p: 3 }, { l: 'Irregular', p: 1 }] },
+      ]
+    },
+    RESIDENCE: {
+      max: 15.0,
+      items: [
+        { id: 'ownership', label: 'Home ownership', options: [{ l: 'Owned', p: 5 }, { l: 'Mortgage', p: 4 }, { l: 'Rented', p: 3 }, { l: 'Relatives', p: 2 }] },
+        { id: 'lengthOfStay', label: 'Length of stay', options: [{ l: '>10 Years', p: 5 }, { l: '5-10 Years', p: 4 }, { l: '1-5 Years', p: 3 }, { l: '<1 Year', p: 1 }] },
+        { id: 'condition', label: 'Living condition', options: [{ l: 'Excellent', p: 5 }, { l: 'Good', p: 4 }, { l: 'Fair', p: 3 }, { l: 'Poor', p: 1 }] },
+      ]
+    },
+    LOAN_FACTORS: {
+      max: 20.0,
+      items: [
+        { id: 'purpose', label: 'Purpose of motorcycle', options: [{ l: 'Business', p: 6 }, { l: 'Work', p: 5 }, { l: 'Personal', p: 4 }, { l: 'Other', p: 2 }] },
+        { id: 'downpayment', label: 'Downpayment capability', options: [{ l: 'High', p: 5 }, { l: 'Average', p: 4 }, { l: 'Minimal', p: 2 }, { l: 'None', p: 0 }] },
+        { id: 'existingDebts', label: 'Existing debts', options: [{ l: 'None', p: 5 }, { l: 'Minimal', p: 4 }, { l: 'Average', p: 2 }, { l: 'High', p: 0 }] },
+        { id: 'cicCmap', label: 'CIC / CMAP result', options: [{ l: 'Clean', p: 4 }, { l: 'Minor', p: 3 }, { l: 'Major', p: 1 }, { l: 'Blacklisted', p: 0 }] },
+      ]
+    }
+  };
+
+  const CURRENT_SHEET = isMCL ? MCL_SCORING_SHEET : SME_SCORING_SHEET;
+
+  const getInitialState = () => {
+    if (isMCL) {
+      return {
+        reputation: 'Average', repaymentHistory: 'Average', creditBackground: 'Average', cooperation: 'Average',
+        stability: 'Moderate', incomeVsAmort: 'Average', otherIncome: 'Minimal', bankAccount: 'None',
+        typeOfWork: 'Unskilled', lengthOfService: '1-5 Years', consistency: 'Moderate',
+        ownership: 'Rented', lengthOfStay: '1-5 Years', condition: 'Fair',
+        purpose: 'Work', downpayment: 'Average', existingDebts: 'None', cicCmap: 'Clean',
+        ciRemarks: '', recommendation: 'Approved'
+      };
+    }
+    return {
     neighbor1: 'Good', neighbor2: 'Good', barangayVerification: 'No Bad Records', loanHistory: 'No', goodCreditBackground: 'None', cooperationOfApplicant: 'Cooperative',
     totalAssetLiabilities: 'Yes',
     houseOwnership: 'Rented', childrenSchooling: 'No', residingDuration: 'More Than 5yrs.', houseMaterials: 'Concrete',
     businessLocation: 'Residential', floodProne: 'No', footTraffic: 'Good', businessSpace: 'Rented', permitType: 'Barangay / DTI', businessDuration: '1 yr. - 5 yrs.', inventoryVsSales: 'Good',
     loanVsCashflow: 'No', otherIncome: 'No', businessKnowledge: 'Yes', watchBusiness: 'Full Time', bankAccount: 'None', cicCmapFindings: 'None',
-    medicalCondition: 'No', civilStatus: 'Single', ageGroup: '20-65', educationalAttainment: 'HS Graduate', loanType: 'New',
-    ciRemarks: '', recommendation: 'Approved'
-  });
+      medicalCondition: 'No', civilStatus: 'Single', ageGroup: '20-65', educationalAttainment: 'HS Graduate', loanType: 'New',
+      ciRemarks: '', recommendation: 'Approved'
+    };
+  };
 
   const [formData, setFormData] = useState<any>(getInitialState());
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (assignment.creditScore) {
+    if (isMCL && assignment.mclCreditScore) {
+      const s = assignment.mclCreditScore;
+      setFormData({
+        ...s.character,
+        ...s.incomeCapacity,
+        ...s.employmentBusiness,
+        ...s.residence,
+        ...s.loanFactors,
+        ciRemarks: s.ciRemarks || '',
+        recommendation: s.riskClassification === 'High Risk' ? 'Denied' : 'Approved'
+      });
+    } else if (!isMCL && assignment.creditScore) {
       setFormData(assignment.creditScore);
     } else {
       setFormData(getInitialState());
     }
-  }, [assignment.id, assignment.creditScore]);
+  }, [assignment.id, assignment.creditScore, assignment.mclCreditScore, isMCL]);
 
   const calculateGrades = () => {
     const grades: any = {};
-    Object.entries(SCORING_SHEET).forEach(([section, data]) => {
+    Object.entries(CURRENT_SHEET).forEach(([section, data]) => {
       let sum = 0;
       data.items.forEach(item => {
         const selected = item.options.find(o => o.l === formData[item.id]);
@@ -3062,34 +3149,79 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
   const totalGrade = Object.values(sectionGrades).reduce((a: any, b: any) => a + b, 0) as number;
   const riskScore = 100 - totalGrade;
 
-  const isReadOnly = forceReadOnly || assignment.status !== 'Field CIBI' || (user.role !== 'user' && !assignment.creditScore);
+  const isReadOnly = forceReadOnly || assignment.status !== 'Field CIBI' || (user.role !== 'user' && !assignment.creditScore && !assignment.mclCreditScore);
 
   // Auto-recommendation logic
   useEffect(() => {
     if (!isReadOnly) {
-      const rec = riskScore <= 30 ? 'Approved' : 'Denied';
+      let rec: any = 'Approved';
+      if (isMCL) {
+        rec = totalGrade < 70 ? 'Denied' : 'Approved';
+      } else {
+        rec = riskScore <= 30 ? 'Approved' : 'Denied';
+      }
+      
       if (formData.recommendation !== rec) {
         setFormData(prev => ({ ...prev, recommendation: rec }));
       }
     }
-  }, [riskScore, isReadOnly]);
+  }, [riskScore, totalGrade, isReadOnly, isMCL]);
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const scoringData = {
-        ...formData,
-        sectionGrades,
-        totalGrade,
-        riskScore
-      };
-      await api.patch(`/api/assignments/${assignment.id}`, {
-        creditScore: scoringData
-      });
-      alert('Detailed credit scoring saved successfully!');
+      if (isMCL) {
+        const mclData: any = {
+          character: {
+            reputation: formData.reputation,
+            repaymentHistory: formData.repaymentHistory,
+            creditBackground: formData.creditBackground,
+            cooperation: formData.cooperation
+          },
+          incomeCapacity: {
+            stability: formData.stability,
+            incomeVsAmort: formData.incomeVsAmort,
+            otherIncome: formData.otherIncome,
+            bankAccount: formData.bankAccount
+          },
+          employmentBusiness: {
+            typeOfWork: formData.typeOfWork,
+            lengthOfService: formData.lengthOfService,
+            consistency: formData.consistency
+          },
+          residence: {
+            ownership: formData.ownership,
+            lengthOfStay: formData.lengthOfStay,
+            condition: formData.condition
+          },
+          loanFactors: {
+            purpose: formData.purpose,
+            downpayment: formData.downpayment,
+            existingDebts: formData.existingDebts,
+            cicCmap: formData.cicCmap
+          },
+          totalScore: totalGrade,
+          riskClassification: totalGrade >= 85 ? 'Low Risk' : (totalGrade >= 70 ? 'Medium Risk' : 'High Risk'),
+          ciRemarks: formData.ciRemarks
+        };
+        await api.patch(`/api/assignments/${assignment.id}`, {
+          mclCreditScore: mclData
+        });
+      } else {
+        const scoringData = {
+          ...formData,
+          sectionGrades,
+          totalGrade,
+          riskScore
+        };
+        await api.patch(`/api/assignments/${assignment.id}`, {
+          creditScore: scoringData
+        });
+      }
+      alert('Diagnostic data saved successfully!');
     } catch (err) {
       console.error(err);
-      alert('Failed to save credit scoring.');
+      alert('Failed to save assessment data.');
     } finally {
       setIsSaving(false);
     }
@@ -3099,24 +3231,38 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
     <div className="bg-white border-2 border-[#4C1D95]/10 rounded-3xl p-8 space-y-12">
       <div className="flex justify-between items-center border-b-4 border-[#4C1D95]/5 pb-6">
         <div>
-          <h3 className="text-xl font-black text-[#4C1D95] uppercase tracking-tight">Credit Scoring Interface</h3>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.3em]">Technical Assessment Module v2.0</p>
+          <h3 className="text-xl font-black text-[#4C1D95] uppercase tracking-tight">
+            {isMCL ? 'MCL Diagnostic Module' : 'SME Diagnostic Module'}
+          </h3>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.3em]">
+            Technical Assessment Protocol {isMCL ? 'vMCL.1' : 'vSME.2'}
+          </p>
         </div>
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <p className="text-[10px] font-black text-gray-400 uppercase">Controlled</p>
-            <p className="text-2xl font-black text-green-600">{totalGrade.toFixed(1)}</p>
+            <p className="text-[10px] font-black text-gray-400 uppercase">Score</p>
+            <p className="text-2xl font-black text-[#4C1D95]">{totalGrade.toFixed(1)}</p>
           </div>
           <div className="w-px h-10 bg-gray-100" />
           <div className="text-right">
-            <p className="text-[10px] font-black text-gray-400 uppercase">Risk</p>
-            <p className="text-2xl font-black text-red-600">{riskScore.toFixed(1)}</p>
+            <p className="text-[10px] font-black text-gray-400 uppercase">{isMCL ? 'Classification' : 'Risk Index'}</p>
+            <p className={cn(
+               "text-xl font-black uppercase tracking-tight",
+               isMCL 
+                ? (totalGrade >= 85 ? "text-green-600" : (totalGrade >= 70 ? "text-amber-500" : "text-red-600"))
+                : (riskScore <= 30 ? "text-green-600" : "text-red-600")
+            )}>
+              {isMCL 
+                ? (totalGrade >= 85 ? "Low Risk" : (totalGrade >= 70 ? "Medium Risk" : "High Risk"))
+                : riskScore.toFixed(1)
+              }
+            </p>
           </div>
         </div>
       </div>
 
       <div className="space-y-12">
-        {Object.entries(SCORING_SHEET).map(([sectionKey, section]) => (
+        {Object.entries(CURRENT_SHEET).map(([sectionKey, section]) => (
           <section key={sectionKey} className="space-y-6">
             <div className="flex items-center gap-4">
               <h4 className="text-xs font-black text-[#4C1D95] bg-[#4C1D95]/5 px-4 py-2 rounded-lg uppercase tracking-widest whitespace-nowrap">
@@ -3175,7 +3321,7 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {Object.entries(SCORING_SHEET).map(([k, v]) => {
+                {Object.entries(CURRENT_SHEET).map(([k, v]) => {
                   const camelKey = k.toLowerCase().replace(/_([a-z])/g, (g) => g[1].toUpperCase());
                   const actual = sectionGrades[camelKey] || 0;
                   const diff = v.max - actual;
@@ -3186,16 +3332,18 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
                       <td className="p-3 text-center font-mono opacity-50">{v.max.toFixed(1)}</td>
                       <td className={cn(
                         "p-3 text-center font-black",
-                        diff > 0 ? "text-red-500" : "text-green-600"
+                        diff > 5 ? "text-red-500" : "text-green-600"
                       )}>{diff.toFixed(1)}</td>
                     </tr>
                   );
                 })}
                 <tr className="bg-[#4C1D95]/5 font-black">
-                  <td className="p-4 uppercase text-[#4C1D95]">Total Cumulative</td>
+                  <td className="p-4 uppercase text-[#4C1D95]">Total Score</td>
                   <td className="p-4 text-center text-lg text-[#4C1D95]">{totalGrade.toFixed(1)}</td>
                   <td className="p-4 text-center text-gray-300">100.0</td>
-                  <td className="p-4 text-center text-lg text-red-500">{riskScore.toFixed(1)}</td>
+                  <td className="p-4 text-center text-lg text-amber-600">
+                    {isMCL ? (totalGrade < 70 ? 'FAIL' : 'PASS') : riskScore.toFixed(1)}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -3206,11 +3354,16 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
           <div className="space-y-2">
             <label className="text-xs font-black text-[#4C1D95] uppercase tracking-widest">Final Status Recommendation</label>
             <div className={cn(
-              "w-full h-12 px-6 flex items-center bg-gray-50 border-2 border-gray-100 rounded-xl text-sm font-black uppercase",
-              riskScore <= 30 ? "text-green-600" : "text-red-600"
+              "w-full h-12 px-6 flex items-center bg-gray-50 border-2 border-gray-100 rounded-xl text-sm font-black uppercase shadow-sm",
+              formData.recommendation === 'Approved' ? "text-green-600" : "text-red-600"
             )}>
-              {riskScore <= 30 ? 'Approve' : 'Denied'}
+              {formData.recommendation}
             </div>
+            {isMCL && (
+               <p className="text-[10px] text-gray-400 font-bold uppercase px-2">
+                 Threshold: Pass <span className="text-[#4C1D95]">&ge; 70</span> | Low Risk <span className="text-green-600">&ge; 85</span>
+               </p>
+            )}
           </div>
 
           <div className="space-y-2">

@@ -19,6 +19,7 @@ export type AccountType = 'New' | 'Renewal' | 'Restructure' | 'Additional';
 export type Tribe = 'NCR' | 'Rizal' | 'Mindoro' | 'Cavite';
 export type MOP = 'Daily' | 'Weekly' | 'Semi-Monthly' | 'Monthly';
 export type TOP = 'Collection' | 'PDC';
+export type LoanCategory = 'SME' | 'MCL';
 export type AssignmentStatus = 
   | 'Assigned' 
   | 'Start to Perform Assignment' 
@@ -177,6 +178,40 @@ export interface CreditScore {
   ciRemarks: string;
 }
 
+export interface MCLCreditScore {
+  character: {
+    reputation: number;
+    repaymentHistory: number;
+    creditBackground: number;
+    cooperation: number;
+  };
+  incomeCapacity: {
+    stability: number;
+    incomeVsAmort: number;
+    otherIncome: number;
+    bankAccount: number;
+  };
+  employmentBusiness: {
+    typeOfWork: number;
+    lengthOfService: number;
+    consistency: number;
+  };
+  residence: {
+    ownership: number;
+    lengthOfStay: number;
+    condition: number;
+  };
+  loanFactors: {
+    purpose: number;
+    downpayment: number;
+    existingDebts: number;
+    cicCmap: number;
+  };
+  totalScore: number;
+  riskClassification: 'Low Risk' | 'Medium Risk' | 'High Risk';
+  ciRemarks: string;
+}
+
 export interface Assignment {
   id: string;
   borrowerName: string;
@@ -191,6 +226,7 @@ export interface Assignment {
   intRate: number;
   mop: MOP;
   top: TOP;
+  loanCategory: LoanCategory;
   ciOfficerId: string;
   ciOfficerName: string;
   status: AssignmentStatus;
@@ -206,6 +242,7 @@ export interface Assignment {
   ndiValue?: number;
   validationResults?: ValidationResults;
   creditScore?: CreditScore;
+  mclCreditScore?: MCLCreditScore;
   cashflowReport?: CashflowReport;
   deniedComments?: string;
   isMCLReferral?: boolean;
