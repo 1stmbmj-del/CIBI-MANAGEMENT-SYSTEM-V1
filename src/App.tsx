@@ -17,6 +17,7 @@ import {
 import { 
   TrendingUp,
   LayoutDashboard, 
+  Star,
   UserPlus, 
   ClipboardList, 
   CheckCircle2, 
@@ -802,6 +803,7 @@ function Dashboard({
     { id: 'ASSIGN ACCOUNT', icon: UserPlus },
     { id: 'ACCOUNT STATUS', icon: ClipboardList },
     { id: 'CRECOM APPROVAL', icon: CheckCircle2 },
+    { id: 'VALIDATION & SURVEY', icon: Star },
     { id: 'REPORTS', icon: FileText },
     { id: 'DATA STORAGE', icon: Database },
     { id: 'ADMIN KEYS', icon: Key },
@@ -965,6 +967,7 @@ function Dashboard({
             {activeTab === 'ASSIGN ACCOUNT' && <AssignAccount user={user} />}
             {activeTab === 'ACCOUNT STATUS' && <AccountStatus user={user} />}
             {activeTab === 'CRECOM APPROVAL' && <CrecomApproval user={user} />}
+            {activeTab === 'VALIDATION & SURVEY' && <ValidationSurveyResults user={user} />}
             {activeTab === 'REPORTS' && <ReportsView user={user} />}
             {activeTab === 'DATA STORAGE' && <DataStorage user={user} />}
             {activeTab === 'ADMIN KEYS' && <AdminKeys user={user} />}
@@ -1037,10 +1040,12 @@ function DashboardOverview({ user }: { user: UserProfile }) {
     completed: 0,
     approved: 0,
     denied: 0,
-    monthlyAssigned: 0
+    monthlyAssigned: 0,
+    avgSatisfaction: 0
   });
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [chartData, setChartData] = useState<any[]>([]);
+  const [satisfactionData, setSatisfactionData] = useState<any[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
   useEffect(() => {
@@ -1048,6 +1053,11 @@ function DashboardOverview({ user }: { user: UserProfile }) {
     const unsubscribeReadings = onSnapshot(q, async (snapshot) => {
       const assignments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
       
+      const surveys = assignments.filter(a => a.survey).map(a => a.survey!);
+      const avgSat = surveys.length > 0 
+        ? surveys.reduce((acc, curr) => acc + curr.satisfaction, 0) / surveys.length 
+        : 0;
+
       const now = new Date();
       const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
@@ -1063,8 +1073,15 @@ function DashboardOverview({ user }: { user: UserProfile }) {
         completed: assignments.filter(a => a.status === 'Completed').length,
         approved: assignments.filter(a => a.status === 'Approved').length,
         denied: assignments.filter(a => a.status === 'Denied').length,
-        monthlyAssigned: monthly.length
+        monthlyAssigned: monthly.length,
+        avgSatisfaction: Number(avgSat.toFixed(1))
       });
+
+      const satDist = [1, 2, 3, 4, 5].map(rating => ({
+        rating: rating,
+        count: surveys.filter(s => s.satisfaction === rating).length
+      }));
+      setSatisfactionData(satDist);
 
       const statusData = [
         { name: 'Pending', value: assignments.filter(a => !['Completed', 'Approved', 'Denied'].includes(a.status)).length },
@@ -1163,16 +1180,48 @@ function DashboardOverview({ user }: { user: UserProfile }) {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-6">
         <StatCard label="Total Volume" value={stats.total} icon={<ClipboardList className="text-blue-500" />} />
         <StatCard label="Monthly Assigned" value={stats.monthlyAssigned} icon={<Calendar className="text-indigo-500" />} />
         <StatCard label="In Progress" value={stats.pending} icon={<Clock className="text-amber-500" />} />
         <StatCard label="Completed" value={stats.completed} icon={<CheckCircle2 className="text-green-500" />} />
         <StatCard label="Approved" value={stats.approved} icon={<Check className="text-emerald-500" />} />
         <StatCard label="Denied" value={stats.denied} icon={<X className="text-red-500" />} />
+        <StatCard label="Customer Satisfaction" value={stats.avgSatisfaction} icon={<Star className="text-amber-500" />} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 lg:col-span-1">
+          <h3 className="text-xs font-black text-[#4C1D95] uppercase tracking-[0.2em] mb-6">Satisfaction Distribution</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={satisfactionData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis 
+                  dataKey="rating" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 10, fontWeight: 'bold' }} 
+                  label={{ value: 'Stars', position: 'insideBottom', offset: -5, fontSize: 10, fontWeight: 'bold' }}
+                />
+                <YAxis hide />
+                <Tooltip 
+                  cursor={{ fill: 'transparent' }}
+                  contentStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                />
+                <Bar dataKey="count" fill="#4C1D95" radius={[4, 4, 0, 0]} barSize={30} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="mt-4 flex justify-between items-center px-2">
+             <div className="flex items-center gap-1">
+                <Star size={12} className="text-amber-400 fill-amber-400" />
+                <span className="text-[10px] font-black text-[#4C1D95]">{stats.avgSatisfaction} / 5.0</span>
+             </div>
+             <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Aggregate Rating</p>
+          </div>
+        </div>
+
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 lg:col-span-1">
           <h3 className="text-xs font-black text-[#4C1D95] uppercase tracking-[0.2em] mb-6">CI Officer Leaderboard</h3>
           <div className="space-y-6">
@@ -2512,8 +2561,11 @@ function AccountStatus({ user }: { user: UserProfile }) {
                 selected?.id === a.id && "bg-gray-50 border-l-4 border-l-[#4C1D95]"
               )}
             >
+              <h4 className="font-bold text-sm uppercase">{a.borrowerName}</h4>
+              <p className="text-[10px] text-gray-500 font-bold mb-1 flex items-center gap-1">
+                <Phone size={10} /> {a.mobileNumber}
+              </p>
               <div className="flex justify-between items-start mb-1">
-                <h4 className="font-bold text-sm uppercase">{a.borrowerName}</h4>
                 <div className="flex items-center gap-2">
                   <span className={cn(
                     "text-[8px] font-black uppercase px-2 py-1 rounded-full",
@@ -2553,7 +2605,12 @@ function AccountStatus({ user }: { user: UserProfile }) {
             <div className="flex justify-between items-start">
               <div>
                 <h2 className="text-2xl font-black uppercase tracking-tight text-[#4C1D95]">{selected.borrowerName}</h2>
-                <p className="text-xs text-gray-400 uppercase tracking-widest font-bold">CI OFFICER: {selected.ciOfficerName}</p>
+                <div className="flex items-center gap-4 mt-1">
+                  <p className="text-xs text-gray-400 uppercase tracking-widest font-bold">CI OFFICER: {selected.ciOfficerName}</p>
+                  <p className="text-xs text-[#4C1D95] uppercase tracking-widest font-black flex items-center gap-1">
+                    <Phone size={12} /> {selected.mobileNumber}
+                  </p>
+                </div>
               </div>
               {user.role === 'user' && selected.status !== 'Completed' && selected.status !== 'Approved' && selected.status !== 'Denied' && selected.status !== 'Report Submitted' && selected.status !== 'Pre-approved' && (
                 <button 
@@ -3958,11 +4015,22 @@ function AdminKeys({ user }: { user: UserProfile }) {
 function ValidationSurvey({ user }: { user: UserProfile }) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selected, setSelected] = useState<Assignment | null>(null);
-  const [survey, setSurvey] = useState({
+  const [step, setStep] = useState(1);
+  const [validation, setValidation] = useState({
     didAnswerCalls: false,
     didReceiveProceeds: false,
     didExplainPN: false,
     didExplainDeductions: false
+  });
+  const [survey, setSurvey] = useState({
+    satisfaction: 5,
+    speed: 5,
+    clarity: 5,
+    affordability: 5,
+    customerService: 5,
+    recommend: 'Yes' as 'Yes' | 'No',
+    recommendExplanation: '',
+    comments: ''
   });
 
   useEffect(() => {
@@ -3984,21 +4052,29 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
     return () => unsubscribe();
   }, []);
 
+  const handleNext = () => {
+    setStep(2);
+  };
+
   const handleSubmit = async () => {
     if (!selected) return;
     try {
       await api.patch(`/api/assignments/${selected.id}`, {
         validationResults: {
-          didAnswerCalls: survey.didAnswerCalls,
-          didReceiveProceeds: survey.didReceiveProceeds,
-          didExplainPN: survey.didExplainPN,
-          didExplainDeductions: survey.didExplainDeductions
+          didAnswerCalls: validation.didAnswerCalls,
+          didReceiveProceeds: validation.didReceiveProceeds,
+          didExplainPN: validation.didExplainPN,
+          didExplainDeductions: validation.didExplainDeductions
+        },
+        survey: {
+          ...survey,
+          createdAt: new Date().toISOString()
         },
         status: 'Completed',
         timeline: [...selected.timeline, { 
           step: 'Completed', 
           timestamp: new Date().toISOString(),
-          note: 'CI Officer submitted validation and survey results'
+          note: 'CI Officer submitted validation and satisfaction survey results'
         }]
       });
 
@@ -4007,39 +4083,83 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
       adminsSnapshot.forEach(adminDoc => {
         createNotification(
           adminDoc.id,
-          'Validation Completed',
-          `CI Officer ${user.fullName} completed validation for ${selected.borrowerName}`,
+          'Validation & Survey Completed',
+          `CI Officer ${user.fullName} completed validation and survey for ${selected.borrowerName}`,
           'status_change',
           selected.id
         );
       });
 
       setSelected(null);
+      setStep(1);
+      setValidation({
+        didAnswerCalls: false,
+        didReceiveProceeds: false,
+        didExplainPN: false,
+        didExplainDeductions: false
+      });
+      setSurvey({
+        satisfaction: 5,
+        speed: 5,
+        clarity: 5,
+        affordability: 5,
+        customerService: 5,
+        recommend: 'Yes',
+        recommendExplanation: '',
+        comments: ''
+      });
     } catch (err) {
       console.error(err);
     }
   };
 
+  const ratings = [
+    { label: 'How satisfied are you with the loan application process?', key: 'satisfaction', options: ['Very unsatisfied', 'Unsatisfied', 'Neutral', 'Satisfied', 'Very satisfied'] },
+    { label: 'How would you rate the speed of loan approval and release?', key: 'speed', options: ['Very slow', 'Slow', 'Average', 'Fast', 'Very fast'] },
+    { label: 'How clear and understandable were the loan terms and conditions?', key: 'clarity', options: ['Very unclear', 'Unclear', 'Neutral', 'Clear', 'Very clear'] },
+    { label: 'How affordable do you find the interest rates and fees?', key: 'affordability', options: ['Very expensive', 'Expensive', 'Neutral', 'Affordable', 'Very affordable'] },
+    { label: 'How would you rate the customer service support during your loan experience?', key: 'customerService', options: ['Very poor', 'Poor', 'Fair', 'Good', 'Excellent'] },
+  ];
+
   return (
-    <div className="space-y-8">
-      <div className="grid grid-cols-3 gap-6">
+    <div className="space-y-8 max-w-5xl mx-auto">
+      <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+        <h2 className="text-xl font-black text-[#4C1D95] uppercase tracking-widest mb-2">Pending Validation & Survey</h2>
+        <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Select a client to record their post-release feedback</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {assignments.map(a => (
           <div 
             key={a.id} 
-            onClick={() => setSelected(a)}
-            className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer relative"
+            onClick={() => {
+              setSelected(a);
+              setStep(1);
+            }}
+            className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer relative group"
           >
-            <div className="absolute top-4 right-4 text-red-500 animate-pulse">
-              <AlertCircle size={16} />
+            <div className="absolute top-4 right-4 text-amber-500 animate-pulse group-hover:scale-110 transition-transform">
+              <ClipboardList size={18} />
             </div>
             <h4 className="font-black text-sm uppercase text-[#4C1D95]">{a.borrowerName}</h4>
-            <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-4">Pending Validation</p>
-            <div className="text-[10px] space-y-1">
-              <p className="text-gray-400 uppercase tracking-widest">Approved Amount</p>
-              <p className="font-bold">₱{a.approvedAmount?.toLocaleString()}</p>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-1 mt-1">
+               <Phone size={10} /> {a.mobileNumber}
+            </p>
+            <div className="mt-4 pt-4 border-t border-gray-50 flex justify-between items-center">
+              <div className="text-[10px] space-y-1">
+                <p className="text-gray-400 uppercase tracking-widest">Released Amount</p>
+                <p className="font-bold">₱{a.approvedAmount?.toLocaleString()}</p>
+              </div>
+              <ChevronRight className="text-gray-300 group-hover:translate-x-1 transition-transform" size={16} />
             </div>
           </div>
         ))}
+        {assignments.length === 0 && (
+          <div className="col-span-full py-20 text-center bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-100">
+             <CheckCircle2 className="mx-auto text-gray-200 mb-4" size={48} />
+             <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">No pending validations found</p>
+          </div>
+        )}
       </div>
 
       <AnimatePresence>
@@ -4048,52 +4168,352 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto"
           >
             <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white w-full max-w-xl rounded-3xl p-8 shadow-2xl space-y-6"
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl relative my-8"
             >
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="text-2xl font-black text-[#4C1D95] uppercase">{selected.borrowerName}</h3>
-                  <p className="text-xs text-gray-400 uppercase tracking-widest">Validation & Survey</p>
+              <div className="p-8 md:p-10">
+                <div className="flex justify-between items-start mb-8">
+                  <div>
+                    <h3 className="text-3xl font-black text-[#4C1D95] uppercase tracking-tight">{selected.borrowerName}</h3>
+                    <div className="flex items-center gap-4 mt-1">
+                      <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Validation & Survey</p>
+                      <div className="h-1 w-1 bg-gray-300 rounded-full" />
+                      <p className="text-xs text-[#4C1D95] font-black uppercase tracking-widest">Step {step} of 2</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setSelected(null)} 
+                    className="p-2 bg-gray-50 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                  >
+                    <X size={24} />
+                  </button>
                 </div>
-                <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-red-500"><X /></button>
-              </div>
 
-              <div className="space-y-4">
-                <div className="space-y-3 pt-4">
-                  {[
-                    { id: 'didAnswerCalls', label: 'Did client answer calls?' },
-                    { id: 'didReceiveProceeds', label: 'Did you receive your loan proceeds?' },
-                    { id: 'didExplainPN', label: 'Did our officer explain the PN?' },
-                    { id: 'didExplainDeductions', label: 'Releasing officer explained deductions?' }
-                  ].map(q => (
-                    <label key={q.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
-                      <span className="text-xs font-bold text-gray-600 uppercase tracking-tight">{q.label}</span>
-                      <input 
-                        type="checkbox" 
-                        className="w-5 h-5 accent-[#4C1D95]"
-                        checked={(survey as any)[q.id]}
-                        onChange={e => setSurvey({...survey, [q.id]: e.target.checked})}
-                      />
-                    </label>
-                  ))}
-                </div>
-              </div>
+                {step === 1 ? (
+                  <div className="space-y-6">
+                    <div className="bg-[#4C1D95]/5 p-6 rounded-3xl border border-[#4C1D95]/10">
+                      <h4 className="text-xs font-black text-[#4C1D95] uppercase tracking-widest mb-6">Internal Validation Checkpoints</h4>
+                      <div className="space-y-3">
+                        {[
+                          { id: 'didAnswerCalls', label: 'Did client answer all verification calls?' },
+                          { id: 'didReceiveProceeds', label: 'Did the client receive full loan proceeds?' },
+                          { id: 'didExplainPN', label: 'Did you explain the Promissory Note properly?' },
+                          { id: 'didExplainDeductions', label: 'Were all deductions clearly explained?' }
+                        ].map(q => (
+                          <label key={q.id} className="flex items-center justify-between p-4 bg-white rounded-2xl cursor-pointer hover:shadow-md transition-all border border-gray-50 group">
+                            <span className="text-[11px] font-bold text-gray-600 uppercase tracking-tight group-hover:text-[#4C1D95] transition-colors">{q.label}</span>
+                            <div className={cn(
+                              "w-6 h-6 rounded-lg flex items-center justify-center transition-all",
+                              (validation as any)[q.id] ? "bg-[#4C1D95] text-white" : "bg-gray-100 text-transparent"
+                            )}>
+                              <Check size={14} strokeWidth={4} />
+                              <input 
+                                type="checkbox" 
+                                className="hidden"
+                                checked={(validation as any)[q.id]}
+                                onChange={e => setValidation({...validation, [q.id]: e.target.checked})}
+                              />
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
 
-              <button 
-                onClick={handleSubmit}
-                className="w-full py-4 bg-[#4C1D95] text-white font-black rounded-2xl shadow-lg hover:shadow-xl transition-all uppercase tracking-[0.2em] text-xs"
-              >
-                Submit Validation Results
-              </button>
+                    <button 
+                      onClick={handleNext}
+                      className="w-full py-6 bg-[#4C1D95] text-white font-black rounded-3xl shadow-xl shadow-[#4C1D95]/20 hover:bg-[#3B1575] hover:-translate-y-1 transition-all uppercase tracking-[0.3em] text-[11px]"
+                    >
+                      Continue to Client Survey
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-8 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                    <div className="space-y-6">
+                      {ratings.map((r, i) => (
+                        <div key={r.key} className="space-y-3">
+                          <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest flex gap-2">
+                             <span className="text-[#4C1D95]">0{i + 1}.</span> {r.label}
+                          </label>
+                          <div className="grid grid-cols-5 gap-2">
+                            {r.options.map((opt, idx) => (
+                              <button
+                                key={opt}
+                                onClick={() => setSurvey({...survey, [r.key]: idx + 1})}
+                                className={cn(
+                                  "py-3 rounded-xl text-[8px] font-black uppercase tracking-tighter transition-all border-2",
+                                  (survey as any)[r.key] === idx + 1 
+                                    ? "bg-[#4C1D95] border-[#4C1D95] text-white shadow-lg" 
+                                    : "bg-gray-50 border-gray-50 text-gray-400 hover:border-gray-200"
+                                )}
+                              >
+                                {opt}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+
+                      <div className="space-y-3">
+                        <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest flex gap-2">
+                          <span className="text-[#4C1D95]">06.</span> Would you recommend our loan service to others?
+                        </label>
+                        <div className="flex gap-4">
+                          {['Yes', 'No'].map(v => (
+                            <button
+                              key={v}
+                              onClick={() => setSurvey({...survey, recommend: v as 'Yes' | 'No'})}
+                              className={cn(
+                                "flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2",
+                                survey.recommend === v 
+                                  ? (v === 'Yes' ? "bg-green-500 border-green-500 text-white shadow-lg" : "bg-red-500 border-red-500 text-white shadow-lg")
+                                  : "bg-gray-50 border-gray-50 text-gray-400 hover:border-gray-200"
+                              )}
+                            >
+                              {v}
+                            </button>
+                          ))}
+                        </div>
+                        <input 
+                          type="text"
+                          placeholder="Quick reason for your answer..."
+                          className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-[11px] font-bold focus:bg-white focus:border-[#4C1D95]/20 focus:outline-none transition-all"
+                          value={survey.recommendExplanation}
+                          onChange={e => setSurvey({...survey, recommendExplanation: e.target.value})}
+                        />
+                      </div>
+
+                      <div className="space-y-3">
+                        <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest">07. Comments or Suggestions</label>
+                        <textarea 
+                          className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-3xl text-[11px] font-bold h-32 focus:bg-white focus:border-[#4C1D95]/20 focus:outline-none transition-all"
+                          placeholder="Tell us how we can improve your experience..."
+                          value={survey.comments}
+                          onChange={e => setSurvey({...survey, comments: e.target.value})}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-4 pt-4">
+                       <button 
+                        onClick={() => setStep(1)}
+                        className="px-8 py-6 bg-gray-100 text-gray-400 font-black rounded-3xl hover:bg-gray-200 transition-all uppercase tracking-[0.2em] text-[10px]"
+                      >
+                        Back
+                      </button>
+                      <button 
+                        onClick={handleSubmit}
+                        className="flex-1 py-6 bg-green-500 text-white font-black rounded-3xl shadow-xl shadow-green-500/20 hover:bg-green-600 hover:-translate-y-1 transition-all uppercase tracking-[0.3em] text-[11px]"
+                      >
+                        Submit Overall Satisfaction
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function ValidationSurveyResults({ user }: { user: UserProfile }) {
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [selected, setSelected] = useState<Assignment | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const q = query(collection(db, 'assignments'), where('status', '==', 'Completed'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
+      setAssignments(data.filter(a => a.survey));
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  if (loading) return (
+    <div className="h-64 flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4C1D95]" />
+    </div>
+  );
+
+  const getRatingLabel = (score: number, options: string[]) => {
+    return options[score - 1];
+  };
+
+  const surveyMetrics = [
+    { label: 'Overall Satisfaction', key: 'satisfaction', options: ['Very unsatisfied', 'Unsatisfied', 'Neutral', 'Satisfied', 'Very satisfied'] },
+    { label: 'Approval Speed', key: 'speed', options: ['Very slow', 'Slow', 'Average', 'Fast', 'Very fast'] },
+    { label: 'Term Clarity', key: 'clarity', options: ['Very unclear', 'Unclear', 'Neutral', 'Clear', 'Very clear'] },
+    { label: 'Rate Affordability', key: 'affordability', options: ['Very expensive', 'Expensive', 'Neutral', 'Affordable', 'Very affordable'] },
+    { label: 'Support Quality', key: 'customerService', options: ['Very poor', 'Poor', 'Fair', 'Good', 'Excellent'] },
+  ];
+
+  return (
+    <div className="space-y-8 max-w-7xl mx-auto">
+      <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-black text-[#4C1D95] uppercase tracking-tight">Validation & Survey Results</h2>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Analyzing client feedback and service performance</p>
+        </div>
+        <div className="flex items-center gap-2 px-6 py-3 bg-green-50 text-green-600 rounded-2xl border border-green-100">
+           <Star size={18} fill="currentColor" />
+           <span className="text-[11px] font-black uppercase tracking-widest">Live Feedback Loop</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className="lg:col-span-1 space-y-4">
+          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest px-4">Submitted Responses</h3>
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden divide-y divide-gray-50">
+            {assignments.map(a => (
+              <button
+                key={a.id}
+                onClick={() => setSelected(a)}
+                className={cn(
+                  "w-full p-6 text-left hover:bg-gray-50 transition-all group border-l-4",
+                  selected?.id === a.id ? "bg-gray-50 border-l-[#4C1D95]" : "border-l-transparent"
+                )}
+              >
+                <h4 className="font-black text-xs uppercase text-gray-700 group-hover:text-[#4C1D95]">{a.borrowerName}</h4>
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="flex">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star 
+                        key={star} 
+                        size={10} 
+                        className={star <= (a.survey?.satisfaction || 0) ? "text-amber-400 fill-amber-400" : "text-gray-200"} 
+                      />
+                    ))}
+                  </div>
+                  <span className="text-[8px] text-gray-400 font-bold uppercase">{format(new Date(a.survey?.createdAt || ''), 'MMM d')}</span>
+                </div>
+              </button>
+            ))}
+            {assignments.length === 0 && (
+              <div className="p-12 text-center opacity-40">
+                <ClipboardList className="mx-auto mb-2" size={32} />
+                <p className="text-[10px] font-black uppercase tracking-widest">No surveys yet</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="lg:col-span-3">
+          <AnimatePresence mode="wait">
+            {selected ? (
+              <motion.div
+                key={selected.id}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="bg-white rounded-3xl border border-gray-100 shadow-xl p-10 space-y-12"
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-3xl font-black text-[#4C1D95] uppercase tracking-tight">{selected.borrowerName}</h3>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Survey received on {format(new Date(selected.survey?.createdAt || ''), 'MMMM d, yyyy | h:mm a')}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">CI Officer</p>
+                    <p className="text-xs font-black text-[#4C1D95] uppercase">{selected.ciOfficerName}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                   <div className="space-y-8">
+                     <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50 pb-4">Performance Metrics</h4>
+                     <div className="space-y-6">
+                        {surveyMetrics.map(m => (
+                          <div key={m.key} className="space-y-2">
+                            <div className="flex justify-between items-center text-[10px]">
+                              <span className="font-bold text-gray-500 uppercase tracking-tight">{m.label}</span>
+                              <span className="font-black text-[#4C1D95] uppercase">{getRatingLabel((selected.survey as any)[m.key], m.options)}</span>
+                            </div>
+                            <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden flex">
+                               {[1, 2, 3, 4, 5].map((level) => (
+                                 <div 
+                                  key={level}
+                                  className={cn(
+                                    "flex-1 border-r border-white last:border-0",
+                                    level <= (selected.survey as any)[m.key] ? "bg-amber-400" : "bg-transparent"
+                                  )}
+                                 />
+                               ))}
+                            </div>
+                          </div>
+                        ))}
+                     </div>
+                   </div>
+
+                   <div className="space-y-8">
+                     <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50 pb-4">Additional Feedback</h4>
+                     <div className="space-y-8">
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Service Recommendation</p>
+                          <div className="flex items-center gap-3">
+                             <div className={cn(
+                               "px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white",
+                               selected.survey?.recommend === 'Yes' ? "bg-green-500" : "bg-red-500"
+                             )}>
+                               {selected.survey?.recommend}
+                             </div>
+                             <p className="text-xs italic text-gray-600">"{selected.survey?.recommendExplanation}"</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 bg-gray-50 p-6 rounded-2xl relative">
+                          <div className="absolute top-0 right-6 -translate-y-1/2 bg-white px-4 py-1 rounded-full border border-gray-100 shadow-sm">
+                             <p className="text-[9px] font-black uppercase text-gray-400">Comments / Suggestions</p>
+                          </div>
+                          <p className="text-xs text-gray-700 font-medium leading-relaxed">
+                            {selected.survey?.comments || "No comments provided by the client."}
+                          </p>
+                        </div>
+
+                        <div className="pt-4 border-t border-gray-50">
+                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-4">Internal Validation Checkpoints</p>
+                          <div className="grid grid-cols-2 gap-3">
+                             {[
+                               { label: 'Answered Calls', val: selected.validationResults?.didAnswerCalls },
+                               { label: 'Received Proceeds', val: selected.validationResults?.didReceiveProceeds },
+                               { label: 'PN Explained', val: selected.validationResults?.didExplainPN },
+                               { label: 'Deductions Explained', val: selected.validationResults?.didExplainDeductions },
+                             ].map(check => (
+                               <div key={check.label} className="flex items-center gap-2">
+                                 <div className={cn(
+                                   "w-4 h-4 rounded-md flex items-center justify-center",
+                                   check.val ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"
+                                 )}>
+                                   {check.val ? <Check size={10} strokeWidth={4} /> : <X size={10} strokeWidth={4} />}
+                                 </div>
+                                 <span className="text-[10px] font-bold text-gray-600 uppercase tracking-tight">{check.label}</span>
+                               </div>
+                             ))}
+                          </div>
+                        </div>
+                     </div>
+                   </div>
+                </div>
+              </motion.div>
+            ) : (
+              <div className="h-full min-h-[500px] flex flex-col items-center justify-center bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-100 text-center p-12">
+                 <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-xl mb-6">
+                    <Database size={32} className="text-gray-200" />
+                 </div>
+                 <h4 className="text-xl font-black text-gray-300 uppercase tracking-widest">Select Repository Data</h4>
+                 <p className="text-xs text-gray-400 mt-2 font-medium">Click on a client name to review their full validation & survey dossier</p>
+              </div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
     </div>
   );
 }

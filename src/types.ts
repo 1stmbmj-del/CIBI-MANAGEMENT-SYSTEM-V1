@@ -210,6 +210,17 @@ export interface Assignment {
   deniedComments?: string;
   createdAt: string;
   cashflowHistory?: CashflowReport[];
+  survey?: {
+    satisfaction: number;
+    speed: number;
+    clarity: number;
+    affordability: number;
+    customerService: number;
+    recommend: 'Yes' | 'No';
+    recommendExplanation: string;
+    comments: string;
+    createdAt: string;
+  };
 }
 
 export interface AppNotification {
