@@ -2262,8 +2262,8 @@ function ProfileSettings({ user, setUser }: { user: UserProfile, setUser: (u: Us
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert('Image size must be less than 2MB');
+      if (file.size > 500 * 1024) {
+        alert('Image size must be less than 500KB to ensure reliable storage');
         return;
       }
       const reader = new FileReader();

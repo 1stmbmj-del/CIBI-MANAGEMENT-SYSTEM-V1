@@ -63,12 +63,13 @@ service cloud.firestore {
     }
 
     function isValidUser(data) {
-      return data.keys().hasAll(['fullName', 'mobileNumber', 'email', 'role', 'createdAt']) &&
-             data.fullName is string && data.fullName.size() > 0 && data.fullName.size() < 100 &&
-             data.mobileNumber is string && (data.mobileNumber == "" || data.mobileNumber.size() >= 10) &&
+      return data.keys().hasAll(['fullName', 'email', 'role', 'createdAt']) &&
+             data.fullName is string && data.fullName.size() > 0 && data.fullName.size() <= 500 &&
              data.email is string && data.email.size() > 0 &&
              data.role in ['admin', 'user'] &&
              data.createdAt is string &&
+             (!data.keys().contains('mobileNumber') || (data.mobileNumber is string && (data.mobileNumber == "" || data.mobileNumber.size() >= 10))) &&
+             (!data.keys().contains('photoURL') || (data.photoURL is string && data.photoURL.size() < 1048576)) &&
              (!data.keys().contains('isVerified') || data.isVerified is bool);
     }
 
