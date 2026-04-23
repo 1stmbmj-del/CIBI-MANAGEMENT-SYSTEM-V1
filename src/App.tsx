@@ -867,6 +867,18 @@ function Dashboard({
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (isMobile) setSidebarOpen(false);
+    else setSidebarOpen(true);
+  }, [isMobile, setSidebarOpen]);
 
   useEffect(() => {
     const q = query(
@@ -922,51 +934,114 @@ function Dashboard({
   ];
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-gray-50">
+      {/* Mobile Backdrop */}
+      <AnimatePresence>
+        {isMobile && sidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSidebarOpen(false)}
+            className="fixed inset-0 bg-[#4C1D95]/40 backdrop-blur-sm z-30 lg:hidden"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Sidebar */}
       <motion.aside 
         initial={false}
-        animate={{ width: sidebarOpen ? 280 : 0 }}
-        className="bg-[#4C1D95] text-white flex-shrink-0 overflow-hidden relative z-20"
+        animate={{ 
+          width: sidebarOpen ? 280 : (isMobile ? 0 : 80),
+          x: (isMobile && !sidebarOpen) ? -280 : 0
+        }}
+        className={cn(
+          "bg-[#4C1D95] text-white flex-shrink-0 overflow-hidden relative z-40 transition-all duration-300 ease-in-out shadow-2xl",
+          isMobile ? "fixed h-full" : "relative"
+        )}
       >
-        <div className="p-6 flex flex-col h-full w-[280px]">
-          <div className="flex items-center space-x-4 mb-12">
-            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center overflow-hidden border-2 border-white/40">
+        <div className={cn(
+          "flex flex-col h-full transition-all duration-300",
+          sidebarOpen ? "w-[280px]" : "w-[80px]"
+        )}>
+          {/* Header/Profile Section */}
+          <div className={cn(
+            "p-6 flex items-center transition-all duration-300",
+            sidebarOpen ? "space-x-4 mb-8" : "justify-center mb-10"
+          )}>
+            <div className={cn(
+              "bg-white/20 rounded-full flex items-center justify-center overflow-hidden border-2 border-white/40 transition-all",
+              sidebarOpen ? "w-12 h-12" : "w-10 h-10"
+            )}>
               {user.photoURL ? (
                 <img src={user.photoURL} alt="User" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               ) : (
-                <User className="text-white" />
+                <User className="text-white" size={sidebarOpen ? 24 : 20} />
               )}
             </div>
-            <div>
-              <h3 className="font-bold text-sm uppercase truncate w-32">{user.fullName}</h3>
-              <p className="text-[10px] text-white/60 uppercase tracking-widest">{user.role}</p>
-            </div>
+            {sidebarOpen && (
+              <motion.div
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="overflow-hidden"
+              >
+                <h3 className="font-black text-sm uppercase truncate w-32 leading-tight">{user.fullName}</h3>
+                <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold">{user.role}</p>
+              </motion.div>
+            )}
           </div>
 
-          <nav className="flex-1 space-y-2">
+          {/* Navigation */}
+          <nav className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar">
             {menuItems.map((item) => (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => {
+                  setActiveTab(item.id);
+                  if (isMobile) setSidebarOpen(false);
+                }}
                 className={cn(
-                  "w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-xs font-bold uppercase tracking-widest transition-all",
-                  activeTab === item.id ? "bg-white text-[#4C1D95]" : "hover:bg-white/10"
+                  "w-full flex items-center transition-all duration-200 rounded-xl group",
+                  activeTab === item.id 
+                    ? "bg-white text-[#4C1D95] shadow-lg shadow-black/10" 
+                    : "hover:bg-white/10 text-white/70 hover:text-white",
+                  sidebarOpen ? "px-4 py-3 space-x-3" : "py-4 justify-center"
                 )}
+                title={!sidebarOpen ? item.id : undefined}
               >
-                <item.icon size={18} />
-                <span>{item.id}</span>
+                <item.icon size={20} className={cn(
+                  "transition-transform",
+                  activeTab === item.id ? "scale-110" : "group-hover:scale-110"
+                )} />
+                {sidebarOpen && (
+                  <motion.span 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-[11px] font-black uppercase tracking-widest truncate"
+                  >
+                    {item.id}
+                  </motion.span>
+                )}
               </button>
             ))}
           </nav>
 
-          <button 
-            onClick={handleLogout}
-            className="flex items-center space-x-3 px-4 py-3 text-xs font-bold uppercase tracking-widest hover:bg-white/10 rounded-lg mt-auto"
-          >
-            <LogOut size={18} />
-            <span>Sign Out</span>
-          </button>
+          {/* Footer/Logout */}
+          <div className="p-4 border-t border-white/10">
+            <button 
+              onClick={handleLogout}
+              className={cn(
+                "w-full flex items-center transition-all duration-200 rounded-xl hover:bg-white/10 text-white/70 hover:text-white group",
+                sidebarOpen ? "px-4 py-3 space-x-3" : "py-4 justify-center"
+              )}
+              title={!sidebarOpen ? "Sign Out" : undefined}
+            >
+              <LogOut size={20} className="group-hover:rotate-12 transition-transform" />
+              {sidebarOpen && (
+                <span className="text-[11px] font-black uppercase tracking-widest">Sign Out</span>
+              )}
+            </button>
+          </div>
         </div>
       </motion.aside>
 
