@@ -83,7 +83,8 @@ import {
   limit,
   Timestamp,
   getDocFromServer,
-  addDoc
+  addDoc,
+  deleteField
 } from 'firebase/firestore';
 
 import { AppNotification } from './types';
@@ -4722,6 +4723,7 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
   const [selected, setSelected] = useState<Assignment | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const q = query(collection(db, 'assignments'), where('status', '==', 'Completed'));
@@ -4732,6 +4734,32 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
     });
     return () => unsubscribe();
   }, []);
+
+  const handleDeleteResponse = async () => {
+    if (!selected) return;
+    if (!window.confirm('WARNING: Are you sure you want to delete this response? This will clear all client feedback and validation data, and move the account back to "Approved" status for re-submission.')) return;
+    
+    setIsDeleting(true);
+    try {
+      await updateDoc(doc(db, 'assignments', selected.id), {
+        validationResults: deleteField(),
+        survey: deleteField(),
+        status: 'Approved', // Move back to pending survey
+        timeline: [...selected.timeline, {
+          step: 'Response Deleted',
+          timestamp: new Date().toISOString(),
+          note: `Admin ${user.fullName} deleted the previous validation & survey response.`
+        }]
+      });
+      setSelected(null);
+      alert('Response deleted successfully. The account is now pending for a new survey.');
+    } catch (err) {
+      console.error('Failed to delete response:', err);
+      alert('Failed to delete response. Please check permissions.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   if (loading) return (
     <div className="h-64 flex items-center justify-center">
@@ -4833,9 +4861,22 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
                     <h3 className="text-3xl font-black text-[#4C1D95] uppercase tracking-tight">{selected.borrowerName}</h3>
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Survey received on {format(new Date(selected.survey?.createdAt || ''), 'MMMM d, yyyy | h:mm a')}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">CI Officer</p>
-                    <p className="text-xs font-black text-[#4C1D95] uppercase">{selected.ciOfficerName}</p>
+                  <div className="flex items-start gap-4">
+                    {user.role === 'admin' && (
+                      <button
+                        onClick={handleDeleteResponse}
+                        disabled={isDeleting}
+                        className="p-3 bg-red-50 text-red-500 rounded-2xl hover:bg-red-100 transition-all border border-red-100 flex items-center gap-2"
+                        title="Delete Response"
+                      >
+                        <Trash2 size={16} />
+                        <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Delete Response</span>
+                      </button>
+                    )}
+                    <div className="text-right border-l border-gray-100 pl-4">
+                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">CI Officer</p>
+                      <p className="text-xs font-black text-[#4C1D95] uppercase">{selected.ciOfficerName}</p>
+                    </div>
                   </div>
                 </div>
 
