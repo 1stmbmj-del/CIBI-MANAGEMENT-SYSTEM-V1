@@ -47,7 +47,10 @@ import {
   Settings as UserSettings,
   FileText,
   Bell,
-  Presentation
+  Presentation,
+  Monitor,
+  Tablet,
+  Smartphone
 } from 'lucide-react';
 import pptxgen from "pptxgenjs";
 import { motion, AnimatePresence } from 'framer-motion';
@@ -863,6 +866,7 @@ function Dashboard({
   const isAdmin = user.role === 'admin';
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
 
   useEffect(() => {
     const q = query(
@@ -1057,24 +1061,67 @@ function Dashboard({
               <div className="text-[10px] text-gray-400 font-medium">
                 {format(new Date(), 'M/d/yyyy')}
               </div>
+
+              <div className="flex items-center bg-gray-50 rounded-xl p-1 border border-gray-100 ml-2">
+                <button 
+                  onClick={() => setViewportMode('desktop')}
+                  className={cn(
+                    "p-1.5 rounded-lg transition-all",
+                    viewportMode === 'desktop' ? "bg-white text-[#4C1D95] shadow-sm" : "text-gray-400 hover:bg-gray-100"
+                  )}
+                  title="Desktop View"
+                >
+                  <Monitor size={14} />
+                </button>
+                <button 
+                  onClick={() => setViewportMode('tablet')}
+                  className={cn(
+                    "p-1.5 rounded-lg transition-all",
+                    viewportMode === 'tablet' ? "bg-white text-[#4C1D95] shadow-sm" : "text-gray-400 hover:bg-gray-100"
+                  )}
+                  title="Tablet View"
+                >
+                  <Tablet size={14} />
+                </button>
+                <button 
+                  onClick={() => setViewportMode('mobile')}
+                  className={cn(
+                    "p-1.5 rounded-lg transition-all",
+                    viewportMode === 'mobile' ? "bg-white text-[#4C1D95] shadow-sm" : "text-gray-400 hover:bg-gray-100"
+                  )}
+                  title="Mobile View"
+                >
+                  <Smartphone size={14} />
+                </button>
+              </div>
             </div>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-8">
-          <AnimatePresence mode="wait">
-            {activeTab === 'DASHBOARD' && (isAdmin ? <DashboardOverview user={user} /> : <CIDashboard user={user} />)}
-            {activeTab === 'USERS' && <UserManagement user={user} />}
-            {activeTab === 'ASSIGN ACCOUNT' && <AssignAccount user={user} />}
-            {activeTab === 'ACCOUNT STATUS' && <AccountStatus user={user} />}
-            {activeTab === 'CRECOM APPROVAL' && <CrecomApproval user={user} />}
-            {activeTab === 'VALIDATION & SURVEY' && <ValidationSurveyResults user={user} />}
-            {activeTab === 'REPORTS' && <ReportsView user={user} />}
-            {activeTab === 'DATA STORAGE' && <DataStorage user={user} />}
-            {activeTab === 'ADMIN KEYS' && <AdminKeys user={user} />}
-            {activeTab === 'FOR VALIDATION & SURVEY' && <ValidationSurvey user={user} />}
-            {activeTab === 'PROFILE' && <ProfileSettings user={user} setUser={setUser} />}
-          </AnimatePresence>
+        <div className={cn(
+          "flex-1 overflow-x-hidden overflow-y-auto transition-all duration-500 ease-in-out mx-auto",
+          viewportMode === 'desktop' && "w-full",
+          viewportMode === 'tablet' && "max-w-[768px] w-full border-x-8 border-gray-200/50 bg-gray-50/50",
+          viewportMode === 'mobile' && "max-w-[375px] w-full border-x-8 border-gray-200/50 bg-gray-50/50"
+        )}>
+          <div className={cn(
+            "p-8 min-h-full",
+            viewportMode !== 'desktop' && "bg-white shadow-2xl"
+          )}>
+            <AnimatePresence mode="wait">
+              {activeTab === 'DASHBOARD' && (isAdmin ? <DashboardOverview user={user} /> : <CIDashboard user={user} />)}
+              {activeTab === 'USERS' && <UserManagement user={user} />}
+              {activeTab === 'ASSIGN ACCOUNT' && <AssignAccount user={user} />}
+              {activeTab === 'ACCOUNT STATUS' && <AccountStatus user={user} />}
+              {activeTab === 'CRECOM APPROVAL' && <CrecomApproval user={user} />}
+              {activeTab === 'VALIDATION & SURVEY' && <ValidationSurveyResults user={user} />}
+              {activeTab === 'REPORTS' && <ReportsView user={user} />}
+              {activeTab === 'DATA STORAGE' && <DataStorage user={user} />}
+              {activeTab === 'ADMIN KEYS' && <AdminKeys user={user} />}
+              {activeTab === 'FOR VALIDATION & SURVEY' && <ValidationSurvey user={user} />}
+              {activeTab === 'PROFILE' && <ProfileSettings user={user} setUser={setUser} />}
+            </AnimatePresence>
+          </div>
         </div>
       </main>
     </div>
