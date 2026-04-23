@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, UserRole, Assignment, AssignmentStatus, TimelineStep, AuthResponse, Liability, CashflowMonth, CashflowReport, MOP, TOP } from './types';
 import { 
+  LineChart,
+  Line,
   BarChart, 
   Bar, 
   XAxis, 
@@ -13,6 +15,7 @@ import {
   Cell
 } from 'recharts';
 import { 
+  TrendingUp,
   LayoutDashboard, 
   UserPlus, 
   ClipboardList, 
@@ -25,6 +28,7 @@ import {
   Check, 
   AlertCircle,
   Camera,
+  Database,
   User,
   Phone,
   Lock,
@@ -210,6 +214,7 @@ const api = {
         const updateData: any = {};
         if (data.fullName) updateData.fullName = data.fullName;
         if (data.mobileNumber) updateData.mobileNumber = data.mobileNumber;
+        if (data.photoURL !== undefined) updateData.photoURL = data.photoURL;
         
         if (Object.keys(updateData).length > 0) {
           await updateDoc(doc(db, 'users', user.uid), updateData);
@@ -798,6 +803,7 @@ function Dashboard({
     { id: 'ACCOUNT STATUS', icon: ClipboardList },
     { id: 'CRECOM APPROVAL', icon: CheckCircle2 },
     { id: 'REPORTS', icon: FileText },
+    { id: 'DATA STORAGE', icon: Database },
     { id: 'ADMIN KEYS', icon: Key },
     { id: 'PROFILE', icon: UserSettings },
   ] : [
@@ -819,7 +825,11 @@ function Dashboard({
         <div className="p-6 flex flex-col h-full w-[280px]">
           <div className="flex items-center space-x-4 mb-12">
             <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center overflow-hidden border-2 border-white/40">
-              <User className="text-white" />
+              {user.photoURL ? (
+                <img src={user.photoURL} alt="User" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              ) : (
+                <User className="text-white" />
+              )}
             </div>
             <div>
               <h3 className="font-bold text-sm uppercase truncate w-32">{user.fullName}</h3>
@@ -950,12 +960,13 @@ function Dashboard({
 
         <div className="flex-1 overflow-y-auto p-8">
           <AnimatePresence mode="wait">
-            {activeTab === 'DASHBOARD' && (isAdmin ? <DashboardOverview /> : <CIDashboard user={user} />)}
+            {activeTab === 'DASHBOARD' && (isAdmin ? <DashboardOverview user={user} /> : <CIDashboard user={user} />)}
             {activeTab === 'USERS' && <UserManagement user={user} />}
             {activeTab === 'ASSIGN ACCOUNT' && <AssignAccount user={user} />}
             {activeTab === 'ACCOUNT STATUS' && <AccountStatus user={user} />}
             {activeTab === 'CRECOM APPROVAL' && <CrecomApproval user={user} />}
             {activeTab === 'REPORTS' && <ReportsView user={user} />}
+            {activeTab === 'DATA STORAGE' && <DataStorage user={user} />}
             {activeTab === 'ADMIN KEYS' && <AdminKeys user={user} />}
             {activeTab === 'FOR VALIDATION & SURVEY' && <ValidationSurvey user={user} />}
             {activeTab === 'PROFILE' && <ProfileSettings user={user} setUser={setUser} />}
@@ -1019,28 +1030,40 @@ const calcAmort = (rec: { loanAmount: number; term: string | number; rate: numbe
 
 // --- SUB-COMPONENTS ---
 
-function DashboardOverview() {
+function DashboardOverview({ user }: { user: UserProfile }) {
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
     completed: 0,
     approved: 0,
-    denied: 0
+    denied: 0,
+    monthlyAssigned: 0
   });
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [chartData, setChartData] = useState<any[]>([]);
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
   useEffect(() => {
     const q = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribeReadings = onSnapshot(q, async (snapshot) => {
       const assignments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
       
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+
+      const monthly = assignments.filter(a => {
+        const date = new Date(a.createdAt);
+        return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+      });
+
       setStats({
         total: assignments.length,
         pending: assignments.filter(a => !['Completed', 'Approved', 'Denied'].includes(a.status)).length,
         completed: assignments.filter(a => a.status === 'Completed').length,
         approved: assignments.filter(a => a.status === 'Approved').length,
-        denied: assignments.filter(a => a.status === 'Denied').length
+        denied: assignments.filter(a => a.status === 'Denied').length,
+        monthlyAssigned: monthly.length
       });
 
       const statusData = [
@@ -1061,11 +1084,26 @@ function DashboardOverview() {
       .slice(0, 10);
 
       setRecentActivity(activities);
+
+      // Leaderboard logic
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      const usersList = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      const leaderData = usersList
+        .filter((u: any) => u.role === 'user')
+        .map((u: any) => ({
+          ...u,
+          assignedCount: assignments.filter(a => a.ciOfficerId === u.id).length
+        }))
+        .sort((a: any, b: any) => b.assignedCount - a.assignedCount)
+        .slice(0, 5);
+      
+      setLeaderboard(leaderData);
     }, (err) => {
       console.error('Firestore error in DashboardOverview:', err);
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeReadings();
   }, []);
 
   const exportToCSV = () => {
@@ -1103,8 +1141,20 @@ function DashboardOverview() {
       animate={{ opacity: 1, y: 0 }}
       className="space-y-8"
     >
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-black text-[#4C1D95] uppercase tracking-widest">Dashboard Overview</h2>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-[#4C1D95]/10 flex items-center justify-center overflow-hidden border-2 border-[#4C1D95]/20">
+            {user.photoURL ? (
+              <img src={user.photoURL} alt="Admin" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            ) : (
+              <User className="text-[#4C1D95]" size={24} />
+            )}
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-[#4C1D95] uppercase tracking-widest">Dashboard Overview</h2>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">System Administrator Panel</p>
+          </div>
+        </div>
         <button 
           onClick={exportToCSV}
           className="px-4 py-2 bg-[#4C1D95] text-white text-[10px] font-bold uppercase tracking-widest rounded-lg flex items-center gap-2 hover:bg-[#5B21B6] transition-all"
@@ -1113,16 +1163,55 @@ function DashboardOverview() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-        <StatCard label="Total Assignments" value={stats.total} icon={<ClipboardList className="text-blue-500" />} />
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
+        <StatCard label="Total Volume" value={stats.total} icon={<ClipboardList className="text-blue-500" />} />
+        <StatCard label="Monthly Assigned" value={stats.monthlyAssigned} icon={<Calendar className="text-indigo-500" />} />
         <StatCard label="In Progress" value={stats.pending} icon={<Clock className="text-amber-500" />} />
         <StatCard label="Completed" value={stats.completed} icon={<CheckCircle2 className="text-green-500" />} />
         <StatCard label="Approved" value={stats.approved} icon={<Check className="text-emerald-500" />} />
         <StatCard label="Denied" value={stats.denied} icon={<X className="text-red-500" />} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 lg:col-span-1">
+          <h3 className="text-xs font-black text-[#4C1D95] uppercase tracking-[0.2em] mb-6">CI Officer Leaderboard</h3>
+          <div className="space-y-6">
+            {leaderboard.length > 0 ? leaderboard.map((u, i) => (
+              <div key={u.id} className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden border border-gray-200">
+                      {u.photoURL ? (
+                        <img src={u.photoURL} alt={u.fullName} className="w-full h-full object-cover" />
+                      ) : (
+                        <User className="text-gray-300" size={20} />
+                      )}
+                    </div>
+                    <div className={cn(
+                      "absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black border-2 border-white",
+                      i === 0 ? "bg-yellow-400 text-white" : 
+                      i === 1 ? "bg-gray-300 text-white" : 
+                      i === 2 ? "bg-amber-600 text-white" : "bg-gray-100 text-gray-500"
+                    )}>
+                      {i + 1}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-gray-900">{u.fullName}</p>
+                    <p className="text-[8px] text-gray-400 uppercase font-black">{u.assignedCount} Accounts</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                   <TrendingUp className="text-green-500 ml-auto" size={14} />
+                </div>
+              </div>
+            )) : (
+              <p className="text-xs text-gray-400 italic">No ranking data available</p>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 lg:col-span-1">
           <h3 className="text-xs font-black text-[#4C1D95] uppercase tracking-[0.2em] mb-6">Status Distribution</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -1582,7 +1671,9 @@ function CIDashboard({ user }: { user: UserProfile }) {
     total: 0,
     assigned: 0,
     completed: 0,
-    approved: 0
+    approved: 0,
+    denied: 0,
+    monthlyAssigned: 0
   });
   const [performanceData, setPerformanceData] = useState<any[]>([]);
 
@@ -1591,11 +1682,22 @@ function CIDashboard({ user }: { user: UserProfile }) {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const assignments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
       
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+
+      const monthly = assignments.filter(a => {
+        const date = new Date(a.createdAt);
+        return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+      });
+
       setStats({
         total: assignments.length,
         assigned: assignments.filter(a => a.status === 'Assigned').length,
         completed: assignments.filter(a => a.status === 'Completed').length,
-        approved: assignments.filter(a => a.status === 'Approved').length
+        approved: assignments.filter(a => a.status === 'Approved').length,
+        denied: assignments.filter(a => a.status === 'Denied').length,
+        monthlyAssigned: monthly.length
       });
 
       const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -1622,15 +1724,29 @@ function CIDashboard({ user }: { user: UserProfile }) {
       animate={{ opacity: 1, y: 0 }}
       className="space-y-8"
     >
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-black text-[#4C1D95] uppercase tracking-widest">CI Officer Dashboard</h2>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-[#4C1D95]/10 flex items-center justify-center overflow-hidden border-2 border-[#4C1D95]/20">
+            {user.photoURL ? (
+              <img src={user.photoURL} alt="User" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            ) : (
+              <User className="text-[#4C1D95]" size={24} />
+            )}
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-[#4C1D95] uppercase tracking-widest">CI Officer Dashboard</h2>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Personal Performance Overview</p>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
         <StatCard label="Total Tasks" value={stats.total} icon={<ClipboardList className="text-blue-500" />} />
+        <StatCard label="Monthly Assigned" value={stats.monthlyAssigned} icon={<Calendar className="text-indigo-500" />} />
         <StatCard label="New Assigned" value={stats.assigned} icon={<Clock className="text-amber-500" />} />
         <StatCard label="Completed" value={stats.completed} icon={<CheckCircle2 className="text-green-500" />} />
-        <StatCard label="Final Approved" value={stats.approved} icon={<Check className="text-emerald-500" />} />
+        <StatCard label="Approved" value={stats.approved} icon={<Check className="text-emerald-500" />} />
+        <StatCard label="Denied" value={stats.denied} icon={<X className="text-red-500" />} />
       </div>
 
       <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
@@ -1667,11 +1783,27 @@ function ProfileSettings({ user, setUser }: { user: UserProfile, setUser: (u: Us
   const [formData, setFormData] = useState({
     fullName: user.fullName,
     mobileNumber: user.mobileNumber || '',
+    photoURL: user.photoURL || '',
     password: '',
     confirmPassword: ''
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert('Image size must be less than 2MB');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, photoURL: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1685,9 +1817,10 @@ function ProfileSettings({ user, setUser }: { user: UserProfile, setUser: (u: Us
       await api.patch('/api/auth/profile', {
         fullName: formData.fullName,
         mobileNumber: formData.mobileNumber,
+        photoURL: formData.photoURL,
         password: formData.password || undefined
       });
-      setUser({ ...user, fullName: formData.fullName, mobileNumber: formData.mobileNumber });
+      setUser({ ...user, fullName: formData.fullName, mobileNumber: formData.mobileNumber, photoURL: formData.photoURL });
       setMessage({ type: 'success', text: 'Profile updated successfully' });
       setFormData({ ...formData, password: '', confirmPassword: '' });
     } catch (err: any) {
@@ -1707,6 +1840,23 @@ function ProfileSettings({ user, setUser }: { user: UserProfile, setUser: (u: Us
         <h2 className="text-xl font-black text-[#4C1D95] uppercase tracking-widest mb-8">Profile Settings</h2>
         
         <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="flex flex-col items-center space-y-4 mb-6">
+            <div className="relative group">
+              <div className="w-24 h-24 rounded-full bg-gray-100 overflow-hidden border-4 border-[#4C1D95]/10 flex items-center justify-center">
+                {formData.photoURL ? (
+                  <img src={formData.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <User size={40} className="text-gray-300" />
+                )}
+              </div>
+              <label className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover:opacity-100 rounded-full cursor-pointer transition-opacity">
+                <Camera size={20} />
+                <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+              </label>
+            </div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Click to change picture</p>
+          </div>
+
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Full Name</label>
             <input 
@@ -2036,11 +2186,212 @@ function AssignAccount({ user }: { user: UserProfile }) {
   );
 }
 
+function EditAssignmentModal({ assignment, ciOfficers, onClose }: { assignment: Assignment, ciOfficers: UserProfile[], onClose: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    borrowerName: assignment.borrowerName,
+    mobileNumber: assignment.mobileNumber,
+    accountType: assignment.accountType,
+    location: assignment.location,
+    tribe: assignment.tribe,
+    businessPin: assignment.businessPin || '',
+    addressPin: assignment.addressPin || '',
+    requestedAmount: String(assignment.requestedAmount),
+    term: assignment.term,
+    intRate: String(assignment.intRate),
+    mop: assignment.mop,
+    top: assignment.top,
+    ciOfficerId: assignment.ciOfficerId
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const officer = ciOfficers.find(o => o.id === formData.ciOfficerId);
+      await api.patch(`/api/assignments/${assignment.id}`, {
+        ...formData,
+        requestedAmount: Number(formData.requestedAmount),
+        intRate: Number(formData.intRate),
+        ciOfficerName: officer?.fullName || 'Unknown'
+      });
+      alert('Assignment updated successfully!');
+      onClose();
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update assignment.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white w-full max-w-4xl rounded-[40px] shadow-2xl p-8 overflow-y-auto max-h-[90vh]"
+      >
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h3 className="text-xl font-black text-[#4C1D95] uppercase tracking-tight">Edit Assignment</h3>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Modification Panel</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+            <X size={24} className="text-gray-400" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Name of Borrower</label>
+              <input 
+                type="text" 
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
+                value={formData.borrowerName}
+                onChange={e => setFormData({...formData, borrowerName: e.target.value})}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Mobile Number</label>
+              <input 
+                type="text" 
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
+                value={formData.mobileNumber}
+                onChange={e => setFormData({...formData, mobileNumber: e.target.value})}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Location</label>
+              <input 
+                type="text" 
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
+                value={formData.location}
+                onChange={e => setFormData({...formData, location: e.target.value})}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Requested Loan Amount</label>
+              <input 
+                type="number" 
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
+                value={formData.requestedAmount}
+                onChange={e => setFormData({...formData, requestedAmount: e.target.value})}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Int. Rate (%)</label>
+              <input 
+                type="number" 
+                step="0.01"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
+                value={formData.intRate}
+                onChange={e => setFormData({...formData, intRate: e.target.value})}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Account Type</label>
+              <select 
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
+                value={formData.accountType}
+                onChange={e => setFormData({...formData, accountType: e.target.value as any})}
+              >
+                <option value="New">New</option>
+                <option value="Renewal">Renewal</option>
+                <option value="Restructure">Restructure</option>
+                <option value="Additional">Additional</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Term</label>
+              <input 
+                type="text" 
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
+                value={formData.term}
+                onChange={e => setFormData({...formData, term: e.target.value})}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">MOP</label>
+              <select 
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
+                value={formData.mop}
+                onChange={e => setFormData({...formData, mop: e.target.value as any})}
+              >
+                <option value="Daily">Daily</option>
+                <option value="Weekly">Weekly</option>
+                <option value="Semi-Monthly">Semi-Monthly</option>
+                <option value="Monthly">Monthly</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">TOP</label>
+              <select 
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
+                value={formData.top}
+                onChange={e => setFormData({...formData, top: e.target.value as any})}
+              >
+                <option value="Collection">Collection</option>
+                <option value="PDC">PDC</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">CI Officer</label>
+              <select 
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
+                value={formData.ciOfficerId}
+                onChange={e => setFormData({...formData, ciOfficerId: e.target.value})}
+                required
+              >
+                {ciOfficers.map(o => (
+                  <option key={o.id} value={o.id}>{o.fullName} ({o.role})</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="md:col-span-2 pt-6">
+            <button 
+              type="submit"
+              disabled={loading}
+              className="w-full py-4 bg-[#4C1D95] text-white text-xs font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl hover:bg-[#3B1575] transition-all disabled:opacity-50"
+            >
+              {loading ? 'MODIFICATION IN PROGRESS...' : 'COMMIT CHANGES'}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
+
 function AccountStatus({ user }: { user: UserProfile }) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selected, setSelected] = useState<Assignment | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [ciOfficers, setCiOfficers] = useState<UserProfile[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, 'users'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const officers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as UserProfile[];
+      setCiOfficers(officers);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     let q = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
@@ -2153,25 +2504,38 @@ function AccountStatus({ user }: { user: UserProfile }) {
         </div>
         <div className="flex-1 overflow-y-auto">
           {filtered.map((a) => (
-            <button
+            <div
               key={a.id}
               onClick={() => setSelected(a)}
               className={cn(
-                "w-full p-6 text-left border-b border-gray-50 hover:bg-gray-50 transition-colors",
+                "w-full p-6 text-left border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer",
                 selected?.id === a.id && "bg-gray-50 border-l-4 border-l-[#4C1D95]"
               )}
             >
               <div className="flex justify-between items-start mb-1">
                 <h4 className="font-bold text-sm uppercase">{a.borrowerName}</h4>
-                <span className={cn(
-                  "text-[8px] font-black uppercase px-2 py-1 rounded-full",
-                  a.status === 'Completed' ? "bg-green-100 text-green-600" : "bg-amber-100 text-amber-600"
-                )}>
-                  {a.status}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={cn(
+                    "text-[8px] font-black uppercase px-2 py-1 rounded-full",
+                    a.status === 'Completed' ? "bg-green-100 text-green-600" : "bg-amber-100 text-amber-600"
+                  )}>
+                    {a.status}
+                  </span>
+                  {user.role === 'admin' && (
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(a.id);
+                      }}
+                      className="p-1 text-gray-300 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
+                </div>
               </div>
               <p className="text-[10px] text-gray-400 uppercase tracking-widest">{a.accountType} • {a.ciOfficerName}</p>
-            </button>
+            </div>
           ))}
           {filtered.length === 0 && !loading && (
             <div className="p-12 text-center text-gray-300">
@@ -2208,12 +2572,20 @@ function AccountStatus({ user }: { user: UserProfile }) {
                 </button>
               )}
               {user.role === 'admin' && (
-                <button 
-                  onClick={() => handleDelete(selected.id)}
-                  className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-                >
-                  <Trash2 size={18} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setIsEditing(true)}
+                    className="p-2 text-gray-400 hover:text-[#4C1D95] transition-colors"
+                  >
+                    <Pencil size={18} />
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(selected.id)}
+                    className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
               )}
             </div>
 
@@ -2277,6 +2649,11 @@ function AccountStatus({ user }: { user: UserProfile }) {
               </div>
             </div>
 
+            {/* Performance History Graph */}
+            {selected.cashflowHistory && selected.cashflowHistory.length > 0 && (
+              <PerformanceGraph history={selected.cashflowHistory} />
+            )}
+
             {/* Credit Scoring Module */}
             {(selected.status === 'Field CIBI' || selected.creditScore) && (
               <CreditScoringModule assignment={selected} user={user} />
@@ -2294,6 +2671,16 @@ function AccountStatus({ user }: { user: UserProfile }) {
           </div>
         )}
       </div>
+
+      <AnimatePresence>
+        {isEditing && selected && (
+          <EditAssignmentModal 
+            assignment={selected} 
+            ciOfficers={ciOfficers} 
+            onClose={() => setIsEditing(false)} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -2576,6 +2963,95 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
   );
 }
 
+function PerformanceGraph({ history }: { history: CashflowReport[] }) {
+  if (!history || history.length < 1) return null;
+
+  return (
+    <section className="space-y-6 bg-white rounded-3xl p-8 border border-gray-100">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-[#4C1D95]/5 rounded-xl flex items-center justify-center">
+          <TrendingUp className="text-[#4C1D95]" size={20} />
+        </div>
+        <div>
+          <h4 className="text-sm font-black text-[#4C1D95] uppercase tracking-widest">Financial Performance History</h4>
+          <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Trend analysis across {history.length} assessment rounds</p>
+        </div>
+      </div>
+      
+      <div className="h-[300px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={history.map((h, i) => ({
+            index: i + 1,
+            ndi: h.analysis.monthlyNdi,
+            gross: h.businessIncome.gross,
+            net: h.analysis.netIncome
+          }))}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+            <XAxis 
+              dataKey="index" 
+              axisLine={false} 
+              tickLine={false} 
+              tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 'bold' }} 
+              label={{ value: 'Submission Round', position: 'bottom', offset: -5, fontSize: 10, fontWeight: 'black', fill: '#4C1D95' }}
+            />
+            <YAxis 
+              axisLine={false} 
+              tickLine={false} 
+              tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 'bold' }}
+              tickFormatter={(val) => `₱${val.toLocaleString()}`}
+            />
+            <Tooltip 
+              contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '12px', fontWeight: 'bold' }}
+              formatter={(value: any) => [`₱${value.toLocaleString()}`]}
+            />
+            <Line 
+              type="monotone" 
+              dataKey="ndi" 
+              stroke="#4C1D95" 
+              strokeWidth={4} 
+              dot={{ r: 6, fill: '#4C1D95', strokeWidth: 2, stroke: '#fff' }} 
+              activeDot={{ r: 8, fill: '#4C1D95' }} 
+              name="Monthly NDI"
+            />
+            <Line 
+              type="monotone" 
+              dataKey="gross" 
+              stroke="#10b981" 
+              strokeWidth={2} 
+              strokeDasharray="5 5" 
+              dot={false}
+              name="Gross Income"
+            />
+            <Line 
+              type="monotone" 
+              dataKey="net" 
+              stroke="#3b82f6" 
+              strokeWidth={2} 
+              dot={false}
+              name="Net Income"
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      
+      <div className="flex gap-6 pt-4 border-t border-gray-100">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-[#4C1D95] rounded-full" />
+          <span className="text-[10px] font-black text-gray-500 uppercase">Monthly NDI</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-[#10b981] rounded-full" />
+          <span className="text-[10px] font-black text-gray-500 uppercase">Gross Income</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-[#3b82f6] rounded-full" />
+          <span className="text-[10px] font-black text-gray-500 uppercase">Net Income</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assignment: Assignment, user: UserProfile, isReadOnly?: boolean }) {
   const [liabilities, setLiabilities] = useState<Liability[]>(assignment.cashflowReport?.liabilities || []);
   const [businessIncome, setBusinessIncome] = useState(assignment.cashflowReport?.businessIncome || {
@@ -2702,7 +3178,13 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
         operationRecommendation: { ...opRecommendation, ...calcAmort(opRecommendation) }
       };
 
-      const updatePayload: any = { cashflowReport: report };
+      const history = assignment.cashflowHistory || [];
+      const newHistory = [...history, report];
+
+      const updatePayload: any = { 
+        cashflowReport: report,
+        cashflowHistory: newHistory
+      };
       
       // If committing during the Cashflowing phase, advance to the next step automatically
       if (assignment.status === 'Cashflowing') {
@@ -3269,6 +3751,11 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                 </div>
 
                 <div className="space-y-12">
+                  {/* Performance History Section */}
+                  {selected.cashflowHistory && selected.cashflowHistory.length > 0 && (
+                    <PerformanceGraph history={selected.cashflowHistory} />
+                  )}
+
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                     <section className="space-y-6">
                       <div className="flex justify-between items-center bg-gray-50 p-4 rounded-2xl">
@@ -3607,6 +4094,187 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function DataStorage({ user }: { user: UserProfile }) {
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [selected, setSelected] = useState<Assignment | null>(null);
+  const [ciOfficers, setCiOfficers] = useState<UserProfile[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, 'users'));
+    const unsubUsers = onSnapshot(q, (snapshot) => {
+      setCiOfficers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as UserProfile[]);
+    });
+
+    const qAss = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
+    const unsubAss = onSnapshot(qAss, (snapshot) => {
+      setAssignments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[]);
+      setLoading(false);
+    });
+
+    return () => {
+      unsubUsers();
+      unsubAss();
+    };
+  }, []);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to permanently delete this client data?')) return;
+    try {
+      await api.delete(`/api/assignments/${id}`);
+      alert('Data deleted successfully.');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete data.');
+    }
+  };
+
+  const filtered = assignments.filter(a => 
+    a.borrowerName.toLowerCase().includes(search.toLowerCase()) ||
+    a.ciOfficerName.toLowerCase().includes(search.toLowerCase())
+  );
+
+  if (loading) return (
+    <div className="h-64 flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4C1D95]" />
+    </div>
+  );
+
+  return (
+    <div className="space-y-8 max-w-7xl mx-auto">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+        <div className="space-y-1">
+          <h2 className="text-2xl font-black text-[#4C1D95] uppercase tracking-tight">Main Data Storage</h2>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] flex items-center gap-2">
+            <span className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" /> Comprehensive Archive
+          </p>
+        </div>
+        <div className="relative w-full lg:w-96">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <input 
+            type="text" 
+            placeholder="Search all records..."
+            className="w-full pl-12 pr-6 py-3.5 bg-gray-50 border-2 border-transparent rounded-2xl text-sm focus:outline-none focus:border-[#4C1D95]/20 font-medium transition-all"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
+                <th className="px-6 py-5">Client Identifier</th>
+                <th className="px-6 py-5">Account Spec</th>
+                <th className="px-6 py-5">Financials</th>
+                <th className="px-6 py-5">Geography</th>
+                <th className="px-6 py-5">Field Staff</th>
+                <th className="px-6 py-5">Lifecycle</th>
+                <th className="px-6 py-5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {filtered.map((a) => (
+                <tr key={a.id} className="hover:bg-gray-50 group transition-colors">
+                  <td className="px-6 py-5">
+                    <div>
+                      <p className="font-bold text-gray-900 uppercase text-sm">{a.borrowerName}</p>
+                      <p className="text-[10px] text-gray-400 flex items-center gap-1 mt-1">
+                        <Phone size={10} /> {a.mobileNumber}
+                      </p>
+                    </div>
+                  </td>
+                  <td className="px-6 py-5">
+                    <span className="text-[10px] font-black uppercase px-2 py-1 bg-blue-50 text-blue-600 rounded">
+                      {a.accountType}
+                    </span>
+                    <p className="text-[9px] text-gray-400 mt-2 font-bold uppercase tracking-tighter">
+                      CID: {a.id.slice(0, 8)}
+                    </p>
+                  </td>
+                  <td className="px-6 py-5">
+                    <div>
+                      <p className="text-xs font-black text-[#4C1D95]">₱{a.requestedAmount.toLocaleString()}</p>
+                      <p className="text-[9px] text-gray-400 font-bold uppercase mt-1">{a.term} Mos @ {a.intRate}%</p>
+                    </div>
+                  </td>
+                  <td className="px-6 py-5">
+                    <div>
+                      <p className="text-xs font-bold text-gray-700">{a.location}</p>
+                      <p className="text-[10px] text-gray-400 uppercase font-black">{a.tribe}</p>
+                    </div>
+                  </td>
+                  <td className="px-6 py-5">
+                    <div className="flex items-center gap-2">
+                       <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-[8px] font-black">
+                         {a.ciOfficerName.charAt(0)}
+                       </div>
+                       <span className="text-xs font-bold text-gray-600">{a.ciOfficerName}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-5">
+                    <span className={cn(
+                      "text-[9px] font-black uppercase px-3 py-1 rounded-full",
+                      a.status === 'Approved' ? "bg-green-100 text-green-600" :
+                      a.status === 'Denied' ? "bg-red-100 text-red-600" :
+                      a.status === 'Completed' ? "bg-blue-100 text-blue-600" : "bg-amber-100 text-amber-600"
+                    )}>
+                      {a.status}
+                    </span>
+                    <p className="text-[8px] text-gray-300 mt-2 font-mono">
+                      {format(new Date(a.createdAt), 'MMM d, yyyy')}
+                    </p>
+                  </td>
+                  <td className="px-6 py-5 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button 
+                        onClick={() => {
+                          setSelected(a);
+                          setIsEditing(true);
+                        }}
+                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(a.id)}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filtered.length === 0 && (
+            <div className="p-20 text-center">
+              <Database className="mx-auto text-gray-200 mb-4" size={48} />
+              <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">No matching records found in storage</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {isEditing && selected && (
+        <EditAssignmentModal 
+          assignment={selected} 
+          ciOfficers={ciOfficers} 
+          onClose={() => {
+            setIsEditing(false);
+            setSelected(null);
+          }} 
+        />
+      )}
     </div>
   );
 }

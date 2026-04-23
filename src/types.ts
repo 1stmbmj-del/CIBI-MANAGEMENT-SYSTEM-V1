@@ -209,6 +209,7 @@ export interface Assignment {
   cashflowReport?: CashflowReport;
   deniedComments?: string;
   createdAt: string;
+  cashflowHistory?: CashflowReport[];
 }
 
 export interface AppNotification {
