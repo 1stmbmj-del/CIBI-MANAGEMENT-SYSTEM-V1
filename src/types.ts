@@ -17,7 +17,7 @@ export interface AuthResponse {
 
 export type AccountType = 'New' | 'Renewal' | 'Restructure' | 'Additional';
 export type Tribe = 'NCR' | 'Rizal' | 'Mindoro' | 'Cavite';
-export type MOP = 'Weekly' | 'Semi-Monthly' | 'Monthly';
+export type MOP = 'Daily' | 'Weekly' | 'Semi-Monthly' | 'Monthly';
 export type TOP = 'Collection' | 'PDC';
 export type AssignmentStatus = 
   | 'Assigned' 
@@ -26,9 +26,10 @@ export type AssignmentStatus =
   | 'Field CIBI' 
   | 'Cashflowing' 
   | 'Report Submitted' 
-  | 'Completed' 
+  | 'Pre-approved'
   | 'Approved' 
-  | 'Denied';
+  | 'Denied'
+  | 'Completed';
 
 export interface TimelineStep {
   step: string;
@@ -172,7 +173,7 @@ export interface CreditScore {
   };
   totalGrade: number;
   riskScore: number;
-  recommendation: 'Approved' | 'Declined' | 'Conditional';
+  recommendation: 'Approved' | 'Denied' | 'Conditional';
   ciRemarks: string;
 }
 

@@ -71,24 +71,22 @@ service cloud.firestore {
     }
 
     function isValidAssignment(data) {
-      return data.keys().hasAll(['borrowerName', 'mobileNumber', 'ciOfficerId', 'status', 'timeline', 'createdAt']) &&
-             data.borrowerName is string && data.borrowerName.size() > 0 && data.borrowerName.size() < 200 &&
+      return data.keys().hasAll(['borrowerName', 'mobileNumber', 'accountType', 'location', 'tribe', 'requestedAmount', 'term', 'intRate', 'mop', 'top', 'ciOfficerId', 'ciOfficerName', 'status', 'timeline', 'createdAt']) &&
+             data.borrowerName is string && data.borrowerName.size() > 0 &&
              data.mobileNumber is string &&
+             data.accountType is string &&
+             data.location is string &&
+             data.tribe is string &&
+             data.requestedAmount is number &&
+             data.term is string &&
+             data.intRate is number &&
+             data.mop is string &&
+             data.top is string &&
              data.ciOfficerId is string &&
+             data.ciOfficerName is string &&
              data.status is string &&
              data.timeline is list &&
-             data.createdAt is string &&
-             (!data.keys().contains('creditScore') || (
-               data.creditScore is map &&
-               data.creditScore.character is number &&
-               data.creditScore.capacity is number &&
-               data.creditScore.capital is number &&
-               data.creditScore.condition is number &&
-               data.creditScore.collateral is number &&
-               data.creditScore.totalScore is number &&
-               data.creditScore.recommendation in ['Approved', 'Declined', 'Conditional'] &&
-               data.creditScore.ciRemarks is string
-             ));
+             data.createdAt is string;
     }
 
     function isValidNotification(data) {
@@ -133,7 +131,9 @@ service cloud.firestore {
     }
 
     match /assignments/{assignmentId} {
-      allow read: if isSignedIn();
+      // Regular users only see their own assigned accounts. Admins see all.
+      allow list: if isVerified() && (isAdmin() || resource.data.ciOfficerId == request.auth.uid);
+      allow get: if isVerified() && (isAdmin() || resource.data.ciOfficerId == request.auth.uid);
       allow create: if isAdmin() && isValidAssignment(request.resource.data);
       allow update: if isVerified() && isValidAssignment(request.resource.data) &&
                     (isAdmin() || request.auth.uid == resource.data.ciOfficerId);

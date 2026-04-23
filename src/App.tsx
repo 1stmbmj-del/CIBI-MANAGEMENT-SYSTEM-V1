@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { UserProfile, UserRole, Assignment, AssignmentStatus, TimelineStep, AuthResponse, Liability, CashflowMonth, CashflowReport } from './types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { UserProfile, UserRole, Assignment, AssignmentStatus, TimelineStep, AuthResponse, Liability, CashflowMonth, CashflowReport, MOP, TOP } from './types';
 import { 
   BarChart, 
   Bar, 
@@ -796,7 +796,7 @@ function Dashboard({
     { id: 'USERS', icon: Users },
     { id: 'ASSIGN ACCOUNT', icon: UserPlus },
     { id: 'ACCOUNT STATUS', icon: ClipboardList },
-    { id: 'PROCESS ACCOUNTS', icon: CheckCircle2 },
+    { id: 'CRECOM APPROVAL', icon: CheckCircle2 },
     { id: 'REPORTS', icon: FileText },
     { id: 'ADMIN KEYS', icon: Key },
     { id: 'PROFILE', icon: UserSettings },
@@ -954,7 +954,7 @@ function Dashboard({
             {activeTab === 'USERS' && <UserManagement user={user} />}
             {activeTab === 'ASSIGN ACCOUNT' && <AssignAccount user={user} />}
             {activeTab === 'ACCOUNT STATUS' && <AccountStatus user={user} />}
-            {activeTab === 'PROCESS ACCOUNTS' && <ProcessAccounts user={user} />}
+            {activeTab === 'CRECOM APPROVAL' && <CrecomApproval user={user} />}
             {activeTab === 'REPORTS' && <ReportsView user={user} />}
             {activeTab === 'ADMIN KEYS' && <AdminKeys user={user} />}
             {activeTab === 'FOR VALIDATION & SURVEY' && <ValidationSurvey user={user} />}
@@ -965,6 +965,57 @@ function Dashboard({
     </div>
   );
 }
+
+// --- SHARED UTILS ---
+// Constants & Utilities
+const steps = [
+  'Assigned',
+  'Start to Perform Assignment',
+  'Reviewing',
+  'Field CIBI',
+  'Cashflowing',
+  'Report Submitted',
+  'Pre-approved',
+  'Approved',
+  'Completed'
+];
+
+const calculateTAT = (timeline: TimelineStep[]) => {
+  if (timeline.length < 2) return '0h 0m';
+  const start = new Date(timeline[0].timestamp);
+  const end = new Date(timeline[timeline.length - 1].timestamp);
+  const isCompleted = timeline.some(t => t.step === 'Completed');
+  const now = new Date();
+  
+  const diff = isCompleted 
+    ? end.getTime() - start.getTime() 
+    : now.getTime() - start.getTime();
+    
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  return `${hours}h ${minutes}m${isCompleted ? '' : ' (ONGOING)'}`;
+};
+
+const calcAmort = (rec: { loanAmount: number; term: string | number; rate: number }) => {
+  const months = Number(rec.term) || 1;
+  const rate = (Number(rec.rate) || 0) / 100;
+  const loan = Number(rec.loanAmount) || 0;
+
+  const totalInterest = loan * rate * months;
+  const totalPayable = loan + totalInterest;
+
+  const semiCount = months * 2;
+  const weeklyCount = months < 5 ? (months * 4 + 1) : (months * 4 + 2);
+  const dailyCount = months * 26; // Standard 26 business days
+
+  return {
+    interest: totalInterest,
+    monthlyAmort: totalPayable / months,
+    semiMonthlyAmort: totalPayable / semiCount,
+    weeklyAmort: totalPayable / weeklyCount,
+    dailyAmort: totalPayable / dailyCount
+  };
+};
 
 // --- SUB-COMPONENTS ---
 
@@ -1949,6 +2000,7 @@ function AssignAccount({ user }: { user: UserProfile }) {
               value={formData.mop}
               onChange={e => setFormData({...formData, mop: e.target.value as any})}
             >
+              <option value="Daily">Daily</option>
               <option value="Weekly">Weekly</option>
               <option value="Semi-Monthly">Semi-Monthly</option>
               <option value="Monthly">Monthly</option>
@@ -1991,7 +2043,16 @@ function AccountStatus({ user }: { user: UserProfile }) {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    const q = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
+    let q = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
+    
+    if (user.role !== 'admin') {
+      q = query(
+        collection(db, 'assignments'),
+        where('ciOfficerId', '==', user.id),
+        orderBy('createdAt', 'desc')
+      );
+    }
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
       setAssignments(data);
@@ -2003,16 +2064,6 @@ function AccountStatus({ user }: { user: UserProfile }) {
 
     return () => unsubscribe();
   }, []);
-
-  const steps = [
-    'Assigned',
-    'Start to Perform Assignment',
-    'Reviewing',
-    'Field CIBI',
-    'Cashflowing',
-    'Report Submitted',
-    'Completed'
-  ];
 
   const handleNextStep = async (assignment: Assignment) => {
     if (assignment.status === 'Field CIBI' && !assignment.creditScore) {
@@ -2039,7 +2090,6 @@ function AccountStatus({ user }: { user: UserProfile }) {
 
       // Notify relevant parties
       if (user.role === 'admin') {
-        // Notify the assigned CI Officer
         await createNotification(
           assignment.ciOfficerId,
           'Status Update',
@@ -2048,7 +2098,6 @@ function AccountStatus({ user }: { user: UserProfile }) {
           assignment.id
         );
       } else {
-        // Notify Admins
         const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'admin')));
         adminsSnapshot.forEach(adminDoc => {
           createNotification(
@@ -2060,22 +2109,12 @@ function AccountStatus({ user }: { user: UserProfile }) {
           );
         });
       }
+      
+      // Refresh page as requested
+      window.location.reload();
     } catch (err) {
       console.error(err);
     }
-  };
-
-  const calculateTAT = (timeline: TimelineStep[]) => {
-    if (timeline.length < 2) return '0h 0m (ONGOING)';
-    const start = new Date(timeline[0].timestamp);
-    const end = new Date(timeline[timeline.length - 1].timestamp);
-    const diff = differenceInMinutes(end, start);
-    
-    const hours = Math.floor(diff / 60);
-    const minutes = diff % 60;
-    
-    const isCompleted = timeline.some(t => t.step === 'Completed');
-    return `${hours}h ${minutes}m${isCompleted ? '' : ' (ONGOING)'}`;
   };
 
   const filtered = assignments.filter(a => 
@@ -2152,12 +2191,20 @@ function AccountStatus({ user }: { user: UserProfile }) {
                 <h2 className="text-2xl font-black uppercase tracking-tight text-[#4C1D95]">{selected.borrowerName}</h2>
                 <p className="text-xs text-gray-400 uppercase tracking-widest font-bold">CI OFFICER: {selected.ciOfficerName}</p>
               </div>
-              {user.role === 'user' && selected.status !== 'Completed' && selected.status !== 'Approved' && selected.status !== 'Denied' && (
+              {user.role === 'user' && selected.status !== 'Completed' && selected.status !== 'Approved' && selected.status !== 'Denied' && selected.status !== 'Report Submitted' && selected.status !== 'Pre-approved' && (
                 <button 
                   onClick={() => handleNextStep(selected)}
                   className="px-6 py-2 bg-[#4C1D95] text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-[#3B1575] transition-colors"
                 >
                   Mark Next Step as Done
+                </button>
+              )}
+              {user.role === 'admin' && selected.status === 'Report Submitted' && (
+                <button 
+                  onClick={() => handleNextStep(selected)}
+                  className="px-6 py-2 bg-green-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-green-600 transition-all shadow-lg shadow-green-500/20"
+                >
+                  Confirm & Pre-approve
                 </button>
               )}
               {user.role === 'admin' && (
@@ -2251,7 +2298,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
   );
 }
 
-function CreditScoringModule({ assignment, user }: { assignment: Assignment, user: UserProfile }) {
+function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { assignment: Assignment, user: UserProfile, isReadOnly?: boolean }) {
   const SCORING_SHEET = {
     CHARACTER: {
       max: 20.5,
@@ -2352,6 +2399,18 @@ function CreditScoringModule({ assignment, user }: { assignment: Assignment, use
   const totalGrade = Object.values(sectionGrades).reduce((a: any, b: any) => a + b, 0) as number;
   const riskScore = 100 - totalGrade;
 
+  const isReadOnly = forceReadOnly || assignment.status !== 'Field CIBI' || (user.role !== 'user' && !assignment.creditScore);
+
+  // Auto-recommendation logic
+  useEffect(() => {
+    if (!isReadOnly) {
+      const rec = totalGrade <= 30 ? 'Approved' : 'Denied';
+      if (formData.recommendation !== rec) {
+        setFormData(prev => ({ ...prev, recommendation: rec }));
+      }
+    }
+  }, [totalGrade, isReadOnly]);
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -2372,8 +2431,6 @@ function CreditScoringModule({ assignment, user }: { assignment: Assignment, use
       setIsSaving(false);
     }
   };
-
-  const isReadOnly = assignment.status !== 'Field CIBI' || (user.role !== 'user' && !assignment.creditScore);
 
   return (
     <div className="bg-white border-2 border-[#4C1D95]/10 rounded-3xl p-8 space-y-12">
@@ -2485,16 +2542,12 @@ function CreditScoringModule({ assignment, user }: { assignment: Assignment, use
         <div className="space-y-6">
           <div className="space-y-2">
             <label className="text-xs font-black text-[#4C1D95] uppercase tracking-widest">Final Status Recommendation</label>
-            <select 
-              disabled={isReadOnly}
-              className="w-full h-12 px-6 bg-gray-50 border-2 border-gray-100 rounded-xl text-sm font-black uppercase focus:border-[#4C1D95] focus:outline-none transition-all disabled:opacity-50"
-              value={formData.recommendation}
-              onChange={e => setFormData({ ...formData, recommendation: e.target.value })}
-            >
-              <option value="Approved">Approved - Controlled</option>
-              <option value="Declined">Declined - Out of Scope</option>
-              <option value="Conditional">Conditional - Manual Review</option>
-            </select>
+            <div className={cn(
+              "w-full h-12 px-6 flex items-center bg-gray-50 border-2 border-gray-100 rounded-xl text-sm font-black uppercase",
+              totalGrade <= 30 ? "text-green-600" : "text-red-600"
+            )}>
+              {totalGrade <= 30 ? 'Approve' : 'Denied'}
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -2523,7 +2576,7 @@ function CreditScoringModule({ assignment, user }: { assignment: Assignment, use
   );
 }
 
-function CashflowModule({ assignment, user }: { assignment: Assignment, user: UserProfile }) {
+function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assignment: Assignment, user: UserProfile, isReadOnly?: boolean }) {
   const [liabilities, setLiabilities] = useState<Liability[]>(assignment.cashflowReport?.liabilities || []);
   const [businessIncome, setBusinessIncome] = useState(assignment.cashflowReport?.businessIncome || {
     gross: 0, expenses: 0, net: 0
@@ -2622,30 +2675,6 @@ function CashflowModule({ assignment, user }: { assignment: Assignment, user: Us
     householdExpenses.education, householdExpenses.medical
   ]);
 
-  const calcAmort = (rec: any) => {
-    const months = Number(rec.term) || 1;
-    const rate = (Number(rec.rate) || 0) / 100;
-    const loan = Number(rec.loanAmount) || 0;
-
-    // Flat Rate Interest Calculation
-    const totalInterest = loan * rate * months;
-    const totalPayable = loan + totalInterest;
-
-    // Installment Count Mapping
-    // Monthly: months
-    // Semi-Monthly: months * 2
-    // Weekly: (months < 5) ? (months * 4 + 1) : (months * 4 + 2)
-    const semiCount = months * 2;
-    const weeklyCount = months < 5 ? (months * 4 + 1) : (months * 4 + 2);
-
-    return {
-      interest: totalInterest,
-      monthlyAmort: totalPayable / months,
-      semiMonthlyAmort: totalPayable / semiCount,
-      weeklyAmort: totalPayable / weeklyCount
-    };
-  };
-
   const analysis = {
     grossBusinessIncome: businessIncome.gross,
     businessExpenses: businessIncome.expenses,
@@ -2706,7 +2735,7 @@ function CashflowModule({ assignment, user }: { assignment: Assignment, user: Us
     setLiabilities(liabilities.filter((_, i) => i !== idx));
   };
 
-  const isReadOnly = assignment.status !== 'Cashflowing' || (user.role !== 'user' && !assignment.cashflowReport);
+  const isReadOnly = forceReadOnly || (assignment.status !== 'Cashflowing' && assignment.status !== 'Report Submitted');
 
   return (
     <div className="bg-white border-2 border-[#4C1D95]/10 rounded-3xl p-8 space-y-12 shadow-xl shadow-[#4C1D95]/5">
@@ -2971,32 +3000,61 @@ function CashflowModule({ assignment, user }: { assignment: Assignment, user: Us
   );
 }
 
-function ProcessAccounts({ user }: { user: UserProfile }) {
+function CrecomApproval({ user }: { user: UserProfile }) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [approvedList, setApprovedList] = useState<Assignment[]>([]);
   const [selected, setSelected] = useState<Assignment | null>(null);
   const [loading, setLoading] = useState(true);
   const [processData, setProcessData] = useState({
     amount: '',
     term: '',
     intRate: '',
-    mop: 'Weekly',
-    top: 'Collection',
+    mop: 'Weekly' as MOP,
+    top: 'Collection' as TOP,
     comments: ''
   });
 
   useEffect(() => {
-    const q = query(collection(db, 'assignments'), where('status', '==', 'Completed'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    if (selected) {
+      setProcessData({
+        amount: String(selected.cashflowReport?.ciRecommendation?.loanAmount || selected.requestedAmount),
+        term: String(selected.cashflowReport?.ciRecommendation?.term || selected.term),
+        intRate: String(selected.cashflowReport?.ciRecommendation?.rate || 4),
+        mop: (selected.approvedMop || selected.mop) as MOP,
+        top: (selected.approvedTop || selected.top) as TOP,
+        comments: selected.crecomComments || ''
+      });
+    }
+  }, [selected]);
+
+  useEffect(() => {
+    const qPending = query(collection(db, 'assignments'), where('status', '==', 'Pre-approved'));
+    const qApproved = query(collection(db, 'assignments'), where('status', '==', 'Approved'), orderBy('createdAt', 'desc'), limit(10));
+
+    const unsubscribePending = onSnapshot(qPending, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
       setAssignments(data);
       setLoading(false);
-    }, (err) => {
-      console.error('Firestore ProcessAccounts listener error:', err);
-      setLoading(false);
     });
 
-    return () => unsubscribe();
+    const unsubscribeApproved = onSnapshot(qApproved, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
+      setApprovedList(data);
+    });
+
+    return () => {
+      unsubscribePending();
+      unsubscribeApproved();
+    };
   }, []);
+
+  const computedAmort = useMemo(() => {
+    return calcAmort({
+      loanAmount: Number(processData.amount),
+      term: Number(processData.term.replace(/[^0-9]/g, '')),
+      rate: Number(processData.intRate)
+    });
+  }, [processData.amount, processData.term, processData.intRate]);
 
   const handleApprove = async () => {
     if (!selected) return;
@@ -3014,8 +3072,8 @@ function ProcessAccounts({ user }: { user: UserProfile }) {
 
       await createNotification(
         selected.ciOfficerId,
-        'Account Approved',
-        `The assignment for ${selected.borrowerName} has been APPROVED.`,
+        'Final Approval - Ready for Survey',
+        `Access Granted for ${selected.borrowerName}. Please perform validation survey.`,
         'status_change',
         selected.id
       );
@@ -3038,7 +3096,7 @@ function ProcessAccounts({ user }: { user: UserProfile }) {
       await createNotification(
         selected.ciOfficerId,
         'Account Denied',
-        `The assignment for ${selected.borrowerName} has been DENIED.`,
+        `The application for ${selected.borrowerName} has been DENIED by Crecom.`,
         'status_change',
         selected.id
       );
@@ -3051,34 +3109,138 @@ function ProcessAccounts({ user }: { user: UserProfile }) {
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-3 gap-6">
-        {assignments.map(a => (
-          <motion.div 
-            key={a.id} 
-            layoutId={a.id}
-            onClick={() => setSelected(a)}
-            className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer relative overflow-hidden"
-          >
-            <div className="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h4 className="font-black text-sm uppercase text-[#4C1D95]">{a.borrowerName}</h4>
-                <p className="text-[10px] text-gray-400 uppercase tracking-widest">{a.accountType}</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {assignments.map(a => {
+          const preApprovalStep = a.timeline.find(t => t.step === 'Pre-approved');
+          const preApprovalDate = preApprovalStep ? format(new Date(preApprovalStep.timestamp), 'MMM d, yyyy h:mm a') : 'N/A';
+          
+          return (
+            <motion.div 
+              key={a.id} 
+              layoutId={a.id}
+              onClick={() => setSelected(a)}
+              className="bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl transition-all cursor-pointer relative overflow-hidden group flex flex-col"
+            >
+              <div className="bg-[#4C1D95] p-5 flex justify-between items-center text-white">
+                <div>
+                  <h4 className="font-black text-lg uppercase tracking-tight">{a.borrowerName}</h4>
+                  <p className="text-[9px] text-white/60 uppercase tracking-[0.2em] font-bold">Pre-approved: {preApprovalDate}</p>
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  <div className="flex flex-col items-end">
+                     <span className="text-[8px] font-black uppercase tracking-widest text-white/50">Credit Score</span>
+                     <span className={cn(
+                       "px-3 py-1 rounded-full text-[10px] font-black uppercase ring-2 ring-white/20",
+                       a.creditScore?.finalGrade === 'EXCELLENT' ? "bg-green-500 text-white" : "bg-amber-500 text-white"
+                     )}>
+                      {a.creditScore?.finalGrade || 'N/A'}
+                     </span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                     <span className="text-[8px] font-black uppercase tracking-widest text-white/50">Rec. Status</span>
+                     <span className={cn(
+                       "px-3 py-1 rounded-full text-[10px] font-black uppercase ring-2 ring-white/20",
+                       a.creditScore?.recommendation === 'Approved' ? "bg-white text-green-600" : "bg-white text-red-600"
+                     )}>
+                      {a.creditScore?.recommendation === 'Approved' ? 'Approve' : 'Denied'}
+                     </span>
+                  </div>
+                </div>
               </div>
-              <span className="px-2 py-1 bg-green-50 text-green-600 text-[8px] font-bold uppercase rounded">Completed</span>
-            </div>
-            <div className="grid grid-cols-2 gap-4 text-[10px]">
-              <div>
-                <p className="text-gray-400 uppercase tracking-widest">Requested</p>
-                <p className="font-bold">₱{a.requestedAmount.toLocaleString()}</p>
+
+              <div className="p-6 space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">CI Recommendation</p>
+                    <div className="space-y-1">
+                      <p className="text-sm font-black text-[#4C1D95]">₱{a.cashflowReport?.ciRecommendation?.loanAmount.toLocaleString()}</p>
+                      <p className="text-[9px] font-bold text-gray-500 uppercase">{a.cashflowReport?.ciRecommendation?.term} Mos @ {a.cashflowReport?.ciRecommendation?.rate}%</p>
+                    </div>
+                  </div>
+                  <div className="p-4 bg-green-50 rounded-2xl border border-green-100">
+                    <p className="text-[9px] font-black text-green-600/60 uppercase tracking-widest mb-2">Cashflow NDI</p>
+                    <div className="space-y-1">
+                      <p className="text-sm font-black text-green-700">₱{a.cashflowReport?.analysis?.monthlyNdi?.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                      <p className="text-[9px] font-bold text-green-600 uppercase">Monthly Capacity</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-4 border-t border-gray-50">
+                  <div className="flex items-center gap-2">
+                    <Clock size={12} className="text-gray-400" />
+                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">TAT: {calculateTAT(a.timeline)}</span>
+                  </div>
+                  <div className="text-[9px] font-black text-[#4C1D95] uppercase tracking-[0.2em] group-hover:translate-x-2 transition-all">Review Details →</div>
+                </div>
               </div>
-              <div>
-                <p className="text-gray-400 uppercase tracking-widest">Term</p>
-                <p className="font-bold">{a.term}</p>
-              </div>
-            </div>
-          </motion.div>
-        ))}
+            </motion.div>
+          );
+        })}
+        {assignments.length === 0 && (
+          <div className="col-span-full py-20 text-center bg-gray-50 rounded-[40px] border-2 border-dashed border-gray-200">
+            <CheckCircle2 className="mx-auto text-gray-200 mb-4" size={64} />
+            <h3 className="text-sm font-black text-gray-500 uppercase tracking-widest">Queue Empty</h3>
+            <p className="text-xs font-bold text-gray-400 mt-2">No pre-approved accounts waiting for Crecom review.</p>
+          </div>
+        )}
+      </div>
+
+      <div className="pt-20 space-y-6">
+        <div className="flex items-center gap-4">
+          <h3 className="text-sm font-black text-[#4C1D95] uppercase tracking-[0.3em] whitespace-nowrap">Recently Approved Loans</h3>
+          <div className="h-px w-full bg-gray-100" />
+        </div>
+        <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr>
+                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Date Approve</th>
+                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Borrower / Details</th>
+                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Amount</th>
+                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Term</th>
+                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Rate</th>
+                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">MOD</th>
+                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Payment</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {approvedList.map(a => {
+                const approvalStep = a.timeline.find(t => t.step === 'Approved');
+                const approvalDate = approvalStep ? format(new Date(approvalStep.timestamp), 'MMM d, yyyy') : 'N/A';
+                return (
+                  <tr key={a.id} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => setSelected(a)}>
+                    <td className="px-6 py-4 text-[10px] font-bold text-gray-400">{approvalDate}</td>
+                    <td className="px-6 py-4">
+                      <p className="text-sm font-black text-[#4C1D95] uppercase">{a.borrowerName}</p>
+                      <p className="text-[9px] text-gray-400 uppercase tracking-widest">CI: {a.ciOfficerName}</p>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <p className="text-sm font-black text-gray-900">₱{a.approvedAmount?.toLocaleString()}</p>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="px-3 py-1 bg-gray-100 rounded-full text-[10px] font-black text-gray-600">{a.approvedTerm} Mos</span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="text-sm font-black text-[#4C1D95]">{a.approvedIntRate}%</span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase">{a.approvedMop}</span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="px-3 py-1 bg-purple-50 text-purple-600 rounded-full text-[10px] font-black uppercase">{a.approvedTop}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+              {approvedList.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-300 font-bold uppercase text-[10px] tracking-widest">No recently approved accounts found</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <AnimatePresence>
@@ -3087,108 +3249,155 @@ function ProcessAccounts({ user }: { user: UserProfile }) {
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4"
           >
             <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-[40px] p-12 shadow-2xl space-y-12"
+              initial={{ y: 50, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              className="bg-white w-full max-w-7xl max-h-[95vh] overflow-y-auto rounded-[40px] p-0 shadow-2xl flex flex-col xl:flex-row"
             >
-              <div className="flex justify-between items-start border-b border-gray-100 pb-8">
-                <div>
-                  <h3 className="text-3xl font-black text-[#4C1D95] uppercase tracking-tight">{selected.borrowerName}</h3>
-                  <p className="text-xs text-gray-400 uppercase tracking-widest font-bold">Comprehensive Administrative Review & Determination</p>
+              <div className="flex-1 p-8 lg:p-12 overflow-y-auto border-r border-gray-100">
+                <div className="flex justify-between items-start mb-8">
+                  <div>
+                    <h3 className="text-4xl font-black text-[#4C1D95] uppercase tracking-tighter leading-none mb-2">{selected.borrowerName}</h3>
+                    <div className="flex items-center gap-4">
+                      <span className="px-3 py-1 bg-[#4C1D95]/5 text-[#4C1D95] text-[10px] font-black uppercase rounded-full tracking-widest">Step: Discrepancy & Final Approval</span>
+                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">CI Officer: {selected.ciOfficerName}</span>
+                    </div>
+                  </div>
+                  <button onClick={() => setSelected(null)} className="w-12 h-12 flex items-center justify-center bg-gray-50 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all"><X /></button>
                 </div>
-                <button onClick={() => setSelected(null)} className="w-12 h-12 flex items-center justify-center bg-gray-50 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all"><X /></button>
+
+                <div className="space-y-12">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                    <section className="space-y-6">
+                      <div className="flex justify-between items-center bg-gray-50 p-4 rounded-2xl">
+                        <h4 className="text-[10px] font-black text-[#4C1D95] uppercase tracking-widest">Credit Scorer Insight</h4>
+                        <span className="text-[10px] font-black text-green-600 bg-white px-3 py-1 rounded-full shadow-sm badge">GRADE: {selected.creditScore?.finalGrade || 'N/A'}</span>
+                      </div>
+                      <CreditScoringModule assignment={selected} user={user} isReadOnly={true} />
+                    </section>
+
+                    <section className="space-y-6">
+                      <div className="flex justify-between items-center bg-gray-50 p-4 rounded-2xl">
+                        <h4 className="text-[10px] font-black text-[#4C1D95] uppercase tracking-widest">Financial Diagnostic Summary</h4>
+                        <span className="text-[10px] font-black text-[#4C1D95] bg-white px-3 py-1 rounded-full shadow-sm badge">NDI: ₱{selected.cashflowReport?.analysis?.monthlyNdi?.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                      </div>
+                      <CashflowModule assignment={selected} user={user} isReadOnly={true} />
+                    </section>
+                  </div>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-12">
-                <div className="space-y-12">
-                  {selected.creditScore && (
-                    <div className="space-y-4">
-                      <h4 className="text-[10px] font-black text-[#4C1D95] bg-[#4C1D95]/5 px-4 py-2 rounded-lg uppercase tracking-widest inline-block">Diagnostic Performance Summary</h4>
-                      <CreditScoringModule assignment={selected} user={user} />
-                    </div>
-                  )}
-
-                  {selected.cashflowReport && (
-                    <div className="space-y-4">
-                      <h4 className="text-[10px] font-black text-[#4C1D95] bg-[#4C1D95]/5 px-4 py-2 rounded-lg uppercase tracking-widest inline-block">Liquidity & Cashflow Assessment</h4>
-                      <CashflowModule assignment={selected} user={user} />
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-8 bg-gray-50 p-8 rounded-[40px] sticky top-0 h-fit border border-gray-100">
-                  <h4 className="text-sm font-black text-[#4C1D95] uppercase tracking-widest mb-6">Final Determination Payload</h4>
+              <div className="w-full xl:w-[400px] bg-gray-50 p-8 lg:p-12 border-l border-gray-100 flex flex-col">
+                <div className="flex-1 space-y-8">
+                  <div className="pb-6 border-b border-gray-200">
+                    <h4 className="text-[11px] font-black text-[#4C1D95] uppercase tracking-[0.2em]">Final Determination Payload</h4>
+                    <p className="text-[9px] text-gray-400 mt-1 uppercase font-bold">Input final credit committee decisions below</p>
+                  </div>
                   
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Final Approved Amount</label>
-                      <input 
-                        type="number" 
-                        className="w-full h-14 px-6 bg-white border-2 border-gray-100 rounded-2xl text-lg font-black focus:border-[#4C1D95] focus:outline-none transition-all"
-                        value={processData.amount}
-                        onChange={e => setProcessData({...processData, amount: e.target.value})}
-                      />
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Final Amount</label>
+                        <input 
+                          type="number" 
+                          className="w-full h-14 px-6 bg-white border-2 border-gray-200 rounded-2xl text-lg font-black focus:border-[#4C1D95] focus:outline-none transition-all placeholder:text-gray-300"
+                          value={processData.amount}
+                          onChange={e => setProcessData({...processData, amount: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Term (Mos)</label>
+                        <input 
+                          type="text" 
+                          className="w-full h-14 px-6 bg-white border-2 border-gray-200 rounded-2xl text-lg font-black focus:border-[#4C1D95] focus:outline-none transition-all"
+                          value={processData.term}
+                          onChange={e => setProcessData({...processData, term: e.target.value})}
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Amortization Term</label>
-                      <input 
-                        type="text" 
-                        className="w-full h-14 px-6 bg-white border-2 border-gray-100 rounded-2xl text-lg font-black focus:border-[#4C1D95] focus:outline-none transition-all"
-                        value={processData.term}
-                        onChange={e => setProcessData({...processData, term: e.target.value})}
-                      />
-                    </div>
+
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Yield / Int. Rate (%)</label>
                       <input 
                         type="number" 
                         step="0.01"
-                        className="w-full h-14 px-6 bg-white border-2 border-gray-100 rounded-2xl text-lg font-black focus:border-[#4C1D95] focus:outline-none transition-all"
+                        className="w-full h-14 px-6 bg-white border-2 border-gray-200 rounded-2xl text-lg font-black focus:border-[#4C1D95] focus:outline-none transition-all"
                         value={processData.intRate}
                         onChange={e => setProcessData({...processData, intRate: e.target.value})}
                       />
                     </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">MOP</label>
+                        <select 
+                          className="w-full h-14 px-4 bg-white border-2 border-gray-200 rounded-2xl text-[10px] font-black uppercase focus:border-[#4C1D95] focus:outline-none transition-all"
+                          value={processData.mop}
+                          onChange={e => setProcessData({...processData, mop: e.target.value as any})}
+                        >
+                          <option value="Daily">Daily</option>
+                          <option value="Weekly">Weekly</option>
+                          <option value="Semi-Monthly">Semi-Monthly</option>
+                          <option value="Monthly">Monthly</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">TOP</label>
+                        <select 
+                          className="w-full h-14 px-4 bg-white border-2 border-gray-200 rounded-2xl text-[10px] font-black uppercase focus:border-[#4C1D95] focus:outline-none transition-all"
+                          value={processData.top}
+                          onChange={e => setProcessData({...processData, top: e.target.value as any})}
+                        >
+                          <option value="Collection">Collection</option>
+                          <option value="PDC">PDC</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#4C1D95] p-6 rounded-3xl text-white shadow-xl shadow-[#4C1D95]/20 space-y-4">
+                      <div className="flex justify-between items-center border-b border-white/20 pb-2">
+                        <span className="text-[9px] font-black uppercase tracking-widest opacity-60">Est. Total Interest</span>
+                        <span className="text-sm font-black">₱ {computedAmort.interest.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[9px] font-black uppercase tracking-widest opacity-60">Weekly</span>
+                          <span className="text-lg font-black">₱ {computedAmort.weeklyAmort.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        </div>
+                        <div className="flex justify-between items-center opacity-60">
+                          <span className="text-[8px] font-black uppercase tracking-widest">Monthly</span>
+                          <span className="text-xs font-bold">₱ {computedAmort.monthlyAmort.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">MOP</label>
-                      <select 
-                        className="w-full h-14 px-6 bg-white border-2 border-gray-100 rounded-2xl text-sm font-black focus:border-[#4C1D95] focus:outline-none transition-all"
-                        value={processData.mop}
-                        onChange={e => setProcessData({...processData, mop: e.target.value as any})}
-                      >
-                        <option value="Weekly">Weekly</option>
-                        <option value="Semi-Monthly">Semi-Monthly</option>
-                        <option value="Monthly">Monthly</option>
-                      </select>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Crecom Comments / Remarks</label>
+                      <textarea 
+                        className="w-full px-6 py-4 bg-white border-2 border-gray-200 rounded-3xl text-[11px] font-bold h-32 focus:border-[#4C1D95] focus:outline-none transition-all"
+                        placeholder="Provide final justification for the approval or denial..."
+                        value={processData.comments}
+                        onChange={e => setProcessData({...processData, comments: e.target.value})}
+                      />
                     </div>
                   </div>
+                </div>
 
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Admin / Crecom Disposition</label>
-                    <textarea 
-                      className="w-full px-6 py-4 bg-white border-2 border-gray-100 rounded-2xl text-sm h-32 focus:border-[#4C1D95] focus:outline-none transition-all"
-                      placeholder="Provide final justification for the approval or denial..."
-                      value={processData.comments}
-                      onChange={e => setProcessData({...processData, comments: e.target.value})}
-                    />
-                  </div>
-
-                  <div className="flex gap-4">
-                    <button 
-                      onClick={handleDeny}
-                      className="flex-1 py-5 bg-red-50 text-red-600 font-black rounded-2xl hover:bg-red-500 hover:text-white transition-all uppercase tracking-[0.2em] text-[10px]"
-                    >
-                      Deny Application
-                    </button>
-                    <button 
-                      onClick={handleApprove}
-                      className="flex-[2] py-5 bg-[#4C1D95] text-white font-black rounded-3xl hover:bg-[#3B1575] hover:-translate-y-1 active:translate-y-0 transition-all uppercase tracking-[0.3em] text-[10px] shadow-xl shadow-[#4C1D95]/20"
-                    >
-                      Approve & Grant Credit
-                    </button>
-                  </div>
+                <div className="pt-8 flex flex-col gap-4 mt-auto">
+                  <button 
+                    onClick={handleDeny}
+                    className="w-full py-5 bg-red-50 text-red-600 text-[10px] font-black rounded-2xl hover:bg-red-500 hover:text-white transition-all uppercase tracking-[0.3em] active:scale-95"
+                  >
+                    Deny Application
+                  </button>
+                  <button 
+                    onClick={handleApprove}
+                    className="w-full py-6 bg-[#4C1D95] text-white text-[11px] font-black rounded-3xl hover:bg-[#3B1575] hover:-translate-y-1 active:translate-y-0 transition-all uppercase tracking-[0.4em] shadow-2xl shadow-[#4C1D95]/40"
+                  >
+                    Grant Final Approval
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -3270,7 +3479,14 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
   });
 
   useEffect(() => {
-    const q = query(collection(db, 'assignments'), where('status', '==', 'Approved'));
+    let q = query(collection(db, 'assignments'), where('status', '==', 'Approved'));
+    if (user.role !== 'admin') {
+      q = query(
+        collection(db, 'assignments'),
+        where('status', '==', 'Approved'),
+        where('ciOfficerId', '==', user.id)
+      );
+    }
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
       setAssignments(data);
@@ -3404,7 +3620,16 @@ function ReportsView({ user }: { user: UserProfile }) {
   const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
-    const q = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
+    let q = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
+    
+    if (user.role !== 'admin') {
+      q = query(
+        collection(db, 'assignments'),
+        where('ciOfficerId', '==', user.id),
+        orderBy('createdAt', 'desc')
+      );
+    }
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
       setAssignments(data);
@@ -3437,6 +3662,35 @@ function ReportsView({ user }: { user: UserProfile }) {
 
     return matchesSearch && matchesStatus && matchesDate;
   });
+
+  const exportToCSV = () => {
+    const fields = ['Borrower Name', 'Mobile Number', 'Account Type', 'Location', 'Tribe', 'Requested Amount', 'Term', 'CI Officer', 'Status', 'Created At'];
+    const csvContent = [
+      fields.join(','),
+      ...filtered.map(a => [
+        `"${a.borrowerName}"`,
+        `"${a.mobileNumber}"`,
+        `"${a.accountType}"`,
+        `"${a.location}"`,
+        `"${a.tribe}"`,
+        a.requestedAmount,
+        `"${a.term}"`,
+        `"${a.ciOfficerName}"`,
+        `"${a.status}"`,
+        `"${format(new Date(a.createdAt), 'MMM d, yyyy | h:mm a')}"`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `AMS_Report_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const exportToExcel = () => {
     const worksheet = XLSX.utils.json_to_sheet(filtered.map(a => ({
@@ -3516,6 +3770,12 @@ function ReportsView({ user }: { user: UserProfile }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-4">
+          <button 
+            onClick={exportToCSV}
+            className="group flex items-center gap-3 px-8 py-3.5 bg-blue-600 text-white text-[11px] font-black uppercase tracking-widest rounded-2xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-900/10 active:scale-95"
+          >
+            <Download size={16} className="group-hover:translate-y-0.5 transition-transform" /> Export CSV
+          </button>
           <button 
             onClick={exportToExcel}
             className="group flex items-center gap-3 px-8 py-3.5 bg-[#1D6F42] text-white text-[11px] font-black uppercase tracking-widest rounded-2xl hover:bg-[#155231] transition-all shadow-xl shadow-green-900/10 active:scale-95"
