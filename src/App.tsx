@@ -50,7 +50,9 @@ import {
   Presentation,
   Monitor,
   Tablet,
-  Smartphone
+  Smartphone,
+  CheckCircle,
+  ShieldCheck
 } from 'lucide-react';
 import pptxgen from "pptxgenjs";
 import { motion, AnimatePresence } from 'framer-motion';
@@ -386,7 +388,7 @@ testConnection();
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentView, setCurrentView] = useState<'login' | 'register' | 'dashboard'>('login');
+  const [currentView, setCurrentView] = useState<'login' | 'register' | 'dashboard' | 'verify'>('login');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('DASHBOARD');
 
@@ -401,8 +403,14 @@ export default function App() {
           if (userDoc.exists()) {
             const data = userDoc.data();
             const role = isSuperAdmin ? 'admin' : data.role;
-            setUser({ id: firebaseUser.uid, ...data, role } as UserProfile);
-            setCurrentView('dashboard');
+            const userData = { id: firebaseUser.uid, ...data, role } as UserProfile;
+            setUser(userData);
+            
+            if (isSuperAdmin || userData.isVerified) {
+              setCurrentView('dashboard');
+            } else {
+              setCurrentView('verify');
+            }
           } else {
             // Handle first-time Google sign-in by creating a profile
             const userData = {
@@ -410,11 +418,17 @@ export default function App() {
               mobileNumber: '',
               email: firebaseUser.email || '',
               role: isSuperAdmin ? 'admin' : 'user',
+              isVerified: isSuperAdmin, // Super admins are auto-verified
               createdAt: new Date().toISOString()
             };
             await setDoc(doc(db, 'users', firebaseUser.uid), userData);
             setUser({ id: firebaseUser.uid, ...userData } as UserProfile);
-            setCurrentView('dashboard');
+            
+            if (isSuperAdmin) {
+              setCurrentView('dashboard');
+            } else {
+              setCurrentView('verify');
+            }
           }
         } catch (err) {
           console.error('Error fetching/creating user profile:', err);
@@ -471,6 +485,14 @@ export default function App() {
             sidebarOpen={sidebarOpen}
             setSidebarOpen={setSidebarOpen}
             handleLogout={handleLogout}
+          />
+        )}
+        {currentView === 'verify' && user && (
+          <AdminKeyVerification 
+            user={user} 
+            setUser={setUser} 
+            onSuccess={() => setCurrentView('dashboard')}
+            onLogout={handleLogout}
           />
         )}
       </AnimatePresence>
@@ -652,15 +674,6 @@ function Register({
 
     setLoading(true);
     try {
-      // Admin key validation
-      if (role === 'admin' && !superAdmins.includes(email)) {
-        const keyDoc = await getDoc(doc(db, 'admin_keys', adminKey));
-        if (!keyDoc.exists() || keyDoc.data().used) {
-          throw new Error('Invalid or used admin key');
-        }
-        await updateDoc(doc(db, 'admin_keys', adminKey), { used: true });
-      }
-
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
 
@@ -673,6 +686,7 @@ function Register({
         mobileNumber: mobile,
         email,
         role: assignedRole,
+        isVerified: assignedRole === 'admin' && superAdmins.includes(email),
         createdAt: new Date().toISOString()
       };
       await setDoc(doc(db, 'users', firebaseUser.uid), userData);
@@ -754,16 +768,6 @@ function Register({
                 <option value="admin">Admin</option>
               </select>
             </div>
-            {role === 'admin' && !['1stmb.mj@gmail.com'].includes(email) && (
-              <input
-                type="text"
-                placeholder="Admin Key (4 digits)"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/20"
-                value={adminKey}
-                onChange={(e) => setAdminKey(e.target.value)}
-                required
-              />
-            )}
             <input
               type="password"
               placeholder="Password"
@@ -842,6 +846,130 @@ function Register({
         </div>
       </div>
     </motion.div>
+  );
+}
+
+// --- ADMIN KEY VERIFICATION SCREEN ---
+function AdminKeyVerification({ 
+  user, 
+  setUser, 
+  onSuccess,
+  onLogout
+}: { 
+  user: UserProfile; 
+  setUser: (u: UserProfile) => void;
+  onSuccess: () => void;
+  onLogout: () => void;
+}) {
+  const [key, setKey] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      // Find key in admin_keys collection
+      const keysRef = collection(db, 'admin_keys');
+      const q = query(keysRef, where('key', '==', key.toUpperCase()));
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        throw new Error('This verification key does not exist.');
+      }
+
+      const keyDoc = snapshot.docs[0];
+      const keyData = keyDoc.data();
+
+      if (keyData.used) {
+        throw new Error('This key has already been used by another account.');
+      }
+
+      // Mark key as used
+      await updateDoc(doc(db, 'admin_keys', keyDoc.id), {
+        used: true,
+        usedBy: user.email,
+        usedAt: new Date().toISOString()
+      });
+
+      // Update user profile
+      const updatedUser = { ...user, isVerified: true };
+      await updateDoc(doc(db, 'users', user.id), { isVerified: true });
+      
+      setUser(updatedUser);
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message || 'Verification failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#4C1D95] flex items-center justify-center p-6 bg-cover bg-center" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1557683316-973673baf926?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80)', backgroundBlendMode: 'overlay' }}>
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-10 space-y-8"
+      >
+        <div className="text-center space-y-2">
+          <div className="w-16 h-16 bg-[#F5F3FF] text-[#4C1D95] rounded-2xl flex items-center justify-center mx-auto mb-4 border border-[#4C1D95]/10 shadow-inner">
+            <ShieldCheck size={32} />
+          </div>
+          <h2 className="text-3xl font-black text-[#4C1D95] uppercase tracking-tighter">Identity Check</h2>
+          <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Enter Verification Key to Access AMS Portal</p>
+        </div>
+
+        <form onSubmit={handleVerify} className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Authorization Key</label>
+            <input 
+              type="text"
+              placeholder="E.G. XJ3K-9PR2"
+              className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl text-center text-xl font-mono font-black text-[#4C1D95] uppercase tracking-[0.3em] focus:ring-4 focus:ring-[#4C1D95]/10 focus:outline-none transition-all"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              required
+            />
+          </div>
+
+          {error && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 bg-red-50 text-red-500 rounded-xl text-center text-[10px] font-black uppercase tracking-widest border border-red-100"
+            >
+              {error}
+            </motion.div>
+          )}
+
+          <button 
+            type="submit"
+            disabled={loading}
+            className="w-full py-4 bg-[#4C1D95] text-white font-black rounded-2xl shadow-lg shadow-[#4C1D95]/20 hover:bg-[#3B1575] transition-all uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-3"
+          >
+            {loading ? 'Verifying...' : (
+              <>
+                <CheckCircle size={18} />
+                Validate Key
+              </>
+            )}
+          </button>
+        </form>
+
+        <div className="pt-6 border-t border-gray-50 text-center">
+          <p className="text-[10px] text-gray-400 font-bold uppercase mb-4">Logged in as: <span className="text-[#4C1D95]">{user.email}</span></p>
+          <button 
+            onClick={onLogout}
+            className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] hover:text-red-500 transition-colors"
+          >
+            Use different account
+          </button>
+        </div>
+      </motion.div>
+    </div>
   );
 }
 
@@ -4514,14 +4642,26 @@ function AdminKeys({ user }: { user: UserProfile }) {
         </div>
         <div className="divide-y divide-gray-50">
           {keys.map(k => (
-            <div key={k.id} className="p-4 flex justify-between items-center">
-              <span className="font-mono text-lg font-bold text-[#4C1D95] tracking-widest">{k.key}</span>
-              <span className={cn(
-                "text-[8px] font-bold uppercase px-2 py-1 rounded",
-                k.used ? "bg-red-50 text-red-500" : "bg-green-50 text-green-500"
-              )}>
-                {k.used ? 'Used' : 'Available'}
-              </span>
+            <div key={k.id} className="p-5 flex justify-between items-start transition-all hover:bg-gray-50/50">
+              <div className="space-y-1">
+                <span className="font-mono text-base font-black text-[#4C1D95] tracking-widest">{k.key}</span>
+                {k.used && (
+                  <p className="text-[9px] text-gray-400 font-bold uppercase">
+                    Used by: <span className="text-gray-600 underline">{k.usedBy}</span>
+                  </p>
+                )}
+              </div>
+              <div className="text-right space-y-1">
+                <span className={cn(
+                  "text-[8px] font-black uppercase px-2 py-0.5 rounded-full inline-block",
+                  k.used ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"
+                )}>
+                  {k.used ? 'Redeemed' : 'Vigorous'}
+                </span>
+                <p className="text-[8px] text-gray-300 font-mono">
+                  {k.usedAt ? format(new Date(k.usedAt), 'MMM d, h:mm a') : format(new Date(k.createdAt), 'MMM d, yyyy')}
+                </p>
+              </div>
             </div>
           ))}
         </div>

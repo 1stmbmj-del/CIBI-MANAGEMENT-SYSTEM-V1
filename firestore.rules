@@ -42,7 +42,7 @@ service cloud.firestore {
     }
 
     function isVerified() {
-      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.email == "1stmb.mj@gmail.com");
+      return isSignedIn(); // Allow all signed-in users to proceed; app-level verified is handled in code
     }
 
     function isOwner(userId) {
@@ -54,7 +54,8 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isVerified() && (
+      // Check if user is super admin or has admin role in firestore
+      return isSignedIn() && (
         (request.auth.token.email == "1stmb.mj@gmail.com") ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")
@@ -67,7 +68,8 @@ service cloud.firestore {
              data.mobileNumber is string && (data.mobileNumber == "" || data.mobileNumber.size() >= 10) &&
              data.email is string && data.email.size() > 0 &&
              data.role in ['admin', 'user'] &&
-             data.createdAt is string;
+             data.createdAt is string &&
+             (!data.keys().contains('isVerified') || data.isVerified is bool);
     }
 
     function isValidAssignment(data) {
@@ -126,7 +128,12 @@ service cloud.firestore {
     match /admin_keys/{keyId} {
       allow read: if isSignedIn();
       allow create: if isAdmin();
-      allow update: if isSignedIn() && (isAdmin() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used']) && request.resource.data.used == true));
+      allow update: if isSignedIn() && (
+        isAdmin() || (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used', 'usedBy', 'usedAt']) && 
+          request.resource.data.used == true
+        )
+      );
       allow delete: if isAdmin();
     }
 
