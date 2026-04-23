@@ -63,13 +63,12 @@ service cloud.firestore {
     }
 
     function isValidUser(data) {
-      return data.keys().hasAll(['fullName', 'email', 'role', 'createdAt']) &&
-             data.fullName is string && data.fullName.size() > 0 && data.fullName.size() <= 500 &&
-             data.email is string && data.email.size() > 0 &&
+      return data.fullName is string && data.fullName.size() > 0 && data.fullName.size() <= 1000 &&
              data.role in ['admin', 'user'] &&
-             data.createdAt is string &&
+             (!data.keys().contains('email') || (data.email is string && data.email.size() > 0)) &&
+             (!data.keys().contains('createdAt') || data.createdAt is string) &&
              (!data.keys().contains('mobileNumber') || (data.mobileNumber is string && (data.mobileNumber == "" || data.mobileNumber.size() >= 10))) &&
-             (!data.keys().contains('photoURL') || (data.photoURL is string && data.photoURL.size() < 1048576)) &&
+             (!data.keys().contains('photoURL') || (data.photoURL is string && data.photoURL.size() < 2097152)) &&
              (!data.keys().contains('isVerified') || data.isVerified is bool);
     }
 
@@ -118,11 +117,9 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidUser(request.resource.data) && 
-                    (isOwner(userId) || isAdmin());
-      allow update: if isVerified() && isValidUser(request.resource.data) && 
-                    (isOwner(userId) || isAdmin()) &&
-                    (request.resource.data.role == resource.data.role || isAdmin());
+      allow create: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow update: if isSignedIn() && (isOwner(userId) || isAdmin()) &&
+                    (isAdmin() || request.resource.data.get('role', 'user') == resource.data.get('role', 'user'));
       allow delete: if isAdmin();
     }
 
