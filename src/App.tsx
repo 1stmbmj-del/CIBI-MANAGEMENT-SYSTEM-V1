@@ -2430,6 +2430,8 @@ function AccountStatus({ user }: { user: UserProfile }) {
   const [selected, setSelected] = useState<Assignment | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [accountTypeFilter, setAccountTypeFilter] = useState('All');
   const [isEditing, setIsEditing] = useState(false);
   const [ciOfficers, setCiOfficers] = useState<UserProfile[]>([]);
 
@@ -2517,10 +2519,13 @@ function AccountStatus({ user }: { user: UserProfile }) {
     }
   };
 
-  const filtered = assignments.filter(a => 
-    a.borrowerName.toLowerCase().includes(search.toLowerCase()) ||
-    a.mobileNumber.includes(search)
-  );
+  const filtered = assignments.filter(a => {
+    const matchesSearch = a.borrowerName.toLowerCase().includes(search.toLowerCase()) ||
+                         a.mobileNumber.includes(search);
+    const matchesStatus = statusFilter === 'All' || a.status === statusFilter;
+    const matchesType = accountTypeFilter === 'All' || a.accountType === accountTypeFilter;
+    return matchesSearch && matchesStatus && matchesType;
+  });
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this assignment?')) return;
@@ -2538,17 +2543,38 @@ function AccountStatus({ user }: { user: UserProfile }) {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[calc(100vh-160px)]">
       {/* List */}
       <div className="lg:col-span-1 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
-        <div className="p-6 border-b border-gray-100">
-          <h3 className="text-xs font-black text-[#4C1D95] uppercase tracking-[0.2em] mb-4">Assigned Clients</h3>
+        <div className="p-6 border-b border-gray-100 space-y-4">
+          <h3 className="text-xs font-black text-[#4C1D95] uppercase tracking-[0.2em]">Assigned Clients</h3>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input 
               type="text" 
-              placeholder="Search borrower..."
+              placeholder="Search borrower or mobile..."
               className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/20"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <select 
+              className="px-2 py-2 bg-gray-50 border border-gray-100 rounded-lg text-[10px] font-bold uppercase focus:outline-none"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="All">All Status</option>
+              {steps.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select 
+              className="px-2 py-2 bg-gray-50 border border-gray-100 rounded-lg text-[10px] font-bold uppercase focus:outline-none"
+              value={accountTypeFilter}
+              onChange={(e) => setAccountTypeFilter(e.target.value)}
+            >
+              <option value="All">All Types</option>
+              <option value="New">New</option>
+              <option value="Renewal">Renewal</option>
+              <option value="Restructure">Restructure</option>
+              <option value="Additional">Additional</option>
+            </select>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -3544,6 +3570,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
   const [approvedList, setApprovedList] = useState<Assignment[]>([]);
   const [selected, setSelected] = useState<Assignment | null>(null);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
   const [processData, setProcessData] = useState({
     amount: '',
     term: '',
@@ -3646,10 +3673,32 @@ function CrecomApproval({ user }: { user: UserProfile }) {
     }
   };
 
+  const filtered = assignments.filter(a => 
+    a.borrowerName.toLowerCase().includes(search.toLowerCase()) ||
+    a.ciOfficerName.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
     <div className="space-y-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+        <div className="space-y-1">
+          <h2 className="text-2xl font-black text-[#4C1D95] uppercase tracking-tight">Crecom Approval Queue</h2>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em]">Final Review & Funding Decision</p>
+        </div>
+        <div className="relative w-full md:w-96">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <input 
+            type="text" 
+            placeholder="Search queue..."
+            className="w-full pl-12 pr-6 py-3.5 bg-gray-50 border-2 border-transparent rounded-2xl text-sm focus:outline-none focus:border-[#4C1D95]/20 font-medium transition-all"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {assignments.map(a => {
+        {filtered.map(a => {
           const preApprovalStep = a.timeline.find(t => t.step === 'Pre-approved');
           const preApprovalDate = preApprovalStep ? format(new Date(preApprovalStep.timestamp), 'MMM d, yyyy h:mm a') : 'N/A';
           
@@ -4326,6 +4375,7 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selected, setSelected] = useState<Assignment | null>(null);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     const q = query(collection(db, 'assignments'), where('status', '==', 'Completed'));
@@ -4355,16 +4405,33 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
     { label: 'Support Quality', key: 'customerService', options: ['Very poor', 'Poor', 'Fair', 'Good', 'Excellent'] },
   ];
 
+  const filtered = assignments.filter(a => 
+    a.borrowerName.toLowerCase().includes(search.toLowerCase()) ||
+    a.ciOfficerName.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
-      <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm flex justify-between items-center">
+      <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h2 className="text-2xl font-black text-[#4C1D95] uppercase tracking-tight">Validation & Survey Results</h2>
           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Analyzing client feedback and service performance</p>
         </div>
-        <div className="flex items-center gap-2 px-6 py-3 bg-green-50 text-green-600 rounded-2xl border border-green-100">
-           <Star size={18} fill="currentColor" />
-           <span className="text-[11px] font-black uppercase tracking-widest">Live Feedback Loop</span>
+        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input 
+              type="text" 
+              placeholder="Search feedback..."
+              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/20"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2 px-6 py-3 bg-green-50 text-green-600 rounded-2xl border border-green-100 w-full md:w-auto justify-center">
+             <Star size={18} fill="currentColor" />
+             <span className="text-[11px] font-black uppercase tracking-widest">Live Feedback</span>
+          </div>
         </div>
       </div>
 
@@ -4372,7 +4439,7 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
         <div className="lg:col-span-1 space-y-4">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest px-4">Submitted Responses</h3>
           <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden divide-y divide-gray-50">
-            {assignments.map(a => (
+            {filtered.map(a => (
               <button
                 key={a.id}
                 onClick={() => setSelected(a)}
@@ -4522,6 +4589,9 @@ function DataStorage({ user }: { user: UserProfile }) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [accountTypeFilter, setAccountTypeFilter] = useState('All');
+  const [ciOfficerFilter, setCiOfficerFilter] = useState('All');
   const [isEditing, setIsEditing] = useState(false);
   const [selected, setSelected] = useState<Assignment | null>(null);
   const [ciOfficers, setCiOfficers] = useState<UserProfile[]>([]);
@@ -4555,10 +4625,14 @@ function DataStorage({ user }: { user: UserProfile }) {
     }
   };
 
-  const filtered = assignments.filter(a => 
-    a.borrowerName.toLowerCase().includes(search.toLowerCase()) ||
-    a.ciOfficerName.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = assignments.filter(a => {
+    const matchesSearch = a.borrowerName.toLowerCase().includes(search.toLowerCase()) ||
+                         a.ciOfficerName.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === 'All' || a.status === statusFilter;
+    const matchesType = accountTypeFilter === 'All' || a.accountType === accountTypeFilter;
+    const matchesCI = ciOfficerFilter === 'All' || a.ciOfficerId === ciOfficerFilter;
+    return matchesSearch && matchesStatus && matchesType && matchesCI;
+  });
 
   if (loading) return (
     <div className="h-64 flex items-center justify-center">
@@ -4568,22 +4642,63 @@ function DataStorage({ user }: { user: UserProfile }) {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
-        <div className="space-y-1">
-          <h2 className="text-2xl font-black text-[#4C1D95] uppercase tracking-tight">Main Data Storage</h2>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] flex items-center gap-2">
-            <span className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" /> Comprehensive Archive
-          </p>
+      <div className="flex flex-col gap-6 bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+          <div className="space-y-1">
+            <h2 className="text-2xl font-black text-[#4C1D95] uppercase tracking-tight">Main Data Storage</h2>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] flex items-center gap-2">
+              <span className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" /> Comprehensive Archive
+            </p>
+          </div>
+          <div className="relative w-full lg:w-96">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input 
+              type="text" 
+              placeholder="Search all records..."
+              className="w-full pl-12 pr-6 py-3.5 bg-gray-50 border-2 border-transparent rounded-2xl text-sm focus:outline-none focus:border-[#4C1D95]/20 font-medium transition-all"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
-        <div className="relative w-full lg:w-96">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input 
-            type="text" 
-            placeholder="Search all records..."
-            className="w-full pl-12 pr-6 py-3.5 bg-gray-50 border-2 border-transparent rounded-2xl text-sm focus:outline-none focus:border-[#4C1D95]/20 font-medium transition-all"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-50">
+          <div className="space-y-1">
+            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-1">Filter by Status</label>
+            <select 
+              className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-[10px] font-bold uppercase focus:outline-none"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="All">All Statuses</option>
+              {steps.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-1">Account Type</label>
+            <select 
+              className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-[10px] font-bold uppercase focus:outline-none"
+              value={accountTypeFilter}
+              onChange={(e) => setAccountTypeFilter(e.target.value)}
+            >
+              <option value="All">All Types</option>
+              <option value="New">New</option>
+              <option value="Renewal">Renewal</option>
+              <option value="Restructure">Restructure</option>
+              <option value="Additional">Additional</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-1">CI Officer</label>
+            <select 
+              className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-[10px] font-bold uppercase focus:outline-none"
+              value={ciOfficerFilter}
+              onChange={(e) => setCiOfficerFilter(e.target.value)}
+            >
+              <option value="All">All Officers</option>
+              {ciOfficers.map(o => <option key={o.id} value={o.id}>{o.fullName}</option>)}
+            </select>
+          </div>
         </div>
       </div>
 
