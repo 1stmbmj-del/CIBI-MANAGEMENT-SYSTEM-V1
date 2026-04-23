@@ -1082,6 +1082,105 @@ function Dashboard({
 
 // --- SHARED UTILS ---
 // Constants & Utilities
+
+function LeaderboardSection({ assignments, currentMonth, currentYear }: { assignments: Assignment[], currentMonth: number, currentYear: number }) {
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchLeaderboard = async () => {
+      const currentMonthAssignments = assignments.filter(a => {
+        const date = new Date(a.createdAt);
+        return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+      });
+
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      const usersList = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      const leaderData = usersList
+        .filter((u: any) => u.role === 'user')
+        .map((u: any) => {
+          const personalMonthly = currentMonthAssignments.filter(a => a.ciOfficerId === u.id);
+          const approved = personalMonthly.filter(a => a.status === 'Approved').length;
+          const denied = personalMonthly.filter(a => a.status === 'Denied').length;
+          const mcl = personalMonthly.filter(a => a.isMCLReferral).length;
+          const made = personalMonthly.length;
+          
+          const points = (made * 1) + (mcl * 2);
+          
+          return {
+            ...u,
+            points,
+            approvedCount: approved,
+            deniedCount: denied,
+            mclCount: mcl,
+            madeCount: made
+          };
+        })
+        .sort((a: any, b: any) => b.points - a.points)
+        .slice(0, 10);
+      
+      setLeaderboard(leaderData);
+    };
+
+    fetchLeaderboard();
+  }, [assignments, currentMonth, currentYear]);
+
+  return (
+    <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 lg:col-span-2">
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-xs font-black text-[#4C1D95] uppercase tracking-[0.2em]">CI Officer Leaderboard (Monthly)</h3>
+        <div className="flex gap-2">
+           <span className="text-[9px] font-black text-gray-400 uppercase bg-gray-50 px-2 py-1 rounded">Made: 1pt</span>
+           <span className="text-[9px] font-black text-[#4C1D95] uppercase bg-purple-50 px-2 py-1 rounded">MCL: 2pt</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+        {leaderboard.length > 0 ? leaderboard.map((u, i) => (
+          <div key={u.id} className="flex items-center justify-between group p-3 hover:bg-gray-50 rounded-2xl transition-all border border-transparent hover:border-gray-100">
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden border-2 border-white shadow-sm">
+                  {u.photoURL ? (
+                    <img src={u.photoURL} alt={u.fullName} className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="text-gray-300" size={24} />
+                  )}
+                </div>
+                <div className={cn(
+                  "absolute -top-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black border-2 border-white shadow-sm",
+                  i === 0 ? "bg-yellow-400 text-white" : 
+                  i === 1 ? "bg-gray-400 text-white" : 
+                  i === 2 ? "bg-amber-600 text-white" : "bg-gray-100 text-gray-400"
+                )}>
+                  {i + 1}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-black text-gray-900 uppercase tracking-tight">{u.fullName}</p>
+                <div className="flex items-center gap-3">
+                   <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded" title="Total Assignments Made">MADE: {u.madeCount}</span>
+                   <span className="text-[9px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded" title="Approved">APP: {u.approvedCount}</span>
+                   <span className="text-[9px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded" title="Denied">DEN: {u.deniedCount}</span>
+                   <span className="text-[9px] font-black text-[#4C1D95] bg-purple-50 px-1.5 py-0.5 rounded" title="MCL Referrals">MCL: {u.mclCount}</span>
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+               <div className="text-lg font-black text-[#4C1D95] leading-none">{u.points}</div>
+               <div className="text-[8px] text-gray-400 font-bold uppercase tracking-widest mt-1">Points</div>
+            </div>
+          </div>
+        )) : (
+          <div className="col-span-2 py-12 text-center text-gray-300">
+            <TrendingUp size={32} className="mx-auto mb-2 opacity-20" />
+            <p className="text-[10px] font-bold uppercase tracking-widest">No monthly ranking data</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const steps = [
   'Assigned',
   'Start to Perform Assignment',
@@ -1146,7 +1245,7 @@ function DashboardOverview({ user }: { user: UserProfile }) {
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [chartData, setChartData] = useState<any[]>([]);
   const [satisfactionData, setSatisfactionData] = useState<any[]>([]);
-  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
 
   useEffect(() => {
     const q = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
@@ -1201,21 +1300,7 @@ function DashboardOverview({ user }: { user: UserProfile }) {
       .slice(0, 10);
 
       setRecentActivity(activities);
-
-      // Leaderboard logic
-      const usersSnapshot = await getDocs(collection(db, 'users'));
-      const usersList = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      const leaderData = usersList
-        .filter((u: any) => u.role === 'user')
-        .map((u: any) => ({
-          ...u,
-          assignedCount: assignments.filter(a => a.ciOfficerId === u.id).length
-        }))
-        .sort((a: any, b: any) => b.assignedCount - a.assignedCount)
-        .slice(0, 5);
-      
-      setLeaderboard(leaderData);
+      setAssignments(assignments);
     }, (err) => {
       console.error('Firestore error in DashboardOverview:', err);
     });
@@ -1321,44 +1406,12 @@ function DashboardOverview({ user }: { user: UserProfile }) {
              <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Aggregate Rating</p>
           </div>
         </div>
-
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 lg:col-span-1">
-          <h3 className="text-xs font-black text-[#4C1D95] uppercase tracking-[0.2em] mb-6">CI Officer Leaderboard</h3>
-          <div className="space-y-6">
-            {leaderboard.length > 0 ? leaderboard.map((u, i) => (
-              <div key={u.id} className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="relative">
-                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden border border-gray-200">
-                      {u.photoURL ? (
-                        <img src={u.photoURL} alt={u.fullName} className="w-full h-full object-cover" />
-                      ) : (
-                        <User className="text-gray-300" size={20} />
-                      )}
-                    </div>
-                    <div className={cn(
-                      "absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black border-2 border-white",
-                      i === 0 ? "bg-yellow-400 text-white" : 
-                      i === 1 ? "bg-gray-300 text-white" : 
-                      i === 2 ? "bg-amber-600 text-white" : "bg-gray-100 text-gray-500"
-                    )}>
-                      {i + 1}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-gray-900">{u.fullName}</p>
-                    <p className="text-[8px] text-gray-400 uppercase font-black">{u.assignedCount} Accounts</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                   <TrendingUp className="text-green-500 ml-auto" size={14} />
-                </div>
-              </div>
-            )) : (
-              <p className="text-xs text-gray-400 italic">No ranking data available</p>
-            )}
-          </div>
-        </div>
+        
+        <LeaderboardSection 
+          assignments={assignments} 
+          currentMonth={new Date().getMonth()} 
+          currentYear={new Date().getFullYear()} 
+        />
 
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 lg:col-span-1">
           <h3 className="text-xs font-black text-[#4C1D95] uppercase tracking-[0.2em] mb-6">Status Distribution</h3>
@@ -1825,8 +1878,15 @@ function CIDashboard({ user }: { user: UserProfile }) {
     monthlyAssigned: 0
   });
   const [performanceData, setPerformanceData] = useState<any[]>([]);
+  const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
 
   useEffect(() => {
+    // All assignments for leaderboard
+    const qAll = query(collection(db, 'assignments'));
+    const unsubAll = onSnapshot(qAll, (snapshot) => {
+      setAllAssignments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[]);
+    });
+
     const q = query(collection(db, 'assignments'), where('ciOfficerId', '==', user.id));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const assignments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
@@ -1864,7 +1924,10 @@ function CIDashboard({ user }: { user: UserProfile }) {
       console.error('Firestore error in CIDashboard:', err);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      unsubAll();
+    };
   }, [user.id]);
 
   return (
@@ -1924,6 +1987,12 @@ function CIDashboard({ user }: { user: UserProfile }) {
           </ResponsiveContainer>
         </div>
       </div>
+
+      <LeaderboardSection 
+        assignments={allAssignments} 
+        currentMonth={new Date().getMonth()} 
+        currentYear={new Date().getFullYear()} 
+      />
     </motion.div>
   );
 }
@@ -2102,7 +2171,8 @@ function AssignAccount({ user }: { user: UserProfile }) {
     intRate: '',
     mop: 'Weekly',
     top: 'Collection',
-    ciOfficerId: ''
+    ciOfficerId: '',
+    isMCLReferral: false
   });
 
   useEffect(() => {
@@ -2158,7 +2228,8 @@ function AssignAccount({ user }: { user: UserProfile }) {
         intRate: '',
         mop: 'Weekly',
         top: 'Collection',
-        ciOfficerId: ''
+        ciOfficerId: '',
+        isMCLReferral: false
       });
     } catch (err) {
       console.error(err);
@@ -2271,6 +2342,20 @@ function AssignAccount({ user }: { user: UserProfile }) {
               <option value="Mindoro">Mindoro</option>
               <option value="Cavite">Cavite</option>
             </select>
+          </div>
+          <div className="space-y-4 pt-4">
+            <div className="flex items-center gap-3 p-4 bg-purple-50 rounded-xl border-2 border-purple-100/50">
+              <input 
+                type="checkbox" 
+                id="isMCLReferral"
+                className="w-5 h-5 rounded border-gray-300 text-[#4C1D95] focus:ring-[#4C1D95]"
+                checked={formData.isMCLReferral}
+                onChange={e => setFormData({...formData, isMCLReferral: e.target.checked})}
+              />
+              <label htmlFor="isMCLReferral" className="text-[10px] font-black text-[#4C1D95] uppercase tracking-widest cursor-pointer select-none">
+                MCL Referral (Points: 2)
+              </label>
+            </div>
           </div>
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Address Pin.</label>

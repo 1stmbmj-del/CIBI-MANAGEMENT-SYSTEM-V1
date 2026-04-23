@@ -208,6 +208,7 @@ export interface Assignment {
   creditScore?: CreditScore;
   cashflowReport?: CashflowReport;
   deniedComments?: string;
+  isMCLReferral?: boolean;
   createdAt: string;
   cashflowHistory?: CashflowReport[];
   survey?: {
