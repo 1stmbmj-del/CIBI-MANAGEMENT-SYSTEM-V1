@@ -46,8 +46,10 @@ import {
   Download,
   Settings as UserSettings,
   FileText,
-  Bell
+  Bell,
+  Presentation
 } from 'lucide-react';
+import pptxgen from "pptxgenjs";
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, differenceInMinutes } from 'date-fns';
 import { clsx, type ClassValue } from 'clsx';
@@ -85,6 +87,104 @@ import {
 } from 'firebase/firestore';
 
 import { AppNotification } from './types';
+
+// PowerPoint Generation Utility
+const generateAssignmentPPT = (a: Assignment) => {
+  const pptx = new pptxgen();
+
+  // Slide 1: Cover
+  const slide1 = pptx.addSlide();
+  slide1.addText("CREDIT INVESTIGATION & APPRAISAL REPORT", { x: 0.5, y: 1.0, w: 9.0, h: 1.0, fontSize: 32, bold: true, color: "4C1D95", align: "center" });
+  slide1.addText(a.borrowerName.toUpperCase(), { x: 0.5, y: 2.2, w: 9.0, h: 0.5, fontSize: 24, bold: true, color: "444444", align: "center" });
+  slide1.addText(`${a.accountType} • ${a.location}`, { x: 0.5, y: 2.8, w: 9.0, h: 0.3, fontSize: 14, color: "888888", align: "center" });
+  slide1.addShape(pptx.ShapeType.rect, { x: 1.0, y: 3.5, w: 8.0, h: 0.1, fill: { color: "4C1D95" } });
+  slide1.addText(`CI Officer: ${a.ciOfficerName}`, { x: 0.5, y: 4.5, w: 9.0, h: 0.3, fontSize: 12, color: "888888", align: "center" });
+  slide1.addText(`Status: ${a.status}`, { x: 0.5, y: 4.8, w: 9.0, h: 0.3, fontSize: 12, bold: true, color: "4C1D95", align: "center" });
+
+  // Slide 2: Personal & Loan Profile
+  const slide2 = pptx.addSlide();
+  slide2.addText("PROFILE & REQUEST SUMMARY", { x: 0.5, y: 0.3, w: 9.0, h: 0.5, fontSize: 18, bold: true, color: "4C1D95" });
+  slide2.addTable(
+    [
+      [{ text: "BORROWER NAME", options: { bold: true, fill: { color: "F3F4F6" } } }, { text: a.borrowerName }],
+      [{ text: "MOBILE NUMBER", options: { bold: true, fill: { color: "F3F4F6" } } }, { text: String(a.mobileNumber) }],
+      [{ text: "LOCATION", options: { bold: true, fill: { color: "F3F4F6" } } }, { text: a.location }],
+      [{ text: "TRIBE", options: { bold: true, fill: { color: "F3F4F6" } } }, { text: a.tribe }],
+      [{ text: "ACCOUNT TYPE", options: { bold: true, fill: { color: "F3F4F6" } } }, { text: a.accountType }],
+      [{ text: "REQUESTED AMOUNT", options: { bold: true, fill: { color: "F3F4F6" } } }, { text: `₱${a.requestedAmount.toLocaleString()}` }],
+      [{ text: "TERM", options: { bold: true, fill: { color: "F3F4F6" } } }, { text: `${a.term} Months` }],
+      [{ text: "INT. RATE", options: { bold: true, fill: { color: "F3F4F6" } } }, { text: `${a.intRate}% Flat` }],
+    ],
+    { x: 0.5, y: 1.0, w: 9.0, rowH: 0.4, fontSize: 11, border: { pt: 1, color: "E2E8F0" } }
+  );
+
+  // Slide 3: Credit Scoring Analysis
+  if (a.creditScore) {
+    const slide3 = pptx.addSlide();
+    slide3.addText("CREDIT RISK ASSESSMENT", { x: 0.5, y: 0.3, w: 9.0, h: 0.5, fontSize: 18, bold: true, color: "4C1D95" });
+    
+    const scoreData = [];
+    if (a.creditScore.sectionGrades) {
+        Object.entries(a.creditScore.sectionGrades).forEach(([section, grade]) => {
+          scoreData.push([{ text: section.toUpperCase(), options: { bold: true, fill: { color: "F3F4F6" } } }, { text: `${grade} Points` }]);
+        });
+    }
+
+    slide3.addTable(
+      [
+        ...scoreData,
+        [{ text: "TOTAL CUMULATIVE SCORE", options: { bold: true, color: "FFFFFF", fill: { color: "4C1D95" } } }, { text: `${a.creditScore.totalGrade.toFixed(1)} / 100`, options: { bold: true, color: "FFFFFF", fill: { color: "4C1D95" } } }],
+        [{ text: "FINAL RISK SCORE", options: { bold: true, color: "FFFFFF", fill: { color: "EF4444" } } }, { text: `${(100 - a.creditScore.totalGrade).toFixed(1)}%`, options: { bold: true, color: "FFFFFF", fill: { color: "EF4444" } } }],
+        [{ text: "CI RECOMMENDATION", options: { bold: true, fill: { color: "F3F4F6" } } }, { text: a.creditScore.recommendation }]
+      ],
+      { x: 0.5, y: 1.0, w: 9.0, fontSize: 12, border: { pt: 1, color: "E2E8F0" } }
+    );
+  }
+
+  // Slide 4: Cashflow Overview
+  if (a.cashflowReport) {
+    const slide4 = pptx.addSlide();
+    slide4.addText("CASHFLOW DIAGNOSTIC", { x: 0.5, y: 0.3, w: 9.0, h: 0.5, fontSize: 18, bold: true, color: "4C1D95" });
+    
+    const analysis = a.cashflowReport.analysis;
+    const recommended = a.cashflowReport.ciRecommendation;
+
+    slide4.addTable(
+      [
+        [{ text: "METRIC", options: { bold: true, fill: { color: "4C1D95" }, color: "FFFFFF" } }, { text: "VALUE", options: { bold: true, fill: { color: "4C1D95" }, color: "FFFFFF" } }],
+        [{ text: "Gross Business Income" }, { text: `₱${analysis.grossBusinessIncome.toLocaleString()}` }],
+        [{ text: "Business Expenses" }, { text: `(₱${analysis.businessExpenses.toLocaleString()})` }],
+        [{ text: "Household Expenses" }, { text: `(₱${analysis.totalHouseholdExpenses.toLocaleString()})` }],
+        [{ text: "Net Disposable Income (NDI)", options: { bold: true } }, { text: `₱${analysis.netIncome.toLocaleString()}` }],
+        [{ text: "Policy Calibration" }, { text: `${analysis.ndiPercentage}% NDI Target` }],
+        [{ text: "Monthly Paying Capacity", options: { bold: true, color: "059669" } }, { text: `₱${analysis.monthlyNdi.toLocaleString()}` }],
+        [{ text: "Algorithm-Based Loan Amount", options: { bold: true, color: "4C1D95" } }, { text: `₱${analysis.recommendedLoan.toLocaleString(undefined, { maximumFractionDigits: 0 })}` }],
+      ],
+      { x: 0.5, y: 1.0, w: 9.0, fontSize: 12, border: { pt: 1, color: "E2E8F0" } }
+    );
+
+    const slide5 = pptx.addSlide();
+    slide5.addText("CI RECOMMENDATION & JUSTIFICATION", { x: 0.5, y: 0.3, w: 9.0, h: 0.5, fontSize: 18, bold: true, color: "4C1D95" });
+    slide5.addText("PROPOSED REPAYMENT TERMS:", { x: 0.5, y: 1.0, w: 9.0, h: 0.3, fontSize: 12, bold: true });
+    
+    slide5.addTable(
+      [
+        [{ text: "Loan Amount" }, { text: `₱${recommended.loanAmount.toLocaleString()}` }],
+        [{ text: "Term" }, { text: `${recommended.term} Months` }],
+        [{ text: "Monthly Int. Rate" }, { text: `${recommended.rate}%` }],
+        [{ text: "Weekly Amortization" }, { text: `₱${recommended.weeklyAmort.toLocaleString()}` }],
+        [{ text: "Monthly Amortization" }, { text: `₱${recommended.monthlyAmort.toLocaleString()}` }],
+      ],
+      { x: 0.5, y: 1.5, w: 9.0, fontSize: 12, border: { pt: 1, color: "E2E8F0" } }
+    );
+
+    slide5.addText("JUSTIFICATION:", { x: 0.5, y: 4.5, w: 9.0, h: 0.3, fontSize: 12, bold: true, color: "4C1D95" });
+    slide5.addShape(pptx.ShapeType.rect, { x: 0.5, y: 4.9, w: 9.0, h: 1.5, fill: { color: "F9FAFB" }, line: { color: "E2E8F0" } });
+    slide5.addText(recommended.remarks || "No remarks provided.", { x: 0.7, y: 5.1, w: 8.6, h: 1.1, fontSize: 10, italic: true });
+  }
+
+  pptx.writeFile({ fileName: `AMS_Report_${a.borrowerName.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pptx` });
+};
 
 // Utility for tailwind classes
 function cn(...inputs: ClassValue[]) {
@@ -2511,9 +2611,8 @@ function AccountStatus({ user }: { user: UserProfile }) {
           );
         });
       }
-      
-      // Refresh page as requested
-      window.location.reload();
+      // Refresh UI by letting Firestore onSnapshot update the state
+      // window.location.reload(); 
     } catch (err) {
       console.error(err);
     }
@@ -2638,7 +2737,15 @@ function AccountStatus({ user }: { user: UserProfile }) {
                   </p>
                 </div>
               </div>
-              {user.role === 'user' && selected.status !== 'Completed' && selected.status !== 'Approved' && selected.status !== 'Denied' && selected.status !== 'Report Submitted' && selected.status !== 'Pre-approved' && (
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => generateAssignmentPPT(selected)}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all"
+                  title="Generate PowerPoint Presentation"
+                >
+                  <Presentation size={14} /> PPT
+                </button>
+                {user.role === 'user' && selected.status !== 'Completed' && selected.status !== 'Approved' && selected.status !== 'Denied' && selected.status !== 'Report Submitted' && selected.status !== 'Pre-approved' && (
                 <button 
                   onClick={() => handleNextStep(selected)}
                   className="px-6 py-2 bg-[#4C1D95] text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-[#3B1575] transition-colors"
@@ -2671,6 +2778,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
                 </div>
               )}
             </div>
+          </div>
 
             {/* Visual Stepper */}
             <div className="relative pt-12 pb-8">
@@ -2874,12 +2982,12 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
   // Auto-recommendation logic
   useEffect(() => {
     if (!isReadOnly) {
-      const rec = totalGrade <= 30 ? 'Approved' : 'Denied';
+      const rec = riskScore <= 30 ? 'Approved' : 'Denied';
       if (formData.recommendation !== rec) {
         setFormData(prev => ({ ...prev, recommendation: rec }));
       }
     }
-  }, [totalGrade, isReadOnly]);
+  }, [riskScore, isReadOnly]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -3014,9 +3122,9 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
             <label className="text-xs font-black text-[#4C1D95] uppercase tracking-widest">Final Status Recommendation</label>
             <div className={cn(
               "w-full h-12 px-6 flex items-center bg-gray-50 border-2 border-gray-100 rounded-xl text-sm font-black uppercase",
-              totalGrade <= 30 ? "text-green-600" : "text-red-600"
+              riskScore <= 30 ? "text-green-600" : "text-red-600"
             )}>
-              {totalGrade <= 30 ? 'Approve' : 'Denied'}
+              {riskScore <= 30 ? 'Approve' : 'Denied'}
             </div>
           </div>
 
@@ -4780,6 +4888,13 @@ function DataStorage({ user }: { user: UserProfile }) {
                         <Pencil size={16} />
                       </button>
                       <button 
+                        onClick={() => generateAssignmentPPT(a)}
+                        className="p-2 text-gray-400 hover:text-[#4C1D95] hover:bg-purple-50 rounded-xl transition-all"
+                        title="Export PPT"
+                      >
+                        <Presentation size={16} />
+                      </button>
+                      <button 
                         onClick={() => handleDelete(a.id)}
                         className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
                       >
@@ -4990,6 +5105,35 @@ function ReportsView({ user }: { user: UserProfile }) {
             className="group flex items-center gap-3 px-8 py-3.5 bg-[#E11D48] text-white text-[11px] font-black uppercase tracking-widest rounded-2xl hover:bg-[#BE123C] transition-all shadow-xl shadow-red-900/10 active:scale-95"
           >
             <Download size={16} className="group-hover:translate-y-0.5 transition-transform" /> Generate PDF Manifest
+          </button>
+          <button 
+            onClick={() => {
+              const pptx = new pptxgen();
+              const slide = pptx.addSlide();
+            slide.addText("AMS - CONSOLIDATED REPORT", { x: 0.5, y: 0.5, fontSize: 24, bold: true, color: "4C1D95" });
+            const tableData: any[] = [
+                [{ text: "BORROWER", options: { bold: true, fill: { color: "4C1D95" }, color: "FFFFFF" } }, 
+                 { text: "TYPE", options: { bold: true, fill: { color: "4C1D95" }, color: "FFFFFF" } }, 
+                 { text: "CI OFFICER", options: { bold: true, fill: { color: "4C1D95" }, color: "FFFFFF" } }, 
+                 { text: "STATUS", options: { bold: true, fill: { color: "4C1D95" }, color: "FFFFFF" } }, 
+                 { text: "AMOUNT", options: { bold: true, fill: { color: "4C1D95" }, color: "FFFFFF" } }],
+                ...filtered.slice(0, 50).map(a => [
+                    { text: a.borrowerName }, 
+                    { text: a.accountType }, 
+                    { text: a.ciOfficerName }, 
+                    { text: a.status }, 
+                    { text: `₱${a.requestedAmount.toLocaleString()}` }
+                ])
+            ];
+            slide.addTable(
+                tableData,
+                { x: 0.5, y: 1.2, w: 9.0, fontSize: 9, border: { pt: 1, color: "E2E8F0" } }
+            );
+              pptx.writeFile({ fileName: `AMS_Consolidated_Report_${format(new Date(), 'yyyyMMdd')}.pptx` });
+            }}
+            className="group flex items-center gap-3 px-8 py-3.5 bg-orange-600 text-white text-[11px] font-black uppercase tracking-widest rounded-2xl hover:bg-orange-700 transition-all shadow-xl shadow-orange-900/10 active:scale-95"
+          >
+            <Presentation size={16} className="group-hover:translate-y-0.5 transition-transform" /> Create PPT Deck
           </button>
         </div>
       </div>
