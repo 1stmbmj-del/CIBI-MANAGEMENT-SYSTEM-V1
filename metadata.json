@@ -1,5 +1,5 @@
 {
-  "name": "AMS Portal",
-  "description": "Modern Attendance and Loan Management System with Firebase integration.",
-  "requestFramePermissions": ["camera", "microphone"]
+  "name": "CIBI Management System",
+  "description": "Professional CIBI management and reporting system with advanced financial diagnostics.",
+  "requestFramePermissions": []
 }

@@ -100,16 +100,16 @@ const generateAssignmentPPT = (a: Assignment) => {
 
   // Slide 1: Cover
   const slide1 = pptx.addSlide();
-  slide1.addText("CREDIT INVESTIGATION & APPRAISAL REPORT", { x: 0.5, y: 1.0, w: 9.0, h: 1.0, fontSize: 32, bold: true, color: "4C1D95", align: "center" });
-  slide1.addText(a.borrowerName.toUpperCase(), { x: 0.5, y: 2.2, w: 9.0, h: 0.5, fontSize: 24, bold: true, color: "444444", align: "center" });
-  slide1.addText(`${a.accountType} • ${a.location}`, { x: 0.5, y: 2.8, w: 9.0, h: 0.3, fontSize: 14, color: "888888", align: "center" });
-  slide1.addShape(pptx.ShapeType.rect, { x: 1.0, y: 3.5, w: 8.0, h: 0.1, fill: { color: "4C1D95" } });
-  slide1.addText(`CI Officer: ${a.ciOfficerName}`, { x: 0.5, y: 4.5, w: 9.0, h: 0.3, fontSize: 12, color: "888888", align: "center" });
-  slide1.addText(`Status: ${a.status}`, { x: 0.5, y: 4.8, w: 9.0, h: 0.3, fontSize: 12, bold: true, color: "4C1D95", align: "center" });
+  slide1.addText("CREDIT INVESTIGATION & APPRAISAL REPORT", { x: 0.5, y: 1.0, w: 9.0, h: 1.0, fontSize: 32, bold: true, color: "065F46", align: "center" });
+  slide1.addText(a.borrowerName.toUpperCase(), { x: 0.5, y: 2.2, w: 9.0, h: 0.5, fontSize: 24, bold: true, color: "064E3B", align: "center" });
+  slide1.addText(`${a.accountType} • ${a.location}`, { x: 0.5, y: 2.8, w: 9.0, h: 0.3, fontSize: 14, color: "065F46", align: "center" });
+  slide1.addShape(pptx.ShapeType.rect, { x: 1.0, y: 3.5, w: 8.0, h: 0.1, fill: { color: "10B981" } });
+  slide1.addText(`CI Officer: ${a.ciOfficerName}`, { x: 0.5, y: 4.5, w: 9.0, h: 0.3, fontSize: 12, color: "6B7280", align: "center" });
+  slide1.addText(`Status: ${a.status}`, { x: 0.5, y: 4.8, w: 9.0, h: 0.3, fontSize: 12, bold: true, color: "059669", align: "center" });
 
   // Slide 2: Personal & Loan Profile
   const slide2 = pptx.addSlide();
-  slide2.addText("PROFILE & REQUEST SUMMARY", { x: 0.5, y: 0.3, w: 9.0, h: 0.5, fontSize: 18, bold: true, color: "4C1D95" });
+  slide2.addText("PROFILE & REQUEST SUMMARY", { x: 0.5, y: 0.3, w: 9.0, h: 0.5, fontSize: 18, bold: true, color: "065F46" });
   slide2.addTable(
     [
       [{ text: "BORROWER NAME", options: { bold: true, fill: { color: "F3F4F6" } } }, { text: a.borrowerName }],
@@ -127,7 +127,7 @@ const generateAssignmentPPT = (a: Assignment) => {
   // Slide 3: Credit Scoring Analysis
   if (a.creditScore) {
     const slide3 = pptx.addSlide();
-    slide3.addText("CREDIT RISK ASSESSMENT", { x: 0.5, y: 0.3, w: 9.0, h: 0.5, fontSize: 18, bold: true, color: "4C1D95" });
+    slide3.addText("CREDIT RISK ASSESSMENT", { x: 0.5, y: 0.3, w: 9.0, h: 0.5, fontSize: 18, bold: true, color: "065F46" });
     
     const scoreData = [];
     if (a.creditScore.sectionGrades) {
@@ -139,7 +139,7 @@ const generateAssignmentPPT = (a: Assignment) => {
     slide3.addTable(
       [
         ...scoreData,
-        [{ text: "TOTAL CUMULATIVE SCORE", options: { bold: true, color: "FFFFFF", fill: { color: "4C1D95" } } }, { text: `${a.creditScore.totalGrade.toFixed(1)} / 100`, options: { bold: true, color: "FFFFFF", fill: { color: "4C1D95" } } }],
+        [{ text: "TOTAL CUMULATIVE SCORE", options: { bold: true, color: "FFFFFF", fill: { color: "065F46" } } }, { text: `${a.creditScore.totalGrade.toFixed(1)} / 100`, options: { bold: true, color: "FFFFFF", fill: { color: "065F46" } } }],
         [{ text: "FINAL RISK SCORE", options: { bold: true, color: "FFFFFF", fill: { color: "EF4444" } } }, { text: `${(100 - a.creditScore.totalGrade).toFixed(1)}%`, options: { bold: true, color: "FFFFFF", fill: { color: "EF4444" } } }],
         [{ text: "CI RECOMMENDATION", options: { bold: true, fill: { color: "F3F4F6" } } }, { text: a.creditScore.recommendation }]
       ],
@@ -150,27 +150,27 @@ const generateAssignmentPPT = (a: Assignment) => {
   // Slide 4: Cashflow Overview
   if (a.cashflowReport) {
     const slide4 = pptx.addSlide();
-    slide4.addText("CASHFLOW DIAGNOSTIC", { x: 0.5, y: 0.3, w: 9.0, h: 0.5, fontSize: 18, bold: true, color: "4C1D95" });
+    slide4.addText("CASHFLOW DIAGNOSTIC", { x: 0.5, y: 0.3, w: 9.0, h: 0.5, fontSize: 18, bold: true, color: "065F46" });
     
     const analysis = a.cashflowReport.analysis;
     const recommended = a.cashflowReport.ciRecommendation;
 
     slide4.addTable(
       [
-        [{ text: "METRIC", options: { bold: true, fill: { color: "4C1D95" }, color: "FFFFFF" } }, { text: "VALUE", options: { bold: true, fill: { color: "4C1D95" }, color: "FFFFFF" } }],
+        [{ text: "METRIC", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } }, { text: "VALUE", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } }],
         [{ text: "Gross Business Income" }, { text: `₱${analysis.grossBusinessIncome.toLocaleString()}` }],
         [{ text: "Business Expenses" }, { text: `(₱${analysis.businessExpenses.toLocaleString()})` }],
         [{ text: "Household Expenses" }, { text: `(₱${analysis.totalHouseholdExpenses.toLocaleString()})` }],
         [{ text: "Net Disposable Income (NDI)", options: { bold: true } }, { text: `₱${analysis.netIncome.toLocaleString()}` }],
         [{ text: "Policy Calibration" }, { text: `${analysis.ndiPercentage}% NDI Target` }],
         [{ text: "Monthly Paying Capacity", options: { bold: true, color: "059669" } }, { text: `₱${analysis.monthlyNdi.toLocaleString()}` }],
-        [{ text: "Algorithm-Based Loan Amount", options: { bold: true, color: "4C1D95" } }, { text: `₱${analysis.recommendedLoan.toLocaleString(undefined, { maximumFractionDigits: 0 })}` }],
+        [{ text: "Algorithm-Based Loan Amount", options: { bold: true, color: "065F46" } }, { text: `₱${analysis.recommendedLoan.toLocaleString(undefined, { maximumFractionDigits: 0 })}` }],
       ],
       { x: 0.5, y: 1.0, w: 9.0, fontSize: 12, border: { pt: 1, color: "E2E8F0" } }
     );
 
     const slide5 = pptx.addSlide();
-    slide5.addText("CI RECOMMENDATION & JUSTIFICATION", { x: 0.5, y: 0.3, w: 9.0, h: 0.5, fontSize: 18, bold: true, color: "4C1D95" });
+    slide5.addText("CI RECOMMENDATION & JUSTIFICATION", { x: 0.5, y: 0.3, w: 9.0, h: 0.5, fontSize: 18, bold: true, color: "065F46" });
     slide5.addText("PROPOSED REPAYMENT TERMS:", { x: 0.5, y: 1.0, w: 9.0, h: 0.3, fontSize: 12, bold: true });
     
     slide5.addTable(
@@ -184,12 +184,12 @@ const generateAssignmentPPT = (a: Assignment) => {
       { x: 0.5, y: 1.5, w: 9.0, fontSize: 12, border: { pt: 1, color: "E2E8F0" } }
     );
 
-    slide5.addText("JUSTIFICATION:", { x: 0.5, y: 4.5, w: 9.0, h: 0.3, fontSize: 12, bold: true, color: "4C1D95" });
+    slide5.addText("JUSTIFICATION:", { x: 0.5, y: 4.5, w: 9.0, h: 0.3, fontSize: 12, bold: true, color: "059669" });
     slide5.addShape(pptx.ShapeType.rect, { x: 0.5, y: 4.9, w: 9.0, h: 1.5, fill: { color: "F9FAFB" }, line: { color: "E2E8F0" } });
     slide5.addText(recommended.remarks || "No remarks provided.", { x: 0.7, y: 5.1, w: 8.6, h: 1.1, fontSize: 10, italic: true });
   }
 
-  pptx.writeFile({ fileName: `AMS_Report_${a.borrowerName.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pptx` });
+  pptx.writeFile({ fileName: `CIBI_Report_${a.borrowerName.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pptx` });
 };
 
 // Utility for tailwind classes
@@ -453,8 +453,12 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#4C1D95] flex items-center justify-center">
-        <div className="text-white text-2xl font-bold animate-pulse">AMS PORTAL</div>
+      <div className="min-h-screen bg-emerald-950 flex items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/brushed-alum.png')]"></div>
+        <div className="flex flex-col items-center gap-6 relative z-10">
+          <div className="w-16 h-16 border-4 border-emerald-500/20 border-t-emerald-400 rounded-full animate-spin shadow-[0_0_20px_rgba(16,185,129,0.3)]"></div>
+          <div className="text-emerald-400 text-sm font-black uppercase tracking-[0.5em] animate-pulse">CIBI SYSTEM</div>
+        </div>
       </div>
     );
   }
@@ -553,8 +557,8 @@ function Login({
       <div className="flex-1 flex flex-col items-center justify-center p-8 bg-white">
         <div className="w-full max-w-sm space-y-8">
           <div className="text-center">
-            <h2 className="text-3xl font-black text-[#4C1D95]">WELCOME</h2>
-            <p className="text-xs text-gray-400 uppercase tracking-widest mt-1">Sign in to your account</p>
+            <h2 className="text-3xl font-black text-emerald-800">WELCOME</h2>
+            <p className="text-xs text-gray-400 uppercase tracking-widest mt-1">Sign in to CIBI System</p>
           </div>
           
           <form className="space-y-4" onSubmit={handleLogin}>
@@ -562,7 +566,7 @@ function Login({
               <input
                 type="email"
                 placeholder="Email Address"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/20"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -572,19 +576,19 @@ function Login({
               <input
                 type="password"
                 placeholder="Password"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/20"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
             </div>
-            {error && <p className="text-red-500 text-xs text-center">{error}</p>}
+            {error && <p className="text-red-500 text-xs text-center font-bold">{error}</p>}
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-[#4C1D95] text-white font-bold rounded-lg hover:bg-[#3B1575] transition-colors disabled:opacity-50"
+              className="w-full py-4 bg-linear-to-r from-emerald-600 to-emerald-800 text-white font-black rounded-xl shadow-lg shadow-emerald-900/20 hover:shadow-emerald-900/40 hover:-translate-y-0.5 transition-all disabled:opacity-50 uppercase tracking-widest text-xs"
             >
-              {loading ? 'SECURE LOGGING IN...' : 'SECURE LOG IN'}
+              {loading ? 'Authenticating...' : 'Secure Access'}
             </button>
           </form>
 
@@ -593,7 +597,7 @@ function Login({
               <div className="w-full border-t border-gray-100"></div>
             </div>
             <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
-              <span className="bg-white px-4 text-gray-400">Or continue with</span>
+              <span className="bg-white px-4 text-gray-400">Identity Providers</span>
             </div>
           </div>
 
@@ -620,23 +624,27 @@ function Login({
                 fill="#EA4335"
               />
             </svg>
-            GOOGLE
+            GOOGLE AUTH
           </button>
           
           <div className="text-center">
             <button 
               onClick={onSwitch}
-              className="text-[#4C1D95] text-xs font-bold uppercase tracking-widest hover:underline"
+              className="text-emerald-700 text-xs font-black uppercase tracking-widest hover:underline"
             >
-              Create New Account
+              Create System Account
             </button>
           </div>
         </div>
       </div>
-      <div className="hidden lg:flex flex-1 bg-[#4C1D95] items-center justify-center p-12">
-        <div className="text-center space-y-4">
-          <h1 className="text-5xl font-black text-white tracking-tighter">SECURE ACCESS</h1>
-          <p className="text-white/60 text-sm uppercase tracking-[0.3em]">Employee Portal</p>
+      <div className="hidden lg:flex flex-1 bg-linear-to-br from-emerald-800 via-emerald-700 to-emerald-950 items-center justify-center p-12 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/brushed-alum.png')]"></div>
+        <div className="text-center space-y-4 relative z-10">
+          <div className="w-20 h-20 bg-white/10 rounded-3xl backdrop-blur-md border border-white/20 flex items-center justify-center mx-auto mb-8 shadow-2xl animate-pulse">
+            <ShieldCheck size={40} className="text-emerald-400" />
+          </div>
+          <h1 className="text-5xl font-black text-white tracking-tighter uppercase">CIBI Management System</h1>
+          <p className="text-emerald-400 font-bold uppercase tracking-[0.5em] text-[10px]">Security • Efficiency • Power</p>
         </div>
       </div>
     </motion.div>
@@ -723,21 +731,22 @@ function Register({
       <div className="flex-1 flex flex-col items-center justify-center p-8 bg-white overflow-y-auto">
         <div className="w-full max-w-sm space-y-6 py-8">
           <div className="text-center">
-            <h2 className="text-3xl font-black text-[#4C1D95]">CREATE ACCOUNT</h2>
+            <h2 className="text-3xl font-black text-emerald-800 uppercase tracking-tighter">CREATE ACCOUNT</h2>
+            <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Join CIBI Management System</p>
           </div>
           
           <div className="flex flex-col items-center space-y-2">
-            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center border-2 border-dashed border-gray-300">
-              <Camera className="text-gray-400" />
+            <div className="w-20 h-20 bg-gray-50 rounded-3xl flex items-center justify-center border-2 border-dashed border-emerald-200 shadow-inner group hover:border-emerald-400 transition-all">
+              <Camera className="text-emerald-300 group-hover:text-emerald-500" />
             </div>
-            <span className="text-[10px] text-gray-400 uppercase tracking-widest">Avatar</span>
+            <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Identity Badge</span>
           </div>
 
           <form className="space-y-3" onSubmit={handleRegister}>
             <input
               type="text"
               placeholder="Full Name"
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/20"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-bold text-gray-700"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               required
@@ -745,7 +754,7 @@ function Register({
             <input
               type="email"
               placeholder="Email Address"
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/20"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-bold text-gray-700"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -754,24 +763,24 @@ function Register({
               <input
                 type="text"
                 placeholder="Mobile"
-                className="flex-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/20"
+                className="flex-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-bold text-gray-700"
                 value={mobile}
                 onChange={(e) => setMobile(e.target.value)}
                 required
               />
               <select 
-                className="px-4 py-3 bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/20"
+                className="px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-black text-emerald-800 text-xs"
                 value={role}
                 onChange={(e) => setRole(e.target.value as UserRole)}
               >
-                <option value="user">User</option>
-                <option value="admin">Admin</option>
+                <option value="user">USER</option>
+                <option value="admin">ADMIN</option>
               </select>
             </div>
             <input
               type="password"
               placeholder="Password"
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/20"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-bold text-gray-700"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -779,18 +788,18 @@ function Register({
             <input
               type="password"
               placeholder="Confirm"
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/20"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-bold text-gray-700"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
             />
-            {error && <p className="text-red-500 text-xs text-center">{error}</p>}
+            {error && <p className="text-red-500 text-xs text-center font-bold">{error}</p>}
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-[#4C1D95] text-white font-bold rounded-lg hover:bg-[#3B1575] transition-colors disabled:opacity-50"
+              className="w-full py-4 bg-linear-to-r from-emerald-600 to-emerald-800 text-white font-black rounded-xl shadow-lg shadow-emerald-900/20 hover:shadow-emerald-900/40 hover:-translate-y-0.5 transition-all disabled:opacity-50 uppercase tracking-widest text-xs"
             >
-              {loading ? 'SIGNING UP...' : 'SIGN UP'}
+              {loading ? 'Processing...' : 'Verify & Register'}
             </button>
           </form>
 
@@ -799,14 +808,14 @@ function Register({
               <div className="w-full border-t border-gray-100"></div>
             </div>
             <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
-              <span className="bg-white px-4 text-gray-400">Or continue with</span>
+              <span className="bg-white px-4 text-gray-400 font-bold">Fast Lane</span>
             </div>
           </div>
 
           <button
             onClick={handleGoogleSignIn}
             disabled={loading}
-            className="w-full py-3 bg-white border border-gray-100 text-gray-600 font-bold rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 shadow-sm"
+            className="w-full py-3 bg-white border border-gray-100 text-gray-600 font-black rounded-xl hover:bg-gray-50 transition-all flex items-center justify-center gap-2 shadow-sm text-xs"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
@@ -826,23 +835,27 @@ function Register({
                 fill="#EA4335"
               />
             </svg>
-            GOOGLE
+            GOOGLE PASSPORT
           </button>
           
           <div className="text-center">
             <button 
               onClick={onSwitch}
-              className="text-gray-400 text-[10px] uppercase tracking-widest hover:text-[#4C1D95]"
+              className="text-gray-400 text-[10px] uppercase tracking-widest hover:text-emerald-700 font-bold"
             >
-              Registered? <span className="font-bold text-[#4C1D95]">Log in</span>
+              Registered? <span className="font-black text-emerald-700">Access Key</span>
             </button>
           </div>
         </div>
       </div>
-      <div className="hidden lg:flex flex-1 bg-[#4C1D95] items-center justify-center p-12">
-        <div className="text-center space-y-4">
-          <h1 className="text-5xl font-black text-white tracking-tighter">AMS PORTAL</h1>
-          <p className="text-white/60 text-sm uppercase tracking-[0.3em]">Modern Attendance</p>
+      <div className="hidden lg:flex flex-1 bg-linear-to-br from-emerald-800 via-emerald-700 to-emerald-950 items-center justify-center p-12 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/brushed-alum.png')]"></div>
+        <div className="text-center space-y-4 relative z-10">
+          <div className="w-20 h-20 bg-white/10 rounded-3xl backdrop-blur-md border border-white/20 flex items-center justify-center mx-auto mb-8 shadow-2xl">
+            <ShieldCheck size={40} className="text-emerald-400" />
+          </div>
+          <h1 className="text-5xl font-black text-white tracking-tighter uppercase leading-none">CIBI Management System</h1>
+          <p className="text-emerald-400 font-bold uppercase tracking-[0.5em] text-[10px]">Cloud Repository • Secure Diagnostics</p>
         </div>
       </div>
     </motion.div>
@@ -908,18 +921,18 @@ function AdminKeyVerification({
   };
 
   return (
-    <div className="min-h-screen bg-[#4C1D95] flex items-center justify-center p-6 bg-cover bg-center" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1557683316-973673baf926?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80)', backgroundBlendMode: 'overlay' }}>
+    <div className="min-h-screen bg-emerald-950 flex items-center justify-center p-6 bg-cover bg-center" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1550684848-fac1c5b4e853?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80)', backgroundBlendMode: 'overlay' }}>
       <motion.div 
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-10 space-y-8"
+        className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-10 space-y-8 border border-emerald-500/10"
       >
         <div className="text-center space-y-2">
-          <div className="w-16 h-16 bg-[#F5F3FF] text-[#4C1D95] rounded-2xl flex items-center justify-center mx-auto mb-4 border border-[#4C1D95]/10 shadow-inner">
+          <div className="w-16 h-16 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-200 shadow-inner">
             <ShieldCheck size={32} />
           </div>
-          <h2 className="text-3xl font-black text-[#4C1D95] uppercase tracking-tighter">Identity Check</h2>
-          <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Enter Verification Key to Access AMS Portal</p>
+          <h2 className="text-3xl font-black text-emerald-900 uppercase tracking-tighter">Identity Check</h2>
+          <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Enter Verification Key to Access CIBI System</p>
         </div>
 
         <form onSubmit={handleVerify} className="space-y-6">
@@ -928,7 +941,7 @@ function AdminKeyVerification({
             <input 
               type="text"
               placeholder="E.G. XJ3K-9PR2"
-              className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl text-center text-xl font-mono font-black text-[#4C1D95] uppercase tracking-[0.3em] focus:ring-4 focus:ring-[#4C1D95]/10 focus:outline-none transition-all"
+              className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl text-center text-xl font-mono font-black text-emerald-700 uppercase tracking-[0.3em] focus:ring-4 focus:ring-emerald-500/10 focus:outline-none transition-all shadow-inner"
               value={key}
               onChange={(e) => setKey(e.target.value)}
               required
@@ -948,7 +961,7 @@ function AdminKeyVerification({
           <button 
             type="submit"
             disabled={loading}
-            className="w-full py-4 bg-[#4C1D95] text-white font-black rounded-2xl shadow-lg shadow-[#4C1D95]/20 hover:bg-[#3B1575] transition-all uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-3"
+            className="w-full py-4 bg-linear-to-r from-emerald-600 to-emerald-800 text-white font-black rounded-2xl shadow-lg shadow-emerald-900/20 hover:shadow-emerald-900/40 hover:-translate-y-0.5 transition-all uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-3"
           >
             {loading ? 'Verifying...' : (
               <>
@@ -960,7 +973,7 @@ function AdminKeyVerification({
         </form>
 
         <div className="pt-6 border-t border-gray-50 text-center">
-          <p className="text-[10px] text-gray-400 font-bold uppercase mb-4">Logged in as: <span className="text-[#4C1D95]">{user.email}</span></p>
+          <p className="text-[10px] text-gray-400 font-bold uppercase mb-4">Logged in as: <span className="text-emerald-700">{user.email}</span></p>
           <button 
             onClick={onLogout}
             className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] hover:text-red-500 transition-colors"
@@ -1071,7 +1084,7 @@ function Dashboard({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setSidebarOpen(false)}
-            className="fixed inset-0 bg-[#4C1D95]/40 backdrop-blur-sm z-30 lg:hidden"
+            className="fixed inset-0 bg-emerald-950/40 backdrop-blur-sm z-30 lg:hidden"
           />
         )}
       </AnimatePresence>
@@ -1084,7 +1097,7 @@ function Dashboard({
           x: (isMobile && !sidebarOpen) ? -280 : 0
         }}
         className={cn(
-          "bg-[#4C1D95] text-white flex-shrink-0 overflow-hidden relative z-40 transition-all duration-300 ease-in-out shadow-2xl",
+          "bg-linear-to-b from-emerald-800 via-emerald-900 to-emerald-950 text-white flex-shrink-0 overflow-hidden relative z-40 transition-all duration-300 ease-in-out shadow-2xl border-r border-emerald-400/10",
           isMobile ? "fixed h-full" : "relative"
         )}
       >
@@ -1131,7 +1144,7 @@ function Dashboard({
                 className={cn(
                   "w-full flex items-center transition-all duration-200 rounded-xl group",
                   activeTab === item.id 
-                    ? "bg-white text-[#4C1D95] shadow-lg shadow-black/10" 
+                    ? "bg-linear-to-r from-white to-emerald-50 text-emerald-800 shadow-lg shadow-black/20 scale-105" 
                     : "hover:bg-white/10 text-white/70 hover:text-white",
                   sidebarOpen ? "px-4 py-3 space-x-3" : "py-4 justify-center"
                 )}
@@ -1177,10 +1190,10 @@ function Dashboard({
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-6">
           <div className="flex items-center space-x-4">
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-400 hover:text-[#4C1D95]">
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-400 hover:text-emerald-600">
               {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
-            <h2 className="text-xs font-black text-[#4C1D95] uppercase tracking-[0.2em]">{activeTab}</h2>
+            <h2 className="text-xs font-black text-emerald-800 uppercase tracking-[0.2em]">{activeTab}</h2>
           </div>
           
           <div className="flex items-center space-x-6">
@@ -1196,7 +1209,7 @@ function Dashboard({
             <div className="flex items-center space-x-4 relative">
               <button 
                 onClick={() => setShowNotifications(!showNotifications)}
-                className="relative text-gray-400 hover:text-[#4C1D95] transition-colors"
+                className="relative text-gray-400 hover:text-emerald-700 transition-colors"
               >
                 <Bell size={20} />
                 {unreadCount > 0 && (
@@ -1219,8 +1232,8 @@ function Dashboard({
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
                       className="absolute right-0 top-10 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-40 overflow-hidden"
                     >
-                      <div className="p-4 bg-[#4C1D95] text-white flex justify-between items-center">
-                        <h3 className="text-[10px] font-black uppercase tracking-widest">Notifications</h3>
+                      <div className="p-4 bg-linear-to-r from-emerald-700 to-emerald-900 text-white flex justify-between items-center shadow-lg">
+                        <h3 className="text-[10px] font-black uppercase tracking-widest">System Alerts</h3>
                         {unreadCount > 0 && (
                           <button 
                             onClick={markAllAsRead}
@@ -1247,7 +1260,7 @@ function Dashboard({
                               )}
                             >
                               <div className="flex justify-between items-start mb-1">
-                                <span className="text-[10px] font-black text-[#4C1D95] uppercase tracking-tight">{n.title}</span>
+                                <span className="text-[10px] font-black text-emerald-800 uppercase tracking-tight">{n.title}</span>
                                 <span className="text-[8px] font-mono text-gray-400">{format(new Date(n.createdAt), 'h:mm a')}</span>
                               </div>
                               <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">{n.message}</p>
@@ -1270,7 +1283,7 @@ function Dashboard({
                   onClick={() => setViewportMode('desktop')}
                   className={cn(
                     "p-1.5 rounded-lg transition-all",
-                    viewportMode === 'desktop' ? "bg-white text-[#4C1D95] shadow-sm" : "text-gray-400 hover:bg-gray-100"
+                    viewportMode === 'desktop' ? "bg-white text-emerald-700 shadow-sm" : "text-gray-400 hover:bg-gray-100"
                   )}
                   title="Desktop View"
                 >
@@ -1280,7 +1293,7 @@ function Dashboard({
                   onClick={() => setViewportMode('tablet')}
                   className={cn(
                     "p-1.5 rounded-lg transition-all",
-                    viewportMode === 'tablet' ? "bg-white text-[#4C1D95] shadow-sm" : "text-gray-400 hover:bg-gray-100"
+                    viewportMode === 'tablet' ? "bg-white text-emerald-700 shadow-sm" : "text-gray-400 hover:bg-gray-100"
                   )}
                   title="Tablet View"
                 >
@@ -1290,7 +1303,7 @@ function Dashboard({
                   onClick={() => setViewportMode('mobile')}
                   className={cn(
                     "p-1.5 rounded-lg transition-all",
-                    viewportMode === 'mobile' ? "bg-white text-[#4C1D95] shadow-sm" : "text-gray-400 hover:bg-gray-100"
+                    viewportMode === 'mobile' ? "bg-white text-emerald-700 shadow-sm" : "text-gray-400 hover:bg-gray-100"
                   )}
                   title="Mobile View"
                 >
@@ -1379,10 +1392,10 @@ function LeaderboardSection({ assignments, currentMonth, currentYear }: { assign
   return (
     <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 lg:col-span-2">
       <div className="flex justify-between items-center mb-6">
-        <h3 className="text-xs font-black text-[#4C1D95] uppercase tracking-[0.2em]">CI Officer Leaderboard (Monthly)</h3>
+        <h3 className="text-xs font-black text-emerald-800 uppercase tracking-[0.2em]">CI Officer Leaderboard (Monthly)</h3>
         <div className="flex gap-2">
            <span className="text-[9px] font-black text-gray-400 uppercase bg-gray-50 px-2 py-1 rounded">Made: 1pt</span>
-           <span className="text-[9px] font-black text-[#4C1D95] uppercase bg-purple-50 px-2 py-1 rounded">MCL: 2pt</span>
+           <span className="text-[9px] font-black text-emerald-700 uppercase bg-emerald-50 px-2 py-1 rounded">MCL: 2pt</span>
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
@@ -1412,12 +1425,12 @@ function LeaderboardSection({ assignments, currentMonth, currentYear }: { assign
                    <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded" title="Total Assignments Made">MADE: {u.madeCount}</span>
                    <span className="text-[9px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded" title="Approved">APP: {u.approvedCount}</span>
                    <span className="text-[9px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded" title="Denied">DEN: {u.deniedCount}</span>
-                   <span className="text-[9px] font-black text-[#4C1D95] bg-purple-50 px-1.5 py-0.5 rounded" title="MCL Referrals">MCL: {u.mclCount}</span>
+                   <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded" title="MCL Referrals">MCL: {u.mclCount}</span>
                 </div>
               </div>
             </div>
             <div className="text-right">
-               <div className="text-lg font-black text-[#4C1D95] leading-none">{u.points}</div>
+               <div className="text-lg font-black text-emerald-700 leading-none">{u.points}</div>
                <div className="text-[8px] text-gray-400 font-bold uppercase tracking-widest mt-1">Points</div>
             </div>
           </div>
@@ -1596,21 +1609,21 @@ function DashboardOverview({ user }: { user: UserProfile }) {
     >
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-[#4C1D95]/10 flex items-center justify-center overflow-hidden border-2 border-[#4C1D95]/20">
+          <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center overflow-hidden border-2 border-emerald-100">
             {user.photoURL ? (
               <img src={user.photoURL} alt="Admin" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             ) : (
-              <User className="text-[#4C1D95]" size={24} />
+              <User className="text-emerald-700" size={24} />
             )}
           </div>
           <div>
-            <h2 className="text-xl font-black text-[#4C1D95] uppercase tracking-widest">Dashboard Overview</h2>
+            <h2 className="text-xl font-black text-emerald-900 uppercase tracking-widest">Dashboard Overview</h2>
             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">System Administrator Panel</p>
           </div>
         </div>
         <button 
           onClick={exportToCSV}
-          className="px-4 py-2 bg-[#4C1D95] text-white text-[10px] font-bold uppercase tracking-widest rounded-lg flex items-center gap-2 hover:bg-[#5B21B6] transition-all"
+          className="px-4 py-2 bg-emerald-600 text-white text-[10px] font-bold uppercase tracking-widest rounded-lg flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/10"
         >
           <Download size={14} /> Export CSV
         </button>
@@ -1628,7 +1641,7 @@ function DashboardOverview({ user }: { user: UserProfile }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 lg:col-span-1">
-          <h3 className="text-xs font-black text-[#4C1D95] uppercase tracking-[0.2em] mb-6">Satisfaction Distribution</h3>
+          <h3 className="text-xs font-black text-emerald-800 uppercase tracking-[0.2em] mb-6">Satisfaction Distribution</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={satisfactionData}>
@@ -1645,14 +1658,14 @@ function DashboardOverview({ user }: { user: UserProfile }) {
                   cursor={{ fill: 'transparent' }}
                   contentStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                 />
-                <Bar dataKey="count" fill="#4C1D95" radius={[4, 4, 0, 0]} barSize={30} />
+                <Bar dataKey="count" fill="#10B981" radius={[4, 4, 0, 0]} barSize={30} />
               </BarChart>
             </ResponsiveContainer>
           </div>
           <div className="mt-4 flex justify-between items-center px-2">
              <div className="flex items-center gap-1">
                 <Star size={12} className="text-amber-400 fill-amber-400" />
-                <span className="text-[10px] font-black text-[#4C1D95]">{stats.avgSatisfaction} / 5.0</span>
+                <span className="text-[10px] font-black text-emerald-800">{stats.avgSatisfaction} / 5.0</span>
              </div>
              <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Aggregate Rating</p>
           </div>
@@ -1665,7 +1678,7 @@ function DashboardOverview({ user }: { user: UserProfile }) {
         />
 
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 lg:col-span-1">
-          <h3 className="text-xs font-black text-[#4C1D95] uppercase tracking-[0.2em] mb-6">Status Distribution</h3>
+          <h3 className="text-xs font-black text-emerald-800 uppercase tracking-[0.2em] mb-6">Status Distribution</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -1699,33 +1712,33 @@ function DashboardOverview({ user }: { user: UserProfile }) {
         </div>
 
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-          <h3 className="text-xs font-black text-[#4C1D95] uppercase tracking-[0.2em] mb-6">Recent Activity</h3>
+          <h3 className="text-xs font-black text-emerald-800 uppercase tracking-[0.2em] mb-6">Recent Activity</h3>
           <div className="space-y-4">
             {recentActivity.length > 0 ? (
               recentActivity.map((activity, idx) => (
-                <div key={idx} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+                <div key={idx} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0 group">
                   <div className="flex items-center gap-4">
                     <div className={cn(
                       "w-2 h-2 rounded-full",
-                      activity.step === 'Approved' ? "bg-green-500" :
+                      activity.step === 'Approved' ? "bg-emerald-500" :
                       activity.step === 'Denied' ? "bg-red-500" :
                       activity.step === 'Completed' ? "bg-blue-500" : "bg-gray-300"
                     )} />
                     <div>
                       <p className="text-xs font-bold text-gray-900">
-                        <span className="text-[#4C1D95]">{activity.borrowerName}</span>
+                        <span className="text-emerald-700">{activity.borrowerName}</span>
                         <span className="text-gray-400 font-normal ml-2">status changed to</span>
-                        <span className="ml-2 uppercase tracking-widest text-[10px] px-2 py-0.5 bg-gray-100 rounded">{activity.step}</span>
+                        <span className="ml-2 uppercase tracking-widest text-[10px] px-2 py-0.5 bg-emerald-50 text-emerald-800 font-black rounded">{activity.step}</span>
                       </p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-mono text-gray-400">
+                  <span className="text-[10px] font-mono text-gray-400 font-bold uppercase">
                     {format(new Date(activity.timestamp), 'MMM d, h:mm a')}
                   </span>
                 </div>
               ))
             ) : (
-              <p className="text-sm text-gray-400 italic">No recent activity found.</p>
+              <p className="text-sm text-gray-400 font-bold italic">No recent system activity.</p>
             )}
           </div>
         </div>
@@ -1836,11 +1849,11 @@ function UserManagement({ user }: { user: UserProfile }) {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-black text-[#4C1D95] uppercase tracking-widest">User Management</h2>
+        <h2 className="text-xl font-black text-emerald-800 uppercase tracking-widest">User Management</h2>
         {user.email === '1stmb.mj@gmail.com' && (
           <button 
             onClick={generateAdminKey}
-            className="px-4 py-2 bg-[#4C1D95] text-white text-[10px] font-bold uppercase tracking-widest rounded-lg flex items-center gap-2 hover:bg-[#5B21B6] transition-all"
+            className="px-4 py-2 bg-emerald-600 text-white text-[10px] font-bold uppercase tracking-widest rounded-lg flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/10"
           >
             <Key size={14} /> Generate 4-Digit Admin Key
           </button>
@@ -1863,7 +1876,7 @@ function UserManagement({ user }: { user: UserProfile }) {
               <tr key={u.id} className="hover:bg-gray-50/50 transition-colors">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#4C1D95]/10 flex items-center justify-center text-[#4C1D95] font-black text-xs">
+                    <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-700 font-black text-xs border border-emerald-100">
                       {u.fullName.charAt(0)}
                     </div>
                     <span className="text-sm font-bold text-gray-900">{u.fullName}</span>
@@ -1873,7 +1886,7 @@ function UserManagement({ user }: { user: UserProfile }) {
                 <td className="px-6 py-4">
                   <span className={cn(
                     "text-[8px] font-black uppercase px-2 py-1 rounded tracking-widest",
-                    u.role === 'admin' ? "bg-purple-50 text-purple-600" : "bg-blue-50 text-blue-600"
+                    u.role === 'admin' ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600"
                   )}>
                     {u.role}
                   </span>
@@ -1885,7 +1898,7 @@ function UserManagement({ user }: { user: UserProfile }) {
                   <div className="flex justify-end gap-2">
                     <button 
                       onClick={() => handleEdit(u)}
-                      className="p-2 text-gray-400 hover:text-[#4C1D95] transition-colors"
+                      className="p-2 text-gray-400 hover:text-emerald-700 transition-colors"
                       title="Edit User"
                     >
                       <Pencil size={16} />
@@ -1922,7 +1935,7 @@ function UserManagement({ user }: { user: UserProfile }) {
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
             >
-              <div className="bg-[#4C1D95] p-6 text-white text-center">
+              <div className="bg-emerald-800 p-6 text-white text-center shadow-lg">
                 <h3 className="text-lg font-black uppercase tracking-widest">Edit User Profile</h3>
                 <p className="text-[10px] text-white/60 uppercase tracking-widest mt-1">Update Member Information</p>
               </div>
@@ -1969,7 +1982,7 @@ function UserManagement({ user }: { user: UserProfile }) {
                   <button 
                     type="submit"
                     disabled={loading}
-                    className="flex-1 py-3 bg-[#4C1D95] text-white font-black rounded-xl text-xs uppercase tracking-widest shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+                    className="flex-1 py-3 bg-emerald-600 text-white font-black rounded-xl text-xs uppercase tracking-widest shadow-lg hover:shadow-xl hover:bg-emerald-700 transition-all disabled:opacity-50"
                   >
                     {loading ? 'Saving...' : 'Save Changes'}
                   </button>
@@ -2041,7 +2054,7 @@ function UserManagement({ user }: { user: UserProfile }) {
               </div>
               <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight mb-2">Delete Admin Key?</h3>
               <p className="text-sm text-gray-500 mb-8 leading-relaxed">
-                Are you sure you want to remove this key? <span className="font-mono font-bold text-[#4C1D95]">{actionConfirm.id}</span>
+                Are you sure you want to remove this key? <span className="font-mono font-bold text-emerald-800">{actionConfirm.id}</span>
               </p>
               <div className="flex gap-3">
                 <button 
@@ -2064,7 +2077,7 @@ function UserManagement({ user }: { user: UserProfile }) {
 
       {user.role === 'admin' && (
         <div className="space-y-4">
-          <h3 className="text-sm font-black text-[#4C1D95] uppercase tracking-widest px-1">Active Admin Keys</h3>
+          <h3 className="text-sm font-black text-emerald-800 uppercase tracking-widest px-1">Active Admin Keys</h3>
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
             <table className="w-full text-left">
               <thead>
@@ -2085,7 +2098,7 @@ function UserManagement({ user }: { user: UserProfile }) {
                 ) : (
                   adminKeys.map(k => (
                     <tr key={k.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-6 py-4 font-mono text-sm font-bold tracking-widest text-[#4C1D95]">
+                      <td className="px-6 py-4 font-mono text-sm font-bold tracking-widest text-emerald-700">
                         {k.id}
                       </td>
                       <td className="px-6 py-4">
@@ -2189,15 +2202,15 @@ function CIDashboard({ user }: { user: UserProfile }) {
     >
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-[#4C1D95]/10 flex items-center justify-center overflow-hidden border-2 border-[#4C1D95]/20">
+          <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center overflow-hidden border-2 border-emerald-100">
             {user.photoURL ? (
               <img src={user.photoURL} alt="User" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             ) : (
-              <User className="text-[#4C1D95]" size={24} />
+              <User className="text-emerald-700" size={24} />
             )}
           </div>
           <div>
-            <h2 className="text-xl font-black text-[#4C1D95] uppercase tracking-widest">CI Officer Dashboard</h2>
+            <h2 className="text-xl font-black text-emerald-900 uppercase tracking-widest">CI Officer Dashboard</h2>
             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Personal Performance Overview</p>
           </div>
         </div>
@@ -2213,7 +2226,7 @@ function CIDashboard({ user }: { user: UserProfile }) {
       </div>
 
       <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-        <h3 className="text-xs font-black text-[#4C1D95] uppercase tracking-[0.2em] mb-6">Task Assignment Trend (Last 7 Days)</h3>
+        <h3 className="text-xs font-black text-emerald-800 uppercase tracking-[0.2em] mb-6">Task Assignment Trend (Last 7 Days)</h3>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={performanceData}>
@@ -2222,18 +2235,18 @@ function CIDashboard({ user }: { user: UserProfile }) {
                 dataKey="name" 
                 axisLine={false} 
                 tickLine={false} 
-                tick={{ fontSize: 10, fontWeight: 'bold', fill: '#9CA3AF' }}
+                tick={{ fontSize: 10, fontWeight: 'bold', fill: '#059669' }}
               />
               <YAxis 
                 axisLine={false} 
                 tickLine={false} 
-                tick={{ fontSize: 10, fontWeight: 'bold', fill: '#9CA3AF' }}
+                tick={{ fontSize: 10, fontWeight: 'bold', fill: '#059669' }}
               />
               <Tooltip 
-                cursor={{ fill: '#F9FAFB' }}
+                cursor={{ fill: '#F0FDF4' }}
                 contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 'bold' }}
               />
-              <Bar dataKey="tasks" fill="#4C1D95" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="tasks" fill="#10B981" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -2306,12 +2319,12 @@ function ProfileSettings({ user, setUser }: { user: UserProfile, setUser: (u: Us
         animate={{ opacity: 1, scale: 1 }}
         className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100"
       >
-        <h2 className="text-xl font-black text-[#4C1D95] uppercase tracking-widest mb-8">Profile Settings</h2>
+        <h2 className="text-xl font-black text-emerald-800 uppercase tracking-widest mb-8">Profile Settings</h2>
         
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="flex flex-col items-center space-y-4 mb-6">
             <div className="relative group">
-              <div className="w-24 h-24 rounded-full bg-gray-100 overflow-hidden border-4 border-[#4C1D95]/10 flex items-center justify-center">
+              <div className="w-24 h-24 rounded-full bg-gray-50 overflow-hidden border-4 border-emerald-500/20 flex items-center justify-center shadow-inner">
                 {formData.photoURL ? (
                   <img src={formData.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
@@ -2382,7 +2395,7 @@ function ProfileSettings({ user, setUser }: { user: UserProfile, setUser: (u: Us
           <button 
             type="submit"
             disabled={loading}
-            className="w-full py-4 bg-[#4C1D95] text-white font-black rounded-2xl shadow-lg hover:shadow-xl transition-all uppercase tracking-[0.2em] disabled:opacity-50"
+            className="w-full py-4 bg-emerald-600 text-white font-black rounded-2xl shadow-lg hover:bg-emerald-700 transition-all uppercase tracking-[0.2em] disabled:opacity-50 shadow-emerald-900/20"
           >
             {loading ? 'Updating...' : 'Save Changes'}
           </button>
@@ -2600,7 +2613,7 @@ function AssignAccount({ user }: { user: UserProfile }) {
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Loan Category</label>
             <select 
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm font-black text-[#4C1D95]"
+              className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm font-black text-emerald-800"
               value={formData.loanCategory}
               onChange={e => setFormData({...formData, loanCategory: e.target.value as LoanCategory})}
             >
@@ -2609,15 +2622,15 @@ function AssignAccount({ user }: { user: UserProfile }) {
             </select>
           </div>
           <div className="space-y-4 pt-4">
-            <div className="flex items-center gap-3 p-4 bg-purple-50 rounded-xl border-2 border-purple-100/50">
+            <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-xl border-2 border-emerald-100/50">
               <input 
                 type="checkbox" 
                 id="isMCLReferral"
-                className="w-5 h-5 rounded border-gray-300 text-[#4C1D95] focus:ring-[#4C1D95]"
+                className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
                 checked={formData.isMCLReferral}
                 onChange={e => setFormData({...formData, isMCLReferral: e.target.checked})}
               />
-              <label htmlFor="isMCLReferral" className="text-[10px] font-black text-[#4C1D95] uppercase tracking-widest cursor-pointer select-none">
+              <label htmlFor="isMCLReferral" className="text-[10px] font-black text-emerald-800 uppercase tracking-widest cursor-pointer select-none">
                 MCL Referral (Points: 2)
               </label>
             </div>
@@ -2675,9 +2688,9 @@ function AssignAccount({ user }: { user: UserProfile }) {
           <button 
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-[#4C1D95] text-white font-bold rounded-lg hover:bg-[#3B1575] transition-colors uppercase tracking-widest text-xs"
+            className="w-full py-4 bg-emerald-600 text-white font-black rounded-xl hover:bg-emerald-700 transition-all uppercase tracking-widest text-xs shadow-lg shadow-emerald-900/10"
           >
-            {loading ? 'Assigning...' : 'Save Assignment'}
+            {loading ? 'Assigning...' : 'Confirm Assignment'}
           </button>
         </div>
       </form>
@@ -2734,7 +2747,7 @@ function EditAssignmentModal({ assignment, ciOfficers, onClose }: { assignment: 
       >
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h3 className="text-xl font-black text-[#4C1D95] uppercase tracking-tight">Edit Assignment</h3>
+            <h3 className="text-xl font-black text-emerald-800 uppercase tracking-tight">Edit Assignment</h3>
             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Modification Panel</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
@@ -2864,7 +2877,7 @@ function EditAssignmentModal({ assignment, ciOfficers, onClose }: { assignment: 
             <button 
               type="submit"
               disabled={loading}
-              className="w-full py-4 bg-[#4C1D95] text-white text-xs font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl hover:bg-[#3B1575] transition-all disabled:opacity-50"
+              className="w-full py-4 bg-emerald-600 text-white text-xs font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl hover:bg-emerald-700 transition-all disabled:opacity-50 shadow-emerald-900/20"
             >
               {loading ? 'MODIFICATION IN PROGRESS...' : 'COMMIT CHANGES'}
             </button>
@@ -2993,13 +3006,13 @@ function AccountStatus({ user }: { user: UserProfile }) {
       {/* List */}
       <div className="lg:col-span-1 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
         <div className="p-6 border-b border-gray-100 space-y-4">
-          <h3 className="text-xs font-black text-[#4C1D95] uppercase tracking-[0.2em]">Assigned Clients</h3>
+          <h3 className="text-xs font-black text-emerald-800 uppercase tracking-[0.2em]">Assigned Clients</h3>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input 
               type="text" 
               placeholder="Search borrower or mobile..."
-              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/20"
+              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -3033,7 +3046,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
               onClick={() => setSelected(a)}
               className={cn(
                 "w-full p-6 text-left border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer",
-                selected?.id === a.id && "bg-gray-50 border-l-4 border-l-[#4C1D95]"
+                selected?.id === a.id && "bg-emerald-50 border-l-4 border-l-emerald-600"
               )}
             >
               <h4 className="font-bold text-sm uppercase">{a.borrowerName}</h4>
@@ -3079,10 +3092,10 @@ function AccountStatus({ user }: { user: UserProfile }) {
           <div className="space-y-12">
             <div className="flex justify-between items-start">
               <div>
-                <h2 className="text-2xl font-black uppercase tracking-tight text-[#4C1D95]">{selected.borrowerName}</h2>
+                <h2 className="text-2xl font-black uppercase tracking-tight text-emerald-800">{selected.borrowerName}</h2>
                 <div className="flex items-center gap-4 mt-1">
                   <p className="text-xs text-gray-400 uppercase tracking-widest font-bold">CI OFFICER: {selected.ciOfficerName}</p>
-                  <p className="text-xs text-[#4C1D95] uppercase tracking-widest font-black flex items-center gap-1">
+                  <p className="text-xs text-emerald-600 uppercase tracking-widest font-black flex items-center gap-1">
                     <Phone size={12} /> {selected.mobileNumber}
                   </p>
                 </div>
@@ -3098,7 +3111,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
                 {user.role === 'user' && selected.status !== 'Completed' && selected.status !== 'Approved' && selected.status !== 'Denied' && selected.status !== 'Report Submitted' && selected.status !== 'Pre-approved' && (
                 <button 
                   onClick={() => handleNextStep(selected)}
-                  className="px-6 py-2 bg-[#4C1D95] text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-[#3B1575] transition-colors"
+                  className="px-6 py-2 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/10"
                 >
                   Mark Next Step as Done
                 </button>
@@ -3115,7 +3128,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
                 <div className="flex items-center gap-2">
                   <button 
                     onClick={() => setIsEditing(true)}
-                    className="p-2 text-gray-400 hover:text-[#4C1D95] transition-colors"
+                    className="p-2 text-gray-400 hover:text-emerald-700 transition-colors"
                   >
                     <Pencil size={18} />
                   </button>
@@ -3169,7 +3182,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
                 {[...selected.timeline].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()).map((entry, idx) => (
                   <div key={idx} className="flex flex-col space-y-1 p-3 bg-gray-50 rounded-xl">
                     <div className="flex justify-between items-center text-xs">
-                      <span className="font-black uppercase tracking-widest text-[#4C1D95]">
+                      <span className="font-black uppercase tracking-widest text-emerald-800">
                         {entry.step}
                       </span>
                       <span className="text-[10px] font-mono font-bold text-gray-500">
@@ -3185,7 +3198,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
                 ))}
               </div>
               <div className="pt-6 border-t border-gray-100 flex justify-between items-center">
-                <span className="text-[10px] font-black text-[#4C1D95] uppercase tracking-widest">Total Turn Around Time:</span>
+                <span className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Total Turn Around Time:</span>
                 <span className="text-sm font-black text-gray-900">{calculateTAT(selected.timeline)}</span>
               </div>
             </div>
@@ -3479,10 +3492,10 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
   };
 
   return (
-    <div className="bg-white border-2 border-[#4C1D95]/10 rounded-3xl p-8 space-y-12">
-      <div className="flex justify-between items-center border-b-4 border-[#4C1D95]/5 pb-6">
+    <div className="bg-white border-2 border-emerald-100 rounded-3xl p-8 space-y-12">
+      <div className="flex justify-between items-center border-b-4 border-emerald-50/50 pb-6">
         <div>
-          <h3 className="text-xl font-black text-[#4C1D95] uppercase tracking-tight">
+          <h3 className="text-xl font-black text-emerald-800 uppercase tracking-tight">
             {isMCL ? 'MCL Diagnostic Module' : 'SME Diagnostic Module'}
           </h3>
           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.3em]">
@@ -3492,7 +3505,7 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
         <div className="flex items-center gap-4">
           <div className="text-right">
             <p className="text-[10px] font-black text-gray-400 uppercase">Score</p>
-            <p className="text-2xl font-black text-[#4C1D95]">{totalGrade.toFixed(1)}</p>
+            <p className="text-2xl font-black text-emerald-800">{totalGrade.toFixed(1)}</p>
           </div>
           <div className="w-px h-10 bg-gray-100" />
           <div className="text-right">
@@ -3516,7 +3529,7 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
         {Object.entries(CURRENT_SHEET).map(([sectionKey, section]) => (
           <section key={sectionKey} className="space-y-6">
             <div className="flex items-center gap-4">
-              <h4 className="text-xs font-black text-[#4C1D95] bg-[#4C1D95]/5 px-4 py-2 rounded-lg uppercase tracking-widest whitespace-nowrap">
+              <h4 className="text-xs font-black text-emerald-800 bg-emerald-50 px-4 py-2 rounded-lg uppercase tracking-widest whitespace-nowrap">
                 {sectionKey.replace(/_/g, ' ')}
               </h4>
               <div className="h-px w-full bg-gray-100" />
@@ -3538,7 +3551,7 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
                           className={cn(
                             "px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all border-2",
                             isSelected 
-                              ? "bg-[#4C1D95] text-white border-[#4C1D95] shadow-lg shadow-[#4C1D95]/20 scale-105" 
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-lg shadow-emerald-900/20 scale-105" 
                               : "bg-gray-50 text-gray-400 border-transparent hover:border-gray-200"
                           )}
                         >
@@ -3558,13 +3571,13 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-12 border-t-4 border-[#4C1D95]/5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-12 border-t-4 border-emerald-500/5">
         <div className="space-y-4">
-          <label className="text-xs font-black text-[#4C1D95] uppercase tracking-widest">Summary Grading Table</label>
+          <label className="text-xs font-black text-emerald-800 uppercase tracking-widest">Summary Grading Table</label>
           <div className="bg-gray-50 rounded-2xl overflow-hidden border border-gray-100">
             <table className="w-full text-[10px]">
-              <thead className="bg-[#4C1D95]">
-                <tr className="text-white">
+              <thead className="bg-emerald-800 text-white shadow-md">
+                <tr>
                   <th className="p-3 text-left font-black uppercase tracking-widest">Section</th>
                   <th className="p-3 text-center font-black uppercase tracking-widest">Actual</th>
                   <th className="p-3 text-center font-black uppercase tracking-widest">Overall</th>
@@ -3579,7 +3592,7 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
                   return (
                     <tr key={k} className="hover:bg-gray-100/50 transition-colors">
                       <td className="p-3 font-bold uppercase text-gray-500">{k.replace(/_/g, ' ')}</td>
-                      <td className="p-3 text-center font-black text-[#4C1D95]">{actual.toFixed(1)}</td>
+                      <td className="p-3 text-center font-black text-emerald-700">{actual.toFixed(1)}</td>
                       <td className="p-3 text-center font-mono opacity-50">{v.max.toFixed(1)}</td>
                       <td className={cn(
                         "p-3 text-center font-black",
@@ -3588,9 +3601,9 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
                     </tr>
                   );
                 })}
-                <tr className="bg-[#4C1D95]/5 font-black">
-                  <td className="p-4 uppercase text-[#4C1D95]">Total Score</td>
-                  <td className="p-4 text-center text-lg text-[#4C1D95]">{totalGrade.toFixed(1)}</td>
+                <tr className="bg-emerald-50/50 font-black">
+                  <td className="p-4 uppercase text-emerald-800">Total Score</td>
+                  <td className="p-4 text-center text-lg text-emerald-800">{totalGrade.toFixed(1)}</td>
                   <td className="p-4 text-center text-gray-300">100.0</td>
                   <td className="p-4 text-center text-lg text-amber-600">
                     {isMCL ? (totalGrade < 70 ? 'FAIL' : 'PASS') : riskScore.toFixed(1)}
@@ -3603,7 +3616,7 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
 
         <div className="space-y-6">
           <div className="space-y-2">
-            <label className="text-xs font-black text-[#4C1D95] uppercase tracking-widest">Final Status Recommendation</label>
+            <label className="text-xs font-black text-emerald-800 uppercase tracking-widest">Final Status Recommendation</label>
             <div className={cn(
               "w-full h-12 px-6 flex items-center bg-gray-50 border-2 border-gray-100 rounded-xl text-sm font-black uppercase shadow-sm",
               formData.recommendation === 'Approved' ? "text-green-600" : "text-red-600"
@@ -3618,10 +3631,10 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-black text-[#4C1D95] uppercase tracking-widest">CI Diagnostic Remarks</label>
+            <label className="text-xs font-black text-emerald-800 uppercase tracking-widest">CI Diagnostic Remarks</label>
             <textarea 
               disabled={isReadOnly}
-              className="w-full px-6 py-4 bg-gray-50 border-2 border-gray-100 rounded-xl text-sm h-32 focus:border-[#4C1D95] focus:outline-none transition-all disabled:opacity-50"
+              className="w-full px-6 py-4 bg-gray-50 border-2 border-gray-100 rounded-xl text-sm h-32 focus:border-emerald-500 focus:outline-none transition-all disabled:opacity-50"
               placeholder="Provide justification for the above scoring results..."
               value={formData.ciRemarks}
               onChange={e => setFormData({ ...formData, ciRemarks: e.target.value })}
@@ -3632,7 +3645,7 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
             <button 
               onClick={handleSave}
               disabled={isSaving}
-              className="w-full py-4 bg-[#4C1D95] text-white text-[11px] font-black uppercase tracking-[0.2em] rounded-xl hover:bg-[#3B1575] hover:-translate-y-1 transition-all active:translate-y-0 shadow-lg shadow-[#4C1D95]/20 disabled:opacity-50"
+              className="w-full py-4 bg-emerald-600 text-white text-[11px] font-black uppercase tracking-[0.2em] rounded-xl hover:bg-emerald-700 hover:-translate-y-1 transition-all active:translate-y-0 shadow-lg shadow-emerald-900/20 disabled:opacity-50"
             >
               {isSaving ? 'Processing Diagnostic Data...' : 'Commit Assessment to Repository'}
             </button>
@@ -3649,11 +3662,11 @@ function PerformanceGraph({ history }: { history: CashflowReport[] }) {
   return (
     <section className="space-y-6 bg-white rounded-3xl p-8 border border-gray-100">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-[#4C1D95]/5 rounded-xl flex items-center justify-center">
-          <TrendingUp className="text-[#4C1D95]" size={20} />
+        <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center border border-emerald-100">
+          <TrendingUp className="text-emerald-600" size={20} />
         </div>
         <div>
-          <h4 className="text-sm font-black text-[#4C1D95] uppercase tracking-widest">Financial Performance History</h4>
+          <h4 className="text-sm font-black text-emerald-800 uppercase tracking-widest">Financial Performance History</h4>
           <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Trend analysis across {history.length} assessment rounds</p>
         </div>
       </div>
@@ -3672,7 +3685,7 @@ function PerformanceGraph({ history }: { history: CashflowReport[] }) {
               axisLine={false} 
               tickLine={false} 
               tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 'bold' }} 
-              label={{ value: 'Submission Round', position: 'bottom', offset: -5, fontSize: 10, fontWeight: 'black', fill: '#4C1D95' }}
+              label={{ value: 'Submission Round', position: 'bottom', offset: -5, fontSize: 10, fontWeight: 'black', fill: '#065F46' }}
             />
             <YAxis 
               axisLine={false} 
@@ -3687,10 +3700,10 @@ function PerformanceGraph({ history }: { history: CashflowReport[] }) {
             <Line 
               type="monotone" 
               dataKey="ndi" 
-              stroke="#4C1D95" 
+              stroke="#059669" 
               strokeWidth={4} 
-              dot={{ r: 6, fill: '#4C1D95', strokeWidth: 2, stroke: '#fff' }} 
-              activeDot={{ r: 8, fill: '#4C1D95' }} 
+              dot={{ r: 6, fill: '#059669', strokeWidth: 2, stroke: '#fff' }} 
+              activeDot={{ r: 8, fill: '#059669' }} 
               name="Monthly NDI"
             />
             <Line 
@@ -3716,7 +3729,7 @@ function PerformanceGraph({ history }: { history: CashflowReport[] }) {
       
       <div className="flex gap-6 pt-4 border-t border-gray-100">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-[#4C1D95] rounded-full" />
+          <div className="w-3 h-3 bg-emerald-600 rounded-full" />
           <span className="text-[10px] font-black text-gray-500 uppercase">Monthly NDI</span>
         </div>
         <div className="flex items-center gap-2">
@@ -3900,20 +3913,20 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
   const isReadOnly = forceReadOnly || (assignment.status !== 'Cashflowing' && assignment.status !== 'Report Submitted');
 
   return (
-    <div className="bg-white border-2 border-[#4C1D95]/10 rounded-3xl p-8 space-y-12 shadow-xl shadow-[#4C1D95]/5">
-      <div className="flex justify-between items-center border-b-4 border-[#4C1D95]/5 pb-6">
+    <div className="bg-white border-2 border-emerald-500/10 rounded-3xl p-8 space-y-12 shadow-xl shadow-emerald-900/5">
+      <div className="flex justify-between items-center border-b-4 border-emerald-500/5 pb-6">
         <div>
-          <h3 className="text-xl font-black text-[#4C1D95] uppercase tracking-tight">Financial Cashflow Report</h3>
+          <h3 className="text-xl font-black text-emerald-800 uppercase tracking-tight">Financial Cashflow Report</h3>
           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.3em]">CASHFLOW ANALYSIS SYSTEM v3.0</p>
         </div>
       </div>
 
       {/* Liabilities Section */}
       <section className="space-y-6">
-        <div className="flex justify-between items-center bg-[#4C1D95]/5 p-4 rounded-xl">
-          <h4 className="text-xs font-black text-[#4C1D95] uppercase tracking-widest">Client Liabilities</h4>
+        <div className="flex justify-between items-center bg-emerald-50 p-4 rounded-xl">
+          <h4 className="text-xs font-black text-emerald-800 uppercase tracking-widest">Client Liabilities</h4>
           {!isReadOnly && (
-            <button onClick={addLiability} className="text-[10px] font-black uppercase tracking-widest text-[#4C1D95] hover:underline">+ Add Entry</button>
+            <button onClick={addLiability} className="text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:underline">+ Add Entry</button>
           )}
         </div>
         <div className="overflow-x-auto">
@@ -3962,7 +3975,7 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-12">
         {/* Business Income Section */}
         <section className="space-y-6">
-          <h4 className="text-xs font-black text-[#4C1D95] bg-[#4C1D95]/5 px-4 py-2 rounded-lg uppercase tracking-widest whitespace-nowrap">Business & Other Income</h4>
+          <h4 className="text-xs font-black text-emerald-800 bg-emerald-50 px-4 py-2 rounded-lg uppercase tracking-widest whitespace-nowrap">Business & Other Income</h4>
           <div className="grid grid-cols-1 gap-6 p-6 bg-gray-50 rounded-3xl border border-gray-100">
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-2">
@@ -3970,7 +3983,7 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
                 <input 
                   disabled={isReadOnly} 
                   type="number" 
-                  className="w-full h-12 px-4 bg-white border-2 border-gray-100 rounded-xl text-sm font-black focus:border-[#4C1D95] focus:outline-none transition-all" 
+                  className="w-full h-12 px-4 bg-white border-2 border-gray-100 rounded-xl text-sm font-black focus:border-emerald-500 focus:outline-none transition-all" 
                   value={businessIncome.gross === 0 ? '' : businessIncome.gross} 
                   onChange={e => setBusinessIncome({ ...businessIncome, gross: e.target.value === '' ? 0 : Number(e.target.value) })} 
                 />
@@ -3980,7 +3993,7 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
                 <input 
                   disabled={isReadOnly} 
                   type="number" 
-                  className="w-full h-12 px-4 bg-white border-2 border-gray-100 rounded-xl text-sm font-black text-red-500 focus:border-[#4C1D95] focus:outline-none transition-all" 
+                  className="w-full h-12 px-4 bg-white border-2 border-gray-100 rounded-xl text-sm font-black text-red-500 focus:border-emerald-500 focus:outline-none transition-all" 
                   value={businessIncome.expenses === 0 ? '' : businessIncome.expenses} 
                   onChange={e => setBusinessIncome({ ...businessIncome, expenses: e.target.value === '' ? 0 : Number(e.target.value) })} 
                 />
@@ -3992,14 +4005,14 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
               <input 
                 disabled={isReadOnly} 
                 type="number" 
-                className="w-full h-12 px-4 bg-white border-2 border-gray-100 rounded-xl text-sm font-black text-green-600 focus:border-[#4C1D95] focus:outline-none transition-all" 
+                className="w-full h-12 px-4 bg-white border-2 border-gray-100 rounded-xl text-sm font-black text-green-600 focus:border-emerald-500 focus:outline-none transition-all" 
                 value={otherIncome === 0 ? '' : otherIncome} 
                 onChange={e => setOtherIncome(e.target.value === '' ? 0 : Number(e.target.value))} 
               />
             </div>
 
             <div className="pt-4 border-t border-gray-200 flex justify-between items-center">
-              <span className="text-[10px] font-black uppercase text-[#4C1D95]">Total Business Net</span>
+              <span className="text-[10px] font-black uppercase text-emerald-800">Total Business Net</span>
               <span className="text-xl font-black text-green-600">₱ {businessIncome.net.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
@@ -4007,7 +4020,7 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
 
         {/* Household Expenses Section */}
         <section className="space-y-6">
-          <h4 className="text-xs font-black text-[#4C1D95] bg-[#4C1D95]/5 px-4 py-2 rounded-lg uppercase tracking-widest whitespace-nowrap">Household Expenses Manifest</h4>
+          <h4 className="text-xs font-black text-emerald-800 bg-emerald-50 px-4 py-2 rounded-lg uppercase tracking-widest whitespace-nowrap">Household Expenses Manifest</h4>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
             {Object.entries(householdExpenses).filter(([k]) => k !== 'total').map(([key, val]) => {
               const autoFields = ['loanPayments', 'miscellaneous'];
@@ -4016,14 +4029,14 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
                 <div key={key} className="space-y-1">
                   <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
                     {key.replace(/([A-Z])/g, ' $1')}
-                    {isAuto && <span className="ml-1 text-[8px] text-[#4C1D95] opacity-50">(AUTO)</span>}
+                    {isAuto && <span className="ml-1 text-[8px] text-emerald-600 opacity-50">(AUTO)</span>}
                   </label>
                   <input 
                     disabled={isReadOnly || isAuto} 
                     type="number" 
                     className={cn(
-                      "w-full px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg text-xs font-bold focus:ring-2 focus:ring-[#4C1D95]/20 focus:outline-none",
-                      isAuto && "bg-[#4C1D95]/5 text-[#4C1D95]"
+                      "w-full px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg text-xs font-bold focus:ring-2 focus:ring-emerald-500/20 focus:outline-none",
+                      isAuto && "bg-emerald-50 text-emerald-700"
                     )} 
                     value={val === 0 ? '' : val} 
                     onChange={e => setHouseholdExpenses({ ...householdExpenses, [key]: e.target.value === '' ? 0 : Number(e.target.value) })} 
@@ -4043,7 +4056,7 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
       <section className="bg-gray-50 p-8 rounded-[40px] border border-gray-100 shadow-inner">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
           <div className="space-y-6">
-            <h5 className="text-[10px] font-black text-[#4C1D95] uppercase tracking-[0.3em]">Cashflow Integrity</h5>
+            <h5 className="text-[10px] font-black text-emerald-800 uppercase tracking-[0.3em]">Cashflow Integrity</h5>
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <span className="text-[11px] font-bold text-gray-500 uppercase">Business Net</span>
@@ -4059,20 +4072,20 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
               </div>
               <div className="h-px bg-gray-200" />
               <div className="flex justify-between items-center">
-                <span className="text-[11px] font-black text-[#4C1D95] uppercase">Residual Net Income</span>
-                <span className="text-lg font-black text-[#4C1D95]">₱ {analysis.netIncome.toLocaleString()}</span>
+                <span className="text-[11px] font-black text-emerald-800 uppercase">Residual Net Income</span>
+                <span className="text-lg font-black text-emerald-800">₱ {analysis.netIncome.toLocaleString()}</span>
               </div>
             </div>
           </div>
 
           <div className="space-y-6 lg:border-l border-gray-200 lg:pl-12">
-            <h5 className="text-[10px] font-black text-[#4C1D95] uppercase tracking-[0.3em]">NDI Calibration</h5>
+            <h5 className="text-[10px] font-black text-emerald-800 uppercase tracking-[0.3em]">NDI Calibration</h5>
             <div className="space-y-6">
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Target NDI Policy (%)</label>
                 <div className="flex gap-2">
                   {[30, 40, 50].map(p => (
-                    <button key={p} onClick={() => setNdiPercentage(p)} className={cn("flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all", ndiPercentage === p ? "bg-[#4C1D95] text-white" : "bg-white text-gray-400 border border-gray-100")}>{p}%</button>
+                    <button key={p} onClick={() => setNdiPercentage(p)} className={cn("flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all", ndiPercentage === p ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/20" : "bg-white text-gray-400 border border-gray-100")}>{p}%</button>
                   ))}
                 </div>
               </div>
@@ -4083,12 +4096,12 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
             </div>
           </div>
 
-          <div className="space-y-6 lg:border-l border-gray-200 lg:pl-12 bg-white/50 p-6 rounded-3xl">
-            <h5 className="text-[10px] font-black text-[#4C1D95] uppercase tracking-[0.3em]">Loanability Algorithm</h5>
+          <div className="space-y-6 lg:border-l border-gray-200 lg:pl-12 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+            <h5 className="text-[10px] font-black text-emerald-800 uppercase tracking-[0.3em]">Loanability Algorithm</h5>
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <span className="text-[11px] font-bold text-gray-500 uppercase">Recommended Loan</span>
-                <span className="text-xl font-black text-[#4C1D95]">₱ {analysis.recommendedLoan.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                <span className="text-xl font-black text-emerald-800">₱ {analysis.recommendedLoan.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
               </div>
               <p className="text-[9px] text-gray-400 italic">Financial recommendation based on residual capacity and requested terms.</p>
             </div>
@@ -4097,9 +4110,9 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
       </section>
 
       {/* Action Block */}
-      <div className="flex flex-col gap-8 pt-12 border-t-4 border-[#4C1D95]/5">
+      <div className="flex flex-col gap-8 pt-12 border-t-4 border-emerald-500/5">
         <div className="space-y-6">
-          <label className="text-xs font-black text-[#4C1D95] uppercase tracking-widest">CI Assessment & Recommendation</label>
+          <label className="text-xs font-black text-emerald-800 uppercase tracking-widest">CI Assessment & Recommendation</label>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-1">
               <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Recommended Amount</label>
@@ -4119,17 +4132,17 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
             <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">CI Remarks & Justification</label>
             <textarea 
               disabled={isReadOnly}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm h-24 focus:ring-2 focus:ring-[#4C1D95]/20 focus:outline-none"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm h-24 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
               placeholder="Provide detailed breakdown and justification for this recommendation..."
               value={ciRecommendation.remarks}
               onChange={e => setCiRecommendation({ ...ciRecommendation, remarks: e.target.value })}
             />
           </div>
 
-          <div className="p-6 bg-[#4C1D95]/5 rounded-3xl border border-[#4C1D95]/10 grid grid-cols-1 md:grid-cols-4 gap-6 text-center">
+          <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 grid grid-cols-1 md:grid-cols-4 gap-6 text-center">
             <div className="space-y-1">
               <p className="text-[8px] font-black text-gray-400 uppercase">Total Interest</p>
-              <p className="text-sm font-black text-[#4C1D95]">₱ {calcAmort(ciRecommendation).interest.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+              <p className="text-sm font-black text-emerald-800">₱ {calcAmort(ciRecommendation).interest.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
             </div>
             <div className="space-y-1">
               <p className="text-[8px] font-black text-gray-400 uppercase">Weekly Amort</p>
@@ -4137,11 +4150,11 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
             </div>
             <div className="space-y-1">
               <p className="text-[8px] font-black text-gray-400 uppercase">Semi-Monthly Amort</p>
-              <p className="text-sm font-black text-[#4C1D95]">₱ {calcAmort(ciRecommendation).semiMonthlyAmort.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+              <p className="text-sm font-black text-emerald-800">₱ {calcAmort(ciRecommendation).semiMonthlyAmort.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
             </div>
             <div className="space-y-1">
               <p className="text-[8px] font-black text-gray-400 uppercase">Monthly Amort</p>
-              <p className="text-sm font-black text-[#4C1D95]">₱ {calcAmort(ciRecommendation).monthlyAmort.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+              <p className="text-sm font-black text-emerald-800">₱ {calcAmort(ciRecommendation).monthlyAmort.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
             </div>
           </div>
         </div>
@@ -4151,7 +4164,7 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
             <button 
               onClick={handleSave}
               disabled={isSaving}
-              className="w-full py-5 bg-[#4C1D95] text-white text-[11px] font-black uppercase tracking-[0.2em] rounded-2xl hover:bg-[#3B1575] hover:-translate-y-1 transition-all active:translate-y-0 shadow-xl shadow-[#4C1D95]/20"
+              className="w-full py-5 bg-emerald-600 text-white text-[11px] font-black uppercase tracking-[0.2em] rounded-2xl hover:bg-emerald-700 hover:-translate-y-1 transition-all active:translate-y-0 shadow-xl shadow-emerald-900/20"
             >
               {isSaving ? 'Calculating...' : 'Commit Financial Diagnostic'}
             </button>
@@ -4279,7 +4292,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
         <div className="space-y-1">
-          <h2 className="text-2xl font-black text-[#4C1D95] uppercase tracking-tight">Crecom Approval Queue</h2>
+          <h2 className="text-2xl font-black text-emerald-800 uppercase tracking-tight">Crecom Approval Queue</h2>
           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em]">Final Review & Funding Decision</p>
         </div>
         <div className="relative w-full md:w-96">
@@ -4287,7 +4300,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
           <input 
             type="text" 
             placeholder="Search queue..."
-            className="w-full pl-12 pr-6 py-3.5 bg-gray-50 border-2 border-transparent rounded-2xl text-sm focus:outline-none focus:border-[#4C1D95]/20 font-medium transition-all"
+            className="w-full pl-12 pr-6 py-3.5 bg-gray-50 border-2 border-transparent rounded-2xl text-sm focus:outline-none focus:border-emerald-500/20 font-medium transition-all"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -4306,7 +4319,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
               onClick={() => setSelected(a)}
               className="bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl transition-all cursor-pointer relative overflow-hidden group flex flex-col"
             >
-              <div className="bg-[#4C1D95] p-5 flex justify-between items-center text-white">
+              <div className="bg-emerald-800 p-5 flex justify-between items-center text-white">
                 <div>
                   <h4 className="font-black text-lg uppercase tracking-tight">{a.borrowerName}</h4>
                   <p className="text-[9px] text-white/60 uppercase tracking-[0.2em] font-bold">Pre-approved: {preApprovalDate}</p>
@@ -4338,7 +4351,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                   <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
                     <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">CI Recommendation</p>
                     <div className="space-y-1">
-                      <p className="text-sm font-black text-[#4C1D95]">₱{a.cashflowReport?.ciRecommendation?.loanAmount.toLocaleString()}</p>
+                      <p className="text-sm font-black text-emerald-800">₱{a.cashflowReport?.ciRecommendation?.loanAmount.toLocaleString()}</p>
                       <p className="text-[9px] font-bold text-gray-500 uppercase">{a.cashflowReport?.ciRecommendation?.term} Mos @ {a.cashflowReport?.ciRecommendation?.rate}%</p>
                     </div>
                   </div>
@@ -4356,7 +4369,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                     <Clock size={12} className="text-gray-400" />
                     <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">TAT: {calculateTAT(a.timeline)}</span>
                   </div>
-                  <div className="text-[9px] font-black text-[#4C1D95] uppercase tracking-[0.2em] group-hover:translate-x-2 transition-all">Review Details →</div>
+                  <div className="text-[9px] font-black text-emerald-700 uppercase tracking-[0.2em] group-hover:translate-x-2 transition-all">Review Details →</div>
                 </div>
               </div>
             </motion.div>
@@ -4373,7 +4386,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
 
       <div className="pt-20 space-y-6">
         <div className="flex items-center gap-4">
-          <h3 className="text-sm font-black text-[#4C1D95] uppercase tracking-[0.3em] whitespace-nowrap">Recently Approved Loans</h3>
+          <h3 className="text-sm font-black text-emerald-800 uppercase tracking-[0.3em] whitespace-nowrap">Recently Approved Loans</h3>
           <div className="h-px w-full bg-gray-100" />
         </div>
         <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden overflow-x-auto">
@@ -4397,7 +4410,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                   <tr key={a.id} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => setSelected(a)}>
                     <td className="px-6 py-4 text-[10px] font-bold text-gray-400">{approvalDate}</td>
                     <td className="px-6 py-4">
-                      <p className="text-sm font-black text-[#4C1D95] uppercase">{a.borrowerName}</p>
+                      <p className="text-sm font-black text-emerald-800 uppercase">{a.borrowerName}</p>
                       <p className="text-[9px] text-gray-400 uppercase tracking-widest">CI: {a.ciOfficerName}</p>
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -4407,13 +4420,13 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                       <span className="px-3 py-1 bg-gray-100 rounded-full text-[10px] font-black text-gray-600">{a.approvedTerm} Mos</span>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <span className="text-sm font-black text-[#4C1D95]">{a.approvedIntRate}%</span>
+                      <span className="text-sm font-black text-emerald-700">{a.approvedIntRate}%</span>
                     </td>
                     <td className="px-6 py-4 text-center">
                       <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase">{a.approvedMop}</span>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <span className="px-3 py-1 bg-purple-50 text-purple-600 rounded-full text-[10px] font-black uppercase">{a.approvedTop}</span>
+                      <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-black uppercase">{a.approvedTop}</span>
                     </td>
                   </tr>
                 );
@@ -4444,9 +4457,9 @@ function CrecomApproval({ user }: { user: UserProfile }) {
               <div className="flex-1 p-8 lg:p-12 overflow-y-auto border-r border-gray-100">
                 <div className="flex justify-between items-start mb-8">
                   <div>
-                    <h3 className="text-4xl font-black text-[#4C1D95] uppercase tracking-tighter leading-none mb-2">{selected.borrowerName}</h3>
+                    <h3 className="text-4xl font-black text-emerald-900 uppercase tracking-tighter leading-none mb-2">{selected.borrowerName}</h3>
                     <div className="flex items-center gap-4">
-                      <span className="px-3 py-1 bg-[#4C1D95]/5 text-[#4C1D95] text-[10px] font-black uppercase rounded-full tracking-widest">Step: Discrepancy & Final Approval</span>
+                      <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase rounded-full tracking-widest">Step: Discrepancy & Final Approval</span>
                       <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">CI Officer: {selected.ciOfficerName}</span>
                     </div>
                   </div>
@@ -4462,7 +4475,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                     <section className="space-y-6">
                       <div className="flex justify-between items-center bg-gray-50 p-4 rounded-2xl">
-                        <h4 className="text-[10px] font-black text-[#4C1D95] uppercase tracking-widest">Credit Scorer Insight</h4>
+                        <h4 className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Credit Scorer Insight</h4>
                         <span className="text-[10px] font-black text-green-600 bg-white px-3 py-1 rounded-full shadow-sm badge">GRADE: {selected.creditScore?.finalGrade || 'N/A'}</span>
                       </div>
                       <CreditScoringModule assignment={selected} user={user} isReadOnly={true} />
@@ -4470,8 +4483,8 @@ function CrecomApproval({ user }: { user: UserProfile }) {
 
                     <section className="space-y-6">
                       <div className="flex justify-between items-center bg-gray-50 p-4 rounded-2xl">
-                        <h4 className="text-[10px] font-black text-[#4C1D95] uppercase tracking-widest">Financial Diagnostic Summary</h4>
-                        <span className="text-[10px] font-black text-[#4C1D95] bg-white px-3 py-1 rounded-full shadow-sm badge">NDI: ₱{selected.cashflowReport?.analysis?.monthlyNdi?.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        <h4 className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Financial Diagnostic Summary</h4>
+                        <span className="text-[10px] font-black text-emerald-600 bg-white px-3 py-1 rounded-full shadow-sm badge">NDI: ₱{selected.cashflowReport?.analysis?.monthlyNdi?.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                       </div>
                       <CashflowModule assignment={selected} user={user} isReadOnly={true} />
                     </section>
@@ -4482,7 +4495,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
               <div className="w-full xl:w-[400px] bg-gray-50 p-8 lg:p-12 border-l border-gray-100 flex flex-col">
                 <div className="flex-1 space-y-8">
                   <div className="pb-6 border-b border-gray-200">
-                    <h4 className="text-[11px] font-black text-[#4C1D95] uppercase tracking-[0.2em]">Final Determination Payload</h4>
+                    <h4 className="text-[11px] font-black text-emerald-800 uppercase tracking-[0.2em]">Final Determination Payload</h4>
                     <p className="text-[9px] text-gray-400 mt-1 uppercase font-bold">Input final credit committee decisions below</p>
                   </div>
                   
@@ -4492,7 +4505,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Final Amount</label>
                         <input 
                           type="number" 
-                          className="w-full h-14 px-6 bg-white border-2 border-gray-200 rounded-2xl text-lg font-black focus:border-[#4C1D95] focus:outline-none transition-all placeholder:text-gray-300"
+                          className="w-full h-14 px-6 bg-white border-2 border-gray-200 rounded-2xl text-lg font-black focus:border-emerald-500 focus:outline-none transition-all placeholder:text-gray-300"
                           value={processData.amount}
                           onChange={e => setProcessData({...processData, amount: e.target.value})}
                         />
@@ -4501,7 +4514,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Term (Mos)</label>
                         <input 
                           type="text" 
-                          className="w-full h-14 px-6 bg-white border-2 border-gray-200 rounded-2xl text-lg font-black focus:border-[#4C1D95] focus:outline-none transition-all"
+                          className="w-full h-14 px-6 bg-white border-2 border-gray-200 rounded-2xl text-lg font-black focus:border-emerald-500 focus:outline-none transition-all"
                           value={processData.term}
                           onChange={e => setProcessData({...processData, term: e.target.value})}
                         />
@@ -4513,7 +4526,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                       <input 
                         type="number" 
                         step="0.01"
-                        className="w-full h-14 px-6 bg-white border-2 border-gray-200 rounded-2xl text-lg font-black focus:border-[#4C1D95] focus:outline-none transition-all"
+                        className="w-full h-14 px-6 bg-white border-2 border-gray-200 rounded-2xl text-lg font-black focus:border-emerald-500 focus:outline-none transition-all"
                         value={processData.intRate}
                         onChange={e => setProcessData({...processData, intRate: e.target.value})}
                       />
@@ -4523,7 +4536,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                       <div className="space-y-2">
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">MOP</label>
                         <select 
-                          className="w-full h-14 px-4 bg-white border-2 border-gray-200 rounded-2xl text-[10px] font-black uppercase focus:border-[#4C1D95] focus:outline-none transition-all"
+                          className="w-full h-14 px-4 bg-white border-2 border-gray-200 rounded-2xl text-[10px] font-black uppercase focus:border-emerald-500 focus:outline-none transition-all"
                           value={processData.mop}
                           onChange={e => setProcessData({...processData, mop: e.target.value as any})}
                         >
@@ -4536,7 +4549,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                       <div className="space-y-2">
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">TOP</label>
                         <select 
-                          className="w-full h-14 px-4 bg-white border-2 border-gray-200 rounded-2xl text-[10px] font-black uppercase focus:border-[#4C1D95] focus:outline-none transition-all"
+                          className="w-full h-14 px-4 bg-white border-2 border-gray-200 rounded-2xl text-[10px] font-black uppercase focus:border-emerald-500 focus:outline-none transition-all"
                           value={processData.top}
                           onChange={e => setProcessData({...processData, top: e.target.value as any})}
                         >
@@ -4546,7 +4559,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                       </div>
                     </div>
 
-                    <div className="bg-[#4C1D95] p-6 rounded-3xl text-white shadow-xl shadow-[#4C1D95]/20 space-y-4">
+                    <div className="bg-emerald-800 p-6 rounded-3xl text-white shadow-xl shadow-emerald-900/40 space-y-4">
                       <div className="flex justify-between items-center border-b border-white/20 pb-2">
                         <span className="text-[9px] font-black uppercase tracking-widest opacity-60">Est. Total Interest</span>
                         <span className="text-sm font-black">₱ {computedAmort.interest.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
@@ -4566,7 +4579,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Crecom Comments / Remarks</label>
                       <textarea 
-                        className="w-full px-6 py-4 bg-white border-2 border-gray-200 rounded-3xl text-[11px] font-bold h-32 focus:border-[#4C1D95] focus:outline-none transition-all"
+                        className="w-full px-6 py-4 bg-white border-2 border-gray-200 rounded-3xl text-[11px] font-bold h-32 focus:border-emerald-500 focus:outline-none transition-all"
                         placeholder="Provide final justification for the approval or denial..."
                         value={processData.comments}
                         onChange={e => setProcessData({...processData, comments: e.target.value})}
@@ -4584,9 +4597,9 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                   </button>
                   <button 
                     onClick={handleApprove}
-                    className="w-full py-6 bg-[#4C1D95] text-white text-[11px] font-black rounded-3xl hover:bg-[#3B1575] hover:-translate-y-1 active:translate-y-0 transition-all uppercase tracking-[0.4em] shadow-2xl shadow-[#4C1D95]/40"
+                    className="w-full py-6 bg-emerald-600 text-white text-[11px] font-black rounded-3xl hover:bg-emerald-700 hover:-translate-y-1 active:translate-y-0 transition-all uppercase tracking-[0.4em] shadow-2xl shadow-emerald-900/40"
                   >
-                    Grant Final Approval
+                    Confirm Funding & Grant Approval
                   </button>
                 </div>
               </div>
@@ -4631,7 +4644,7 @@ function AdminKeys({ user }: { user: UserProfile }) {
       <button 
         onClick={generateKey}
         disabled={loading}
-        className="w-full py-4 bg-[#4C1D95] text-white font-black rounded-2xl shadow-lg hover:shadow-xl transition-all uppercase tracking-[0.2em]"
+        className="w-full py-4 bg-emerald-600 text-white font-black rounded-2xl shadow-lg hover:shadow-xl transition-all uppercase tracking-[0.2em] shadow-emerald-900/20"
       >
         {loading ? 'Generating...' : 'Generate Admin Key'}
       </button>
@@ -4644,7 +4657,7 @@ function AdminKeys({ user }: { user: UserProfile }) {
           {keys.map(k => (
             <div key={k.id} className="p-5 flex justify-between items-start transition-all hover:bg-gray-50/50">
               <div className="space-y-1">
-                <span className="font-mono text-base font-black text-[#4C1D95] tracking-widest">{k.key}</span>
+                <span className="font-mono text-base font-black text-emerald-800 tracking-widest">{k.key}</span>
                 {k.used && (
                   <p className="text-[9px] text-gray-400 font-bold uppercase">
                     Used by: <span className="text-gray-600 underline">{k.usedBy}</span>
@@ -4782,7 +4795,7 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
       <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
-        <h2 className="text-xl font-black text-[#4C1D95] uppercase tracking-widest mb-2">Pending Validation & Survey</h2>
+        <h2 className="text-xl font-black text-emerald-800 uppercase tracking-widest mb-2">Pending Validation & Survey</h2>
         <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Select a client to record their post-release feedback</p>
       </div>
 
@@ -4799,7 +4812,7 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
             <div className="absolute top-4 right-4 text-amber-500 animate-pulse group-hover:scale-110 transition-transform">
               <ClipboardList size={18} />
             </div>
-            <h4 className="font-black text-sm uppercase text-[#4C1D95]">{a.borrowerName}</h4>
+            <h4 className="font-black text-sm uppercase text-emerald-800">{a.borrowerName}</h4>
             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-1 mt-1">
                <Phone size={10} /> {a.mobileNumber}
             </p>
@@ -4836,11 +4849,11 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
               <div className="p-8 md:p-10">
                 <div className="flex justify-between items-start mb-8">
                   <div>
-                    <h3 className="text-3xl font-black text-[#4C1D95] uppercase tracking-tight">{selected.borrowerName}</h3>
+                    <h3 className="text-3xl font-black text-emerald-800 uppercase tracking-tight">{selected.borrowerName}</h3>
                     <div className="flex items-center gap-4 mt-1">
                       <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Validation & Survey</p>
                       <div className="h-1 w-1 bg-gray-300 rounded-full" />
-                      <p className="text-xs text-[#4C1D95] font-black uppercase tracking-widest">Step {step} of 2</p>
+                      <p className="text-xs text-emerald-700 font-black uppercase tracking-widest">Step {step} of 2</p>
                     </div>
                   </div>
                   <button 
@@ -4853,8 +4866,8 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
 
                 {step === 1 ? (
                   <div className="space-y-6">
-                    <div className="bg-[#4C1D95]/5 p-6 rounded-3xl border border-[#4C1D95]/10">
-                      <h4 className="text-xs font-black text-[#4C1D95] uppercase tracking-widest mb-6">Internal Validation Checkpoints</h4>
+                    <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-100">
+                      <h4 className="text-xs font-black text-emerald-800 uppercase tracking-widest mb-6">Internal Validation Checkpoints</h4>
                       <div className="space-y-3">
                         {[
                           { id: 'didAnswerCalls', label: 'Did client answer all verification calls?' },
@@ -4863,10 +4876,10 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
                           { id: 'didExplainDeductions', label: 'Were all deductions clearly explained?' }
                         ].map(q => (
                           <label key={q.id} className="flex items-center justify-between p-4 bg-white rounded-2xl cursor-pointer hover:shadow-md transition-all border border-gray-50 group">
-                            <span className="text-[11px] font-bold text-gray-600 uppercase tracking-tight group-hover:text-[#4C1D95] transition-colors">{q.label}</span>
+                            <span className="text-[11px] font-bold text-gray-600 uppercase tracking-tight group-hover:text-emerald-700 transition-colors">{q.label}</span>
                             <div className={cn(
                               "w-6 h-6 rounded-lg flex items-center justify-center transition-all",
-                              (validation as any)[q.id] ? "bg-[#4C1D95] text-white" : "bg-gray-100 text-transparent"
+                              (validation as any)[q.id] ? "bg-emerald-600 text-white" : "bg-gray-100 text-transparent"
                             )}>
                               <Check size={14} strokeWidth={4} />
                               <input 
@@ -4883,7 +4896,7 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
 
                     <button 
                       onClick={handleNext}
-                      className="w-full py-6 bg-[#4C1D95] text-white font-black rounded-3xl shadow-xl shadow-[#4C1D95]/20 hover:bg-[#3B1575] hover:-translate-y-1 transition-all uppercase tracking-[0.3em] text-[11px]"
+                      className="w-full py-6 bg-emerald-600 text-white font-black rounded-3xl shadow-xl shadow-emerald-900/40 hover:bg-emerald-700 hover:-translate-y-1 transition-all uppercase tracking-[0.3em] text-[11px]"
                     >
                       Continue to Client Survey
                     </button>
@@ -4894,7 +4907,7 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
                       {ratings.map((r, i) => (
                         <div key={r.key} className="space-y-3">
                           <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest flex gap-2">
-                             <span className="text-[#4C1D95]">0{i + 1}.</span> {r.label}
+                             <span className="text-emerald-700">0{i + 1}.</span> {r.label}
                           </label>
                           <div className="grid grid-cols-5 gap-2">
                             {r.options.map((opt, idx) => (
@@ -4904,7 +4917,7 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
                                 className={cn(
                                   "py-3 rounded-xl text-[8px] font-black uppercase tracking-tighter transition-all border-2",
                                   (survey as any)[r.key] === idx + 1 
-                                    ? "bg-[#4C1D95] border-[#4C1D95] text-white shadow-lg" 
+                                    ? "bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-900/20" 
                                     : "bg-gray-50 border-gray-50 text-gray-400 hover:border-gray-200"
                                 )}
                               >
@@ -4917,7 +4930,7 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
 
                       <div className="space-y-3">
                         <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest flex gap-2">
-                          <span className="text-[#4C1D95]">06.</span> Would you recommend our loan service to others?
+                          <span className="text-emerald-700">06.</span> Would you recommend our loan service to others?
                         </label>
                         <div className="flex gap-4">
                           {['Yes', 'No'].map(v => (
@@ -4927,7 +4940,7 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
                               className={cn(
                                 "flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2",
                                 survey.recommend === v 
-                                  ? (v === 'Yes' ? "bg-green-500 border-green-500 text-white shadow-lg" : "bg-red-500 border-red-500 text-white shadow-lg")
+                                  ? (v === 'Yes' ? "bg-emerald-500 border-emerald-500 text-white shadow-lg" : "bg-red-500 border-red-500 text-white shadow-lg")
                                   : "bg-gray-50 border-gray-50 text-gray-400 hover:border-gray-200"
                               )}
                             >
@@ -4938,7 +4951,7 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
                         <input 
                           type="text"
                           placeholder="Quick reason for your answer..."
-                          className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-[11px] font-bold focus:bg-white focus:border-[#4C1D95]/20 focus:outline-none transition-all"
+                          className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-[11px] font-bold focus:bg-white focus:border-emerald-500/20 focus:outline-none transition-all"
                           value={survey.recommendExplanation}
                           onChange={e => setSurvey({...survey, recommendExplanation: e.target.value})}
                         />
@@ -4947,7 +4960,7 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
                       <div className="space-y-3">
                         <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest">07. Comments or Suggestions</label>
                         <textarea 
-                          className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-3xl text-[11px] font-bold h-32 focus:bg-white focus:border-[#4C1D95]/20 focus:outline-none transition-all"
+                          className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-3xl text-[11px] font-bold h-32 focus:bg-white focus:border-emerald-500/20 focus:outline-none transition-all"
                           placeholder="Tell us how we can improve your experience..."
                           value={survey.comments}
                           onChange={e => setSurvey({...survey, comments: e.target.value})}
@@ -5025,7 +5038,7 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
 
   if (loading) return (
     <div className="h-64 flex items-center justify-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4C1D95]" />
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
     </div>
   );
 
@@ -5050,7 +5063,7 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
     <div className="space-y-8 max-w-7xl mx-auto">
       <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h2 className="text-2xl font-black text-[#4C1D95] uppercase tracking-tight">Validation & Survey Results</h2>
+          <h2 className="text-2xl font-black text-emerald-800 uppercase tracking-tight">Validation & Survey Results</h2>
           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Analyzing client feedback and service performance</p>
         </div>
         <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
@@ -5059,7 +5072,7 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
             <input 
               type="text" 
               placeholder="Search feedback..."
-              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#4C1D95]/20"
+              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -5081,10 +5094,10 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
                 onClick={() => setSelected(a)}
                 className={cn(
                   "w-full p-6 text-left hover:bg-gray-50 transition-all group border-l-4",
-                  selected?.id === a.id ? "bg-gray-50 border-l-[#4C1D95]" : "border-l-transparent"
+                  selected?.id === a.id ? "bg-gray-50 border-l-emerald-600 shadow-sm" : "border-l-transparent"
                 )}
               >
-                <h4 className="font-black text-xs uppercase text-gray-700 group-hover:text-[#4C1D95]">{a.borrowerName}</h4>
+                <h4 className="font-black text-xs uppercase text-gray-700 group-hover:text-emerald-700">{a.borrowerName}</h4>
                 <div className="flex items-center gap-2 mt-2">
                   <div className="flex">
                     {[1, 2, 3, 4, 5].map((star) => (
@@ -5120,7 +5133,7 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
               >
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="text-3xl font-black text-[#4C1D95] uppercase tracking-tight">{selected.borrowerName}</h3>
+                    <h3 className="text-3xl font-black text-emerald-800 uppercase tracking-tight">{selected.borrowerName}</h3>
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Survey received on {format(new Date(selected.survey?.createdAt || ''), 'MMMM d, yyyy | h:mm a')}</p>
                   </div>
                   <div className="flex items-start gap-4">
@@ -5128,7 +5141,7 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
                       <button
                         onClick={handleDeleteResponse}
                         disabled={isDeleting}
-                        className="p-3 bg-red-50 text-red-500 rounded-2xl hover:bg-red-100 transition-all border border-red-100 flex items-center gap-2"
+                        className="p-3 bg-red-50 text-red-500 rounded-2xl hover:bg-red-100 transition-all border border-red-100 flex items-center gap-2 shadow-sm"
                         title="Delete Response"
                       >
                         <Trash2 size={16} />
@@ -5137,7 +5150,7 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
                     )}
                     <div className="text-right border-l border-gray-100 pl-4">
                       <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">CI Officer</p>
-                      <p className="text-xs font-black text-[#4C1D95] uppercase">{selected.ciOfficerName}</p>
+                      <p className="text-xs font-black text-emerald-800 uppercase">{selected.ciOfficerName}</p>
                     </div>
                   </div>
                 </div>
@@ -5285,7 +5298,7 @@ function DataStorage({ user }: { user: UserProfile }) {
 
   if (loading) return (
     <div className="h-64 flex items-center justify-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4C1D95]" />
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
     </div>
   );
 
@@ -5294,9 +5307,9 @@ function DataStorage({ user }: { user: UserProfile }) {
       <div className="flex flex-col gap-6 bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
           <div className="space-y-1">
-            <h2 className="text-2xl font-black text-[#4C1D95] uppercase tracking-tight">Main Data Storage</h2>
+            <h2 className="text-2xl font-black text-emerald-800 uppercase tracking-tight">Main Data Storage</h2>
             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] flex items-center gap-2">
-              <span className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" /> Comprehensive Archive
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" /> Comprehensive Archive
             </p>
           </div>
           <div className="relative w-full lg:w-96">
@@ -5304,7 +5317,7 @@ function DataStorage({ user }: { user: UserProfile }) {
             <input 
               type="text" 
               placeholder="Search all records..."
-              className="w-full pl-12 pr-6 py-3.5 bg-gray-50 border-2 border-transparent rounded-2xl text-sm focus:outline-none focus:border-[#4C1D95]/20 font-medium transition-all"
+              className="w-full pl-12 pr-6 py-3.5 bg-gray-50 border-2 border-transparent rounded-2xl text-sm focus:outline-none focus:border-emerald-500/20 font-medium transition-all"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -5386,7 +5399,7 @@ function DataStorage({ user }: { user: UserProfile }) {
                   </td>
                   <td className="px-6 py-5">
                     <div>
-                      <p className="text-xs font-black text-[#4C1D95]">₱{a.requestedAmount.toLocaleString()}</p>
+                      <p className="text-xs font-black text-emerald-800">₱{a.requestedAmount.toLocaleString()}</p>
                       <p className="text-[9px] text-gray-400 font-bold uppercase mt-1">{a.term} Mos @ {a.intRate}%</p>
                     </div>
                   </td>
@@ -5430,7 +5443,7 @@ function DataStorage({ user }: { user: UserProfile }) {
                       </button>
                       <button 
                         onClick={() => generateAssignmentPPT(a)}
-                        className="p-2 text-gray-400 hover:text-[#4C1D95] hover:bg-purple-50 rounded-xl transition-all"
+                        className="p-2 text-gray-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl transition-all"
                         title="Export PPT"
                       >
                         <Presentation size={16} />
@@ -5544,7 +5557,7 @@ function ReportsView({ user }: { user: UserProfile }) {
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", `AMS_Report_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`);
+    link.setAttribute("download", `CIBI_Report_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -5566,13 +5579,13 @@ function ReportsView({ user }: { user: UserProfile }) {
     })));
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Assignments");
-    XLSX.writeFile(workbook, `AMS_Report_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
+    XLSX.writeFile(workbook, `CIBI_Report_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
   };
 
   const exportToPDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(18);
-    doc.text("AMS - Assignment Report", 14, 22);
+    doc.text("CIBI - Assignment Report", 14, 22);
     doc.setFontSize(10);
     doc.setTextColor(100);
     doc.text(`Generated by: ${user.fullName} | ${format(new Date(), 'MMM d, yyyy h:mm a')}`, 14, 30);
@@ -5593,11 +5606,11 @@ function ReportsView({ user }: { user: UserProfile }) {
       body: tableRows,
       startY: (statusFilter !== 'All' || startDate || endDate) ? 45 : 35,
       theme: 'grid',
-      headStyles: { fillColor: [76, 29, 149], textColor: [255, 255, 255], fontStyle: 'bold' },
+      headStyles: { fillColor: [5, 150, 105], textColor: [255, 255, 255], fontStyle: 'bold' },
       styles: { fontSize: 8, cellPadding: 3 }
     });
     
-    doc.save(`AMS_Report_${format(new Date(), 'yyyyMMdd_HHmm')}.pdf`);
+    doc.save(`CIBI_Report_${format(new Date(), 'yyyyMMdd_HHmm')}.pdf`);
   };
 
   const statusOptions = [
@@ -5615,7 +5628,7 @@ function ReportsView({ user }: { user: UserProfile }) {
 
   if (loading) return (
     <div className="h-full flex items-center justify-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4C1D95]" />
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
     </div>
   );
 
@@ -5623,9 +5636,9 @@ function ReportsView({ user }: { user: UserProfile }) {
     <div className="space-y-8 max-w-6xl mx-auto">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
         <div className="space-y-1">
-          <h2 className="text-2xl font-black text-[#4C1D95] uppercase tracking-tight">Reporting Command</h2>
+          <h2 className="text-2xl font-black text-emerald-800 uppercase tracking-tight">Reporting Command</h2>
           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] flex items-center gap-2">
-            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" /> Live Repository Data
+            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" /> Live Repository Data
           </p>
         </div>
         <div className="flex flex-wrap gap-4">
@@ -5651,13 +5664,13 @@ function ReportsView({ user }: { user: UserProfile }) {
             onClick={() => {
               const pptx = new pptxgen();
               const slide = pptx.addSlide();
-            slide.addText("AMS - CONSOLIDATED REPORT", { x: 0.5, y: 0.5, fontSize: 24, bold: true, color: "4C1D95" });
+            slide.addText("CIBI - CONSOLIDATED REPORT", { x: 0.5, y: 0.5, fontSize: 24, bold: true, color: "059669" });
             const tableData: any[] = [
-                [{ text: "BORROWER", options: { bold: true, fill: { color: "4C1D95" }, color: "FFFFFF" } }, 
-                 { text: "TYPE", options: { bold: true, fill: { color: "4C1D95" }, color: "FFFFFF" } }, 
-                 { text: "CI OFFICER", options: { bold: true, fill: { color: "4C1D95" }, color: "FFFFFF" } }, 
-                 { text: "STATUS", options: { bold: true, fill: { color: "4C1D95" }, color: "FFFFFF" } }, 
-                 { text: "AMOUNT", options: { bold: true, fill: { color: "4C1D95" }, color: "FFFFFF" } }],
+                [{ text: "BORROWER", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } }, 
+                 { text: "TYPE", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } }, 
+                 { text: "CI OFFICER", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } }, 
+                 { text: "STATUS", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } }, 
+                 { text: "AMOUNT", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } }],
                 ...filtered.slice(0, 50).map(a => [
                     { text: a.borrowerName }, 
                     { text: a.accountType }, 
@@ -5670,7 +5683,7 @@ function ReportsView({ user }: { user: UserProfile }) {
                 tableData,
                 { x: 0.5, y: 1.2, w: 9.0, fontSize: 9, border: { pt: 1, color: "E2E8F0" } }
             );
-              pptx.writeFile({ fileName: `AMS_Consolidated_Report_${format(new Date(), 'yyyyMMdd')}.pptx` });
+              pptx.writeFile({ fileName: `CIBI_Consolidated_Report_${format(new Date(), 'yyyyMMdd')}.pptx` });
             }}
             className="group flex items-center gap-3 px-8 py-3.5 bg-orange-600 text-white text-[11px] font-black uppercase tracking-widest rounded-2xl hover:bg-orange-700 transition-all shadow-xl shadow-orange-900/10 active:scale-95"
           >
@@ -5689,7 +5702,7 @@ function ReportsView({ user }: { user: UserProfile }) {
                 <input 
                   type="text" 
                   placeholder="Filter by borrower or CI officer name..."
-                  className="w-full pl-12 pr-6 py-3.5 bg-white border-2 border-gray-50 rounded-2xl text-sm focus:outline-none focus:border-[#4C1D95]/20 font-medium transition-all"
+                  className="w-full pl-12 pr-6 py-3.5 bg-white border-2 border-gray-50 rounded-2xl text-sm focus:outline-none focus:border-emerald-500/20 font-medium transition-all"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -5700,7 +5713,7 @@ function ReportsView({ user }: { user: UserProfile }) {
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Lifecycle Status</label>
                 <select 
-                  className="w-full px-5 py-3.5 bg-white border-2 border-gray-50 rounded-2xl text-sm font-bold appearance-none cursor-pointer focus:border-[#4C1D95]/20 focus:outline-none transition-all"
+                  className="w-full px-5 py-3.5 bg-white border-2 border-gray-50 rounded-2xl text-sm font-bold appearance-none cursor-pointer focus:border-emerald-500/20 focus:outline-none transition-all"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
                 >
@@ -5712,7 +5725,7 @@ function ReportsView({ user }: { user: UserProfile }) {
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Commencement Date</label>
                 <input 
                   type="date" 
-                  className="w-full px-5 py-3.5 bg-white border-2 border-gray-50 rounded-2xl text-sm font-bold focus:border-[#4C1D95]/20 focus:outline-none transition-all"
+                  className="w-full px-5 py-3.5 bg-white border-2 border-gray-50 rounded-2xl text-sm font-bold focus:border-emerald-500/20 focus:outline-none transition-all"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                 />
@@ -5722,7 +5735,7 @@ function ReportsView({ user }: { user: UserProfile }) {
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Termination Date</label>
                 <input 
                   type="date" 
-                  className="w-full px-5 py-3.5 bg-white border-2 border-gray-50 rounded-2xl text-sm font-bold focus:border-[#4C1D95]/20 focus:outline-none transition-all"
+                  className="w-full px-5 py-3.5 bg-white border-2 border-gray-50 rounded-2xl text-sm font-bold focus:border-emerald-500/20 focus:outline-none transition-all"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                 />
@@ -5733,9 +5746,9 @@ function ReportsView({ user }: { user: UserProfile }) {
           {(statusFilter !== 'All' || startDate || endDate || search) && (
             <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-100">
               <div className="flex gap-2">
-                {statusFilter !== 'All' && <span className="px-3 py-1 bg-[#4C1D95]/5 text-[#4C1D95] text-[10px] font-black rounded-lg uppercase tracking-tight">Status: {statusFilter}</span>}
-                {startDate && <span className="px-3 py-1 bg-[#4C1D95]/5 text-[#4C1D95] text-[10px] font-black rounded-lg uppercase tracking-tight">From: {startDate}</span>}
-                {endDate && <span className="px-3 py-1 bg-[#4C1D95]/5 text-[#4C1D95] text-[10px] font-black rounded-lg uppercase tracking-tight">To: {endDate}</span>}
+                {statusFilter !== 'All' && <span className="px-3 py-1 bg-emerald-50 text-emerald-800 text-[10px] font-black rounded-lg uppercase tracking-tight">Status: {statusFilter}</span>}
+                {startDate && <span className="px-3 py-1 bg-emerald-50 text-emerald-800 text-[10px] font-black rounded-lg uppercase tracking-tight">From: {startDate}</span>}
+                {endDate && <span className="px-3 py-1 bg-emerald-50 text-emerald-800 text-[10px] font-black rounded-lg uppercase tracking-tight">To: {endDate}</span>}
               </div>
               <button 
                 onClick={() => {
