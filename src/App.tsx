@@ -3827,7 +3827,7 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
                     Number(householdExpenses.medical);
 
     const loanPayments = sumLiabilities;
-    const miscellaneous = (baseSum + loanPayments) * 0.05;
+    const miscellaneous = (baseSum + loanPayments) * 0.10;
     const total = baseSum + loanPayments + miscellaneous;
 
     setHouseholdExpenses(prev => ({ 
