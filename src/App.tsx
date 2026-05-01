@@ -12,7 +12,8 @@ import {
   ResponsiveContainer,
   PieChart,
   Pie,
-  Cell
+  Cell,
+  Legend
 } from 'recharts';
 import { 
   TrendingUp,
@@ -1533,14 +1534,21 @@ function DashboardOverview({ user }: { user: UserProfile }) {
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [chartData, setChartData] = useState<any[]>([]);
   const [satisfactionData, setSatisfactionData] = useState<any[]>([]);
+  const [pointsHistory, setPointsHistory] = useState<any[]>([]);
+  const [ciOfficers, setCiOfficers] = useState<UserProfile[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
 
   useEffect(() => {
+    const qUsers = query(collection(db, 'users'), where('role', '==', 'user'));
+    const unsubUsers = onSnapshot(qUsers, (snapshot) => {
+      setCiOfficers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as UserProfile[]);
+    });
+
     const q = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
     const unsubscribeReadings = onSnapshot(q, async (snapshot) => {
-      const assignments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
+      const assignmentsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
       
-      const surveys = assignments.filter(a => a.survey).map(a => a.survey!);
+      const surveys = assignmentsList.filter(a => a.survey).map(a => a.survey!);
       const avgSat = surveys.length > 0 
         ? surveys.reduce((acc, curr) => acc + curr.satisfaction, 0) / surveys.length 
         : 0;
@@ -1549,7 +1557,7 @@ function DashboardOverview({ user }: { user: UserProfile }) {
       const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
 
-      const monthly = assignments.filter(a => {
+      const monthly = assignmentsList.filter(a => {
         const date = new Date(a.createdAt);
         return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
       });
@@ -1568,11 +1576,11 @@ function DashboardOverview({ user }: { user: UserProfile }) {
       });
 
       setStats({
-        total: assignments.length,
-        pending: assignments.filter(a => !['Completed', 'Approved', 'Denied'].includes(a.status)).length,
-        completed: assignments.filter(a => a.status === 'Completed').length,
-        approved: assignments.filter(a => a.status === 'Approved').length,
-        denied: assignments.filter(a => a.status === 'Denied').length,
+        total: assignmentsList.length,
+        pending: assignmentsList.filter(a => !['Completed', 'Approved', 'Denied'].includes(a.status)).length,
+        completed: assignmentsList.filter(a => a.status === 'Completed').length,
+        approved: assignmentsList.filter(a => a.status === 'Approved').length,
+        denied: assignmentsList.filter(a => a.status === 'Denied').length,
         monthlyAssigned: monthly.length,
         avgSatisfaction: Number(avgSat.toFixed(1)),
         monthlyInterest: totalMonthlyInterest,
@@ -1585,15 +1593,47 @@ function DashboardOverview({ user }: { user: UserProfile }) {
       }));
       setSatisfactionData(satDist);
 
+      // 12-month Multi-line Points History Calculation
+      const history: any[] = [];
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const officersInAssignments = Array.from(new Set(assignmentsList.map(a => a.ciOfficerId))).filter(id => id);
+
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i);
+        const m = d.getMonth();
+        const y = d.getFullYear();
+        
+        const monthAssignments = assignmentsList.filter(a => {
+          const ad = new Date(a.createdAt);
+          return ad.getMonth() === m && ad.getFullYear() === y;
+        });
+        
+        const entry: any = {
+          name: monthNames[m],
+          fullDate: format(d, 'MMMM yyyy'),
+        };
+
+        officersInAssignments.forEach(officerId => {
+          const pts = monthAssignments
+            .filter(a => a.ciOfficerId === officerId)
+            .reduce((acc, a) => acc + 1 + (a.isMCLReferral ? 2 : 0), 0);
+          entry[officerId] = pts;
+        });
+        
+        history.push(entry);
+      }
+      setPointsHistory(history);
+
       const statusData = [
-        { name: 'Pending', value: assignments.filter(a => !['Completed', 'Approved', 'Denied'].includes(a.status)).length },
-        { name: 'Completed', value: assignments.filter(a => a.status === 'Completed').length },
-        { name: 'Approved', value: assignments.filter(a => a.status === 'Approved').length },
-        { name: 'Denied', value: assignments.filter(a => a.status === 'Denied').length }
+        { name: 'Pending', value: assignmentsList.filter(a => !['Completed', 'Approved', 'Denied'].includes(a.status)).length },
+        { name: 'Completed', value: assignmentsList.filter(a => a.status === 'Completed').length },
+        { name: 'Approved', value: assignmentsList.filter(a => a.status === 'Approved').length },
+        { name: 'Denied', value: assignmentsList.filter(a => a.status === 'Denied').length }
       ];
       setChartData(statusData);
 
-      const activities = assignments.flatMap(a => 
+      const activities = assignmentsList.flatMap(a => 
         a.timeline.map(t => ({
           ...t,
           borrowerName: a.borrowerName,
@@ -1603,12 +1643,15 @@ function DashboardOverview({ user }: { user: UserProfile }) {
       .slice(0, 10);
 
       setRecentActivity(activities);
-      setAssignments(assignments);
+      setAssignments(assignmentsList);
     }, (err) => {
       handleFirestoreError(err, OperationType.GET, 'assignments');
     });
 
-    return () => unsubscribeReadings();
+    return () => {
+      unsubscribeReadings();
+      unsubUsers();
+    };
   }, []);
 
   const exportToCSV = () => {
@@ -1638,7 +1681,8 @@ function DashboardOverview({ user }: { user: UserProfile }) {
     });
   };
 
-  const COLORS = ['#F59E0B', '#3B82F6', '#10B981', '#EF4444'];
+  const COLORS_LIST = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316'];
+  const getOfficerName = (id: string) => ciOfficers.find(o => o.id === id)?.fullName || 'Unknown Officer';
 
   return (
     <motion.div 
@@ -1726,6 +1770,70 @@ function DashboardOverview({ user }: { user: UserProfile }) {
           currentYear={new Date().getFullYear()} 
         />
 
+        <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 lg:col-span-3">
+          <div className="flex justify-between items-center mb-8">
+            <div>
+              <h3 className="text-xs font-black text-emerald-800 uppercase tracking-[0.2em]">12-Month Performance Trend</h3>
+              <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-1">Aggregate Leaderboard Points History</p>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full">
+              <TrendingUp size={12} />
+              <span className="text-[10px] font-black uppercase tracking-widest">Growth Analytics</span>
+            </div>
+          </div>
+          <div className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={pointsHistory}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis 
+                  dataKey="name" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 10, fontWeight: 'bold', fill: '#94a3b8' }} 
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 10, fontWeight: 'bold', fill: '#94a3b8' }}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    fontSize: '10px', 
+                    fontWeight: 'bold', 
+                    textTransform: 'uppercase', 
+                    borderRadius: '16px', 
+                    border: 'none', 
+                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                    padding: '12px'
+                  }}
+                  itemStyle={{ fontSize: '10px', fontWeight: 'black' }}
+                />
+                <Legend 
+                  wrapperStyle={{ fontSize: '10px', fontWeight: 'black', textTransform: 'uppercase', paddingTop: '20px' }}
+                  iconType="circle"
+                />
+                {/* Dynamically render lines for each officer ID present in the pointsHistory keys */}
+                {Object.keys(pointsHistory[0] || {})
+                  .filter(key => key !== 'name' && key !== 'fullDate')
+                  .map((officerId, idx) => (
+                    <Line 
+                      key={officerId}
+                      type="monotone" 
+                      dataKey={officerId}
+                      name={getOfficerName(officerId)}
+                      stroke={COLORS_LIST[idx % COLORS_LIST.length]} 
+                      strokeWidth={3} 
+                      dot={{ r: 3, fill: COLORS_LIST[idx % COLORS_LIST.length], strokeWidth: 2, stroke: '#fff' }}
+                      activeDot={{ r: 5, strokeWidth: 0 }}
+                      animationDuration={1500}
+                    />
+                  ))
+                }
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 lg:col-span-1">
           <h3 className="text-xs font-black text-emerald-800 uppercase tracking-[0.2em] mb-6">Status Distribution</h3>
           <div className="h-64">
@@ -1741,7 +1849,7 @@ function DashboardOverview({ user }: { user: UserProfile }) {
                   dataKey="value"
                 >
                   {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Cell key={`cell-${index}`} fill={COLORS_LIST[index % COLORS_LIST.length]} />
                   ))}
                 </Pie>
                 <Tooltip 
@@ -1753,7 +1861,7 @@ function DashboardOverview({ user }: { user: UserProfile }) {
           <div className="flex justify-center gap-4 mt-4">
             {chartData.map((entry, index) => (
               <div key={index} className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[index] }} />
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS_LIST[index % COLORS_LIST.length] }} />
                 <span className="text-[8px] font-bold uppercase text-gray-400">{entry.name}</span>
               </div>
             ))}
@@ -2626,6 +2734,7 @@ function CIDashboard({ user }: { user: UserProfile }) {
     monthlyAssigned: 0
   });
   const [performanceData, setPerformanceData] = useState<any[]>([]);
+  const [pointsHistory, setPointsHistory] = useState<any[]>([]);
   const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
 
   useEffect(() => {
@@ -2662,12 +2771,43 @@ function CIDashboard({ user }: { user: UserProfile }) {
         return { name: day, tasks: count };
       });
       setPerformanceData(data);
+
+      // 12-month Points History (Personal)
+      const personalHistory: any[] = [];
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i);
+        const m = d.getMonth();
+        const y = d.getFullYear();
+        
+        const monthAssignments = assignments.filter(a => {
+          const ad = new Date(a.createdAt);
+          return ad.getMonth() === m && ad.getFullYear() === y;
+        });
+        
+        const pts = monthAssignments.reduce((acc, a) => acc + 1 + (a.isMCLReferral ? 2 : 0), 0);
+        
+        personalHistory.push({
+          name: monthNames[m],
+          points: pts
+        });
+      }
+      setPointsHistory(personalHistory);
     }, (err) => {
       handleFirestoreError(err, OperationType.GET, 'assignments');
     });
 
+    // Also fetch ALL assignments for the shared leaderboard
+    const qAll = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
+    const unsubAll = onSnapshot(qAll, (snapshot) => {
+      setAllAssignments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[]);
+    });
+
     return () => {
       unsubscribe();
+      unsubAll();
     };
   }, [user.id]);
 
@@ -2725,6 +2865,58 @@ function CIDashboard({ user }: { user: UserProfile }) {
               />
               <Bar dataKey="tasks" fill="#10B981" radius={[4, 4, 0, 0]} />
             </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h3 className="text-xs font-black text-emerald-800 uppercase tracking-[0.2em]">Personal Points History</h3>
+            <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-1">12-Month Performance Metric</p>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-full">
+            <TrendingUp size={12} />
+            <span className="text-[10px] font-black uppercase tracking-widest">Growth Analytics</span>
+          </div>
+        </div>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={pointsHistory}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis 
+                dataKey="name" 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fontSize: 10, fontWeight: 'bold', fill: '#94a3b8' }} 
+              />
+              <YAxis 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fontSize: 10, fontWeight: 'bold', fill: '#94a3b8' }}
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  fontSize: '10px', 
+                  fontWeight: 'bold', 
+                  textTransform: 'uppercase', 
+                  borderRadius: '16px', 
+                  border: 'none', 
+                  boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                  padding: '12px'
+                }}
+                itemStyle={{ color: '#1E40AF' }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="points" 
+                stroke="#3B82F6" 
+                strokeWidth={4} 
+                dot={{ r: 4, fill: '#3B82F6', strokeWidth: 2, stroke: '#fff' }}
+                activeDot={{ r: 6, strokeWidth: 0 }}
+                animationDuration={1500}
+              />
+            </LineChart>
           </ResponsiveContainer>
         </div>
       </div>
