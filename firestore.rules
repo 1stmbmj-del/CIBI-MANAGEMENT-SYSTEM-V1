@@ -41,8 +41,22 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isEmailAdmin() {
+      return isSignedIn() && request.auth.token.email == "1stmb.mj@gmail.com";
+    }
+
+    function isDBAdmin() {
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+
+    function isAdmin() {
+      return isEmailAdmin() || isDBAdmin();
+    }
+
     function isVerified() {
-      return isSignedIn(); // Allow all signed-in users to proceed; app-level verified is handled in code
+      return isSignedIn() && request.auth.token.email_verified == true;
     }
 
     function isOwner(userId) {
@@ -53,29 +67,10 @@ service cloud.firestore {
       return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    function isAdmin() {
-      // Check if user is super admin or has admin role in firestore
-      return isSignedIn() && (
-        (request.auth.token.email == "1stmb.mj@gmail.com") ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")
-      );
-    }
-
-    function isValidUser(data) {
-      return data.fullName is string && data.fullName.size() > 0 && data.fullName.size() <= 1000 &&
-             data.role in ['admin', 'user'] &&
-             (!data.keys().contains('email') || (data.email is string && data.email.size() > 0)) &&
-             (!data.keys().contains('createdAt') || data.createdAt is string) &&
-             (!data.keys().contains('mobileNumber') || (data.mobileNumber is string && (data.mobileNumber == "" || data.mobileNumber.size() >= 10))) &&
-             (!data.keys().contains('photoURL') || (data.photoURL is string && data.photoURL.size() < 2097152)) &&
-             (!data.keys().contains('isVerified') || data.isVerified is bool);
-    }
-
     function isValidAssignment(data) {
       return data.keys().hasAll(['borrowerName', 'mobileNumber', 'accountType', 'location', 'tribe', 'requestedAmount', 'term', 'intRate', 'mop', 'top', 'ciOfficerId', 'ciOfficerName', 'status', 'timeline', 'createdAt']) &&
-             data.borrowerName is string && data.borrowerName.size() > 0 &&
-             data.mobileNumber is string &&
+             data.borrowerName is string && data.borrowerName.size() > 0 && data.borrowerName.size() <= 500 &&
+             data.mobileNumber is string && data.mobileNumber.size() <= 100 &&
              data.accountType is string &&
              data.location is string &&
              data.tribe is string &&
@@ -107,12 +102,17 @@ service cloud.firestore {
 
     match /notifications/{notificationId} {
       // Use resource.data check for list since it's the recipient
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && isValidNotification(request.resource.data);
-      allow update: if isOwner(resource.data.userId) && 
+      allow update: if isSignedIn() && isOwner(resource.data.userId) && 
                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
-      allow delete: if isOwner(resource.data.userId) || isAdmin();
+      allow delete: if (isOwner(resource.data.userId) || isAdmin()) && isSignedIn();
+    }
+
+    match /scoringConfigs/{configId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     match /users/{userId} {
@@ -137,10 +137,10 @@ service cloud.firestore {
 
     match /assignments/{assignmentId} {
       // Regular users only see their own assigned accounts. Admins see all.
-      allow list: if isVerified() && (isAdmin() || resource.data.ciOfficerId == request.auth.uid);
-      allow get: if isVerified() && (isAdmin() || resource.data.ciOfficerId == request.auth.uid);
+      allow list: if isSignedIn() && (isAdmin() || resource.data.ciOfficerId == request.auth.uid);
+      allow get: if isSignedIn() && (isAdmin() || resource.data.ciOfficerId == request.auth.uid);
       allow create: if isAdmin() && isValidAssignment(request.resource.data);
-      allow update: if isVerified() && isValidAssignment(request.resource.data) &&
+      allow update: if isSignedIn() && isValidAssignment(request.resource.data) &&
                     (isAdmin() || request.auth.uid == resource.data.ciOfficerId);
       allow delete: if isAdmin();
     }

@@ -16,6 +16,7 @@ import {
 } from 'recharts';
 import { 
   TrendingUp,
+  Wallet,
   LayoutDashboard, 
   Star,
   UserPlus, 
@@ -40,10 +41,13 @@ import {
   Percent,
   Clock,
   Search,
+  Settings2,
   Users,
   Trash2,
   Pencil,
   Download,
+  Save,
+  Plus,
   Settings as UserSettings,
   FileText,
   Bell,
@@ -57,6 +61,8 @@ import {
 import pptxgen from "pptxgenjs";
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, differenceInMinutes } from 'date-fns';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import * as XLSX from 'xlsx';
@@ -393,6 +399,18 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('DASHBOARD');
 
   useEffect(() => {
+    // Connectivity test as required by instructions
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, 'scoringConfigs', 'connectivity-check'));
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration.");
+        }
+      }
+    };
+    testConnection();
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         try {
@@ -500,6 +518,7 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+      <ToastContainer position="bottom-right" theme="dark" aria-label="Notifications" />
     </div>
   );
 }
@@ -1064,6 +1083,7 @@ function Dashboard({
     { id: 'VALIDATION & SURVEY', icon: Star },
     { id: 'REPORTS', icon: FileText },
     { id: 'DATA STORAGE', icon: Database },
+    { id: 'SCORING CONFIG', icon: Settings2 },
     { id: 'ADMIN KEYS', icon: Key },
     { id: 'PROFILE', icon: UserSettings },
   ] : [
@@ -1333,6 +1353,7 @@ function Dashboard({
               {activeTab === 'VALIDATION & SURVEY' && <ValidationSurveyResults user={user} />}
               {activeTab === 'REPORTS' && <ReportsView user={user} />}
               {activeTab === 'DATA STORAGE' && <DataStorage user={user} />}
+              {activeTab === 'SCORING CONFIG' && <AdminScoringSettings user={user} />}
               {activeTab === 'ADMIN KEYS' && <AdminKeys user={user} />}
               {activeTab === 'FOR VALIDATION & SURVEY' && <ValidationSurvey user={user} />}
               {activeTab === 'PROFILE' && <ProfileSettings user={user} setUser={setUser} />}
@@ -1504,7 +1525,9 @@ function DashboardOverview({ user }: { user: UserProfile }) {
     approved: 0,
     denied: 0,
     monthlyAssigned: 0,
-    avgSatisfaction: 0
+    avgSatisfaction: 0,
+    monthlyInterest: 0,
+    monthlyPrincipal: 0
   });
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [chartData, setChartData] = useState<any[]>([]);
@@ -1530,6 +1553,19 @@ function DashboardOverview({ user }: { user: UserProfile }) {
         return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
       });
 
+      const approvedMonthly = monthly.filter(a => a.status === 'Approved' || a.status === 'Completed');
+      let totalMonthlyInterest = 0;
+      let totalMonthlyPrincipal = 0;
+
+      approvedMonthly.forEach(a => {
+        const amount = a.approvedAmount || a.requestedAmount;
+        const rate = a.approvedIntRate || a.intRate || 4;
+        const term = Number(a.approvedTerm || a.term) || 1;
+        
+        totalMonthlyInterest += (amount * (rate / 100));
+        totalMonthlyPrincipal += (amount / term);
+      });
+
       setStats({
         total: assignments.length,
         pending: assignments.filter(a => !['Completed', 'Approved', 'Denied'].includes(a.status)).length,
@@ -1537,7 +1573,9 @@ function DashboardOverview({ user }: { user: UserProfile }) {
         approved: assignments.filter(a => a.status === 'Approved').length,
         denied: assignments.filter(a => a.status === 'Denied').length,
         monthlyAssigned: monthly.length,
-        avgSatisfaction: Number(avgSat.toFixed(1))
+        avgSatisfaction: Number(avgSat.toFixed(1)),
+        monthlyInterest: totalMonthlyInterest,
+        monthlyPrincipal: totalMonthlyPrincipal
       });
 
       const satDist = [1, 2, 3, 4, 5].map(rating => ({
@@ -1566,7 +1604,7 @@ function DashboardOverview({ user }: { user: UserProfile }) {
       setRecentActivity(activities);
       setAssignments(assignments);
     }, (err) => {
-      console.error('Firestore error in DashboardOverview:', err);
+      handleFirestoreError(err, OperationType.GET, 'assignments');
     });
 
     return () => unsubscribeReadings();
@@ -1629,7 +1667,7 @@ function DashboardOverview({ user }: { user: UserProfile }) {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-9 gap-6">
         <StatCard label="Total Volume" value={stats.total} icon={<ClipboardList className="text-blue-500" />} />
         <StatCard label="Monthly Assigned" value={stats.monthlyAssigned} icon={<Calendar className="text-indigo-500" />} />
         <StatCard label="In Progress" value={stats.pending} icon={<Clock className="text-amber-500" />} />
@@ -1637,6 +1675,16 @@ function DashboardOverview({ user }: { user: UserProfile }) {
         <StatCard label="Approved" value={stats.approved} icon={<Check className="text-emerald-500" />} />
         <StatCard label="Denied" value={stats.denied} icon={<X className="text-red-500" />} />
         <StatCard label="Customer Satisfaction" value={stats.avgSatisfaction} icon={<Star className="text-amber-500" />} />
+        <StatCard 
+          label="Interest Collected" 
+          value={`₱${stats.monthlyInterest.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`} 
+          icon={<TrendingUp className="text-emerald-600" />} 
+        />
+        <StatCard 
+          label="Principal Collected" 
+          value={`₱${stats.monthlyPrincipal.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`} 
+          icon={<Wallet className="text-emerald-800" />} 
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -1747,6 +1795,358 @@ function DashboardOverview({ user }: { user: UserProfile }) {
   );
 }
 
+// --- SCORING CONFIGURATIONS ---
+const DEFAULT_SME_SCORING_SHEET = {
+  CHARACTER: {
+    max: 15.0,
+    items: [
+      { id: 'neighbor1', label: 'Neighbor 1', options: [{ l: 'Good', p: 3 }, { l: 'Poor', p: 0 }] },
+      { id: 'neighbor2', label: 'Neighbor 2', options: [{ l: 'Good', p: 3 }, { l: 'Poor', p: 0 }] },
+      { id: 'barangayVerification', label: 'Barangay Verification', options: [{ l: 'No Bad Records', p: 3 }, { l: 'With Bad Records', p: 0 }] },
+      { id: 'loanHistory', label: 'Loan History (Other Inst.)', options: [{ l: 'Yes', p: 1 }, { l: 'No', p: 0 }] },
+      { id: 'goodCreditBackground', label: 'Good Credit Background', options: [{ l: 'Yes', p: 2 }, { l: 'No', p: 1 }, { l: 'None', p: 0 }] },
+      { id: 'cooperationOfApplicant', label: 'Cooperation of Applicant', options: [{ l: 'Very Cooperative', p: 3 }, { l: 'Cooperative', p: 2 }, { l: 'Poor', p: 0 }] },
+    ]
+  },
+  CAPITAL: {
+    max: 20.0,
+    items: [
+      { id: 'totalAssetLiabilities', label: 'Total Asset > Liabilities', options: [{ l: 'Yes', p: 10 }, { l: 'No', p: 0 }] },
+      { id: 'collateral', label: 'Collateral', options: [{ l: 'Yes', p: 10 }, { l: 'No', p: 0 }] },
+    ]
+  },
+  STABILITY: {
+    max: 15.0,
+    items: [
+      { id: 'houseOwnership', label: 'House Ownership', options: [{ l: 'Owned', p: 4 }, { l: 'Mortgage', p: 3 }, { l: 'Rented', p: 2 }, { l: 'Residing w/ Relatives', p: 1 }] },
+      { id: 'childrenSchooling', label: 'With Children are schooling?', options: [{ l: 'Yes', p: 2 }, { l: 'No', p: 1 }] },
+      { id: 'residingDuration', label: 'How long residing in address?', options: [{ l: 'More Than 5yrs.', p: 5 }, { l: '4yrs - 3yrs.', p: 3 }, { l: 'Less than 1yr.', p: 1 }] },
+      { id: 'houseMaterials', label: 'House are made of?', options: [{ l: 'Concrete', p: 4 }, { l: 'Semi-Concrete', p: 3 }, { l: 'Light Materials', p: 1 }] },
+    ]
+  },
+  BUSINESS_STATUS: {
+    max: 23.0,
+    items: [
+      { id: 'businessLocation', label: 'Business location', options: [{ l: 'Commercial', p: 4 }, { l: 'Residential', p: 3 }, { l: 'Public Market', p: 3 }] },
+      { id: 'floodProne', label: 'Flood prone area?', options: [{ l: 'No', p: 1 }, { l: 'Yes', p: 0 }] },
+      { id: 'footTraffic', label: 'Volume of foot traffic', options: [{ l: 'Good', p: 2 }, { l: 'Poor', p: 1 }] },
+      { id: 'businessSpace', label: 'Business space', options: [{ l: 'Owned', p: 2 }, { l: 'Rent Free', p: 2 }, { l: 'Rented', p: 1 }] },
+      { id: 'permitType', label: 'Type of Permit', options: [{ l: "Mayor's Permit", p: 3 }, { l: 'Barangay / DTI', p: 2 }] },
+      { id: 'businessDuration', label: 'How long business running?', options: [{ l: 'More than 10 yrs.', p: 6 }, { l: '5 yrs. - 10 yrs.', p: 4 }, { l: '1 yr. - 5 yrs.', p: 3 }] },
+      { id: 'inventoryVsSales', label: 'Business Inventory Vs. Sales', options: [{ l: 'Good', p: 2 }, { l: 'Minimal', p: 1 }, { l: 'Poor', p: 0 }] },
+      { id: 'watchBusiness', label: 'Often watch business?', options: [{ l: 'Full Time', p: 3 }, { l: 'Limited', p: 2 }] },
+    ]
+  },
+  FINANCIAL_MATURITY: {
+    max: 12.0,
+    items: [
+      { id: 'loanVsCashflow', label: 'Requested Amount > Cashflow', options: [{ l: 'No', p: 3 }, { l: 'Yes', p: 1 }] },
+      { id: 'otherIncome', label: 'Other source of Income?', options: [{ l: 'Yes', p: 2 }, { l: 'No', p: 0 }] },
+      { id: 'businessKnowledge', label: 'Business knowledge?', options: [{ l: 'Yes', p: 2 }, { l: 'No', p: 1 }] },
+      { id: 'bankAccount', label: 'Bank Account Type', options: [{ l: 'CA & SA', p: 2 }, { l: 'CA or SA', p: 1.5 }, { l: 'None', p: 0 }] },
+      { id: 'cicCmapFindings', label: 'CIC & CMAP Findings', options: [{ l: 'None', p: 3 }, { l: 'Current Status', p: 1.5 }, { l: 'With Past Due', p: 0 }] },
+    ]
+  },
+  PERSONAL_STATUS: {
+    max: 15.0,
+    items: [
+      { id: 'medicalCondition', label: 'Medical Condition (Family)', options: [{ l: 'No', p: 2 }, { l: 'Yes', p: 0 }] },
+      { id: 'civilStatus', label: 'Civil Status', options: [{ l: 'Married', p: 2 }, { l: 'Live-in', p: 1.5 }, { l: 'Single', p: 1 }] },
+      { id: 'ageGroup', label: 'Age Group', options: [{ l: '20-65', p: 2 }, { l: '<20 or >65', p: 1 }] },
+      { id: 'educationalAttainment', label: 'Educational Attainment', options: [{ l: 'College Graduate', p: 4 }, { l: 'College Undergrad', p: 3 }, { l: 'HS Graduate', p: 2 }, { l: 'HS Undergrad', p: 1.5 }, { l: 'Elem. Graduate', p: 1 }, { l: 'Elem. Undergrad', p: 0.5 }] },
+      { id: 'loanType', label: 'Type of Loan Application', options: [{ l: 'Renewal', p: 5 }, { l: 'Additional', p: 3 }] },
+    ]
+  }
+};
+
+const DEFAULT_MCL_SCORING_SHEET = {
+  CHARACTER: {
+    max: 20.0,
+    items: [
+      { id: 'reputation', label: 'Reputation in community', options: [{ l: 'Excellent', p: 5 }, { l: 'Good', p: 4 }, { l: 'Average', p: 3 }, { l: 'Poor', p: 1 }] },
+      { id: 'repaymentHistory', label: 'Loan repayment history', options: [{ l: 'Excellent', p: 5 }, { l: 'Good', p: 4 }, { l: 'Average', p: 3 }, { l: 'Poor', p: 1 }] },
+      { id: 'creditBackground', label: 'Credit background', options: [{ l: 'Excellent', p: 5 }, { l: 'Good', p: 4 }, { l: 'Average', p: 3 }, { l: 'Poor', p: 1 }] },
+      { id: 'cooperation', label: 'Cooperation & honesty', options: [{ l: 'Excellent', p: 5 }, { l: 'Good', p: 4 }, { l: 'Average', p: 3 }, { l: 'Poor', p: 1 }] },
+    ]
+  },
+  INCOME_CAPACITY: {
+    max: 25.0,
+    items: [
+      { id: 'stability', label: 'Primary income stability', options: [{ l: 'Very Stable', p: 8 }, { l: 'Stable', p: 6 }, { l: 'Moderate', p: 4 }, { l: 'Unstable', p: 2 }] },
+      { id: 'incomeVsAmort', label: 'Income vs amortization', options: [{ l: 'Excellent', p: 10 }, { l: 'Good', p: 8 }, { l: 'Average', p: 6 }, { l: 'Tight', p: 3 }] },
+      { id: 'otherIncome', label: 'Other income sources', options: [{ l: 'Multiple', p: 4 }, { l: 'Single', p: 3 }, { l: 'Minimal', p: 2 }, { l: 'None', p: 1 }] },
+      { id: 'bankAccount', label: 'Bank account / discipline', options: [{ l: 'Disciplined', p: 3 }, { l: 'Average', p: 2 }, { l: 'Poor', p: 1 }, { l: 'None', p: 0 }] },
+    ]
+  },
+  EMPLOYMENT_BUSINESS: {
+    max: 20.0,
+    items: [
+      { id: 'typeOfWork', label: 'Type of work', options: [{ l: 'Professional', p: 6 }, { l: 'Skilled', p: 5 }, { l: 'Unskilled', p: 3 }, { l: 'Informal', p: 2 }] },
+      { id: 'lengthOfService', label: 'Length of employment/business', options: [{ l: '>10 Years', p: 7 }, { l: '5-10 Years', p: 5 }, { l: '1-5 Years', p: 3 }, { l: '<1 Year', p: 1 }] },
+      { id: 'consistency', label: 'Income consistency', options: [{ l: 'Consistent', p: 7 }, { l: 'Moderate', p: 5 }, { l: 'Fluctuating', p: 3 }, { l: 'Irregular', p: 1 }] },
+    ]
+  },
+  RESIDENCE: {
+    max: 15.0,
+    items: [
+      { id: 'ownership', label: 'Home ownership', options: [{ l: 'Owned', p: 5 }, { l: 'Mortgage', p: 4 }, { l: 'Rented', p: 3 }, { l: 'Relatives', p: 2 }] },
+      { id: 'lengthOfStay', label: 'Length of stay', options: [{ l: '>10 Years', p: 5 }, { l: '5-10 Years', p: 4 }, { l: '1-5 Years', p: 3 }, { l: '<1 Year', p: 1 }] },
+      { id: 'condition', label: 'Living condition', options: [{ l: 'Excellent', p: 5 }, { l: 'Good', p: 4 }, { l: 'Fair', p: 3 }, { l: 'Poor', p: 1 }] },
+    ]
+  },
+  LOAN_FACTORS: {
+    max: 20.0,
+    items: [
+      { id: 'purpose', label: 'Purpose of motorcycle', options: [{ l: 'Business', p: 6 }, { l: 'Work', p: 5 }, { l: 'Personal', p: 4 }, { l: 'Other', p: 2 }] },
+      { id: 'downpayment', label: 'Downpayment capability', options: [{ l: 'High', p: 5 }, { l: 'Average', p: 4 }, { l: 'Minimal', p: 2 }, { l: 'None', p: 0 }] },
+      { id: 'existingDebts', label: 'Existing debts', options: [{ l: 'None', p: 5 }, { l: 'Minimal', p: 4 }, { l: 'Average', p: 2 }, { l: 'High', p: 0 }] },
+      { id: 'cicCmap', label: 'CIC / CMAP result', options: [{ l: 'Clean', p: 4 }, { l: 'Minor', p: 3 }, { l: 'Major', p: 1 }, { l: 'Blacklisted', p: 0 }] },
+    ]
+  }
+};
+
+function AdminScoringSettings({ user }: { user: UserProfile }) {
+  const [configType, setConfigType] = useState<'SME' | 'MCL'>('SME');
+  const [sections, setSections] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setIsLoading(true);
+    const q = query(collection(db, 'scoringConfigs'), where('type', '==', configType), limit(1));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        setSections(snapshot.docs[0].data().sections);
+      } else {
+        setSections(configType === 'SME' ? DEFAULT_SME_SCORING_SHEET : DEFAULT_MCL_SCORING_SHEET);
+      }
+      setIsLoading(false);
+    }, (err) => {
+      console.error(err);
+      setIsLoading(false);
+    });
+    return () => unsubscribe();
+  }, [configType]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const q = query(collection(db, 'scoringConfigs'), where('type', '==', configType), limit(1));
+      const snapshot = await getDocs(q);
+      
+      const configData = {
+        type: configType,
+        sections,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (!snapshot.empty) {
+        await updateDoc(doc(db, 'scoringConfigs', snapshot.docs[0].id), configData);
+      } else {
+        await addDoc(collection(db, 'scoringConfigs'), configData);
+      }
+      toast.success(`${configType} Scoring configuration saved successfully`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to save configuration');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateSectionMax = (sectionKey: string, max: number) => {
+    setSections({
+      ...sections,
+      [sectionKey]: { ...sections[sectionKey], max }
+    });
+  };
+
+  const updateItemLabel = (sectionKey: string, itemIdx: number, label: string) => {
+    const newItems = [...sections[sectionKey].items];
+    newItems[itemIdx] = { ...newItems[itemIdx], label };
+    setSections({
+      ...sections,
+      [sectionKey]: { ...sections[sectionKey], items: newItems }
+    });
+  };
+
+  const updateOption = (sectionKey: string, itemIdx: number, optIdx: number, field: 'l' | 'p', value: any) => {
+    const newItems = [...sections[sectionKey].items];
+    const newOptions = [...newItems[itemIdx].options];
+    newOptions[optIdx] = { ...newOptions[optIdx], [field]: field === 'p' ? parseFloat(value) : value };
+    newItems[itemIdx] = { ...newItems[itemIdx], options: newOptions };
+    setSections({
+      ...sections,
+      [sectionKey]: { ...sections[sectionKey], items: newItems }
+    });
+  };
+
+  const addItem = (sectionKey: string) => {
+    const newItems = [
+      ...sections[sectionKey].items,
+      { id: `new_${Date.now()}`, label: 'New Question', options: [{ l: 'Yes', p: 1 }, { l: 'No', p: 0 }] }
+    ];
+    setSections({
+      ...sections,
+      [sectionKey]: { ...sections[sectionKey], items: newItems }
+    });
+  };
+
+  const deleteItem = (sectionKey: string, itemIdx: number) => {
+    const newItems = sections[sectionKey].items.filter((_: any, i: number) => i !== itemIdx);
+    setSections({
+      ...sections,
+      [sectionKey]: { ...sections[sectionKey], items: newItems }
+    });
+  };
+
+  const addOption = (sectionKey: string, itemIdx: number) => {
+    const newItems = [...sections[sectionKey].items];
+    newItems[itemIdx].options.push({ l: 'New Option', p: 0 });
+    setSections({
+      ...sections,
+      [sectionKey]: { ...sections[sectionKey], items: newItems }
+    });
+  };
+
+  const deleteOption = (sectionKey: string, itemIdx: number, optIdx: number) => {
+    const newItems = [...sections[sectionKey].items];
+    newItems[itemIdx].options = newItems[itemIdx].options.filter((_: any, i: number) => i !== optIdx);
+    setSections({
+      ...sections,
+      [sectionKey]: { ...sections[sectionKey], items: newItems }
+    });
+  };
+
+  if (isLoading) return <div className="p-8 text-center text-xs font-bold uppercase tracking-widest text-gray-400">Loading Configuration...</div>;
+
+  return (
+    <div className="space-y-8 max-w-5xl mx-auto">
+      <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+        <div>
+          <h2 className="text-xl font-black text-emerald-900 uppercase tracking-widest">Scoring Configuration</h2>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Adjust points and questions for credit scoring</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200">
+            <button 
+              onClick={() => setConfigType('SME')}
+              className={cn(
+                "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                configType === 'SME' ? "bg-white text-emerald-700 shadow-sm" : "text-gray-400 hover:text-gray-600"
+              )}
+            >
+              SME Sheet
+            </button>
+            <button 
+              onClick={() => setConfigType('MCL')}
+              className={cn(
+                "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                configType === 'MCL' ? "bg-white text-emerald-700 shadow-sm" : "text-gray-400 hover:text-gray-600"
+              )}
+            >
+              MCL Sheet
+            </button>
+          </div>
+          <button 
+            onClick={handleSave}
+            disabled={isSaving}
+            className="px-6 py-2 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-lg shadow-emerald-900/20 disabled:opacity-50"
+          >
+            <Save size={14} /> {isSaving ? 'Saving...' : 'Save Configuration'}
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-8">
+        {Object.keys(sections).map((sectionKey) => (
+          <div key={sectionKey} className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="p-6 bg-gray-50/50 border-b border-gray-100 flex justify-between items-center">
+              <div>
+                <h3 className="text-sm font-black text-emerald-900 uppercase tracking-widest">{sectionKey.replace(/_/g, ' ')}</h3>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Max Points:</span>
+                  <input 
+                    type="number" 
+                    value={sections[sectionKey].max}
+                    onChange={(e) => updateSectionMax(sectionKey, parseFloat(e.target.value))}
+                    className="w-16 h-6 text-[10px] font-black text-center bg-white border border-gray-200 rounded focus:border-emerald-500 focus:ring-0"
+                  />
+                </div>
+              </div>
+              <button 
+                onClick={() => addItem(sectionKey)}
+                className="text-[9px] font-black text-emerald-600 uppercase tracking-widest hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors border border-emerald-100"
+              >
+                + Add Question
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              {sections[sectionKey].items.map((item: any, itemIdx: number) => (
+                <div key={item.id} className="p-4 bg-gray-50/30 rounded-2xl border border-gray-100 space-y-4">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 mr-4">
+                      <input 
+                        type="text" 
+                        value={item.label}
+                        onChange={(e) => updateItemLabel(sectionKey, itemIdx, e.target.value)}
+                        className="w-full text-xs font-bold text-gray-800 bg-transparent border-b border-dashed border-gray-300 focus:border-emerald-500 focus:outline-none pb-1"
+                      />
+                    </div>
+                    <button 
+                      onClick={() => deleteItem(sectionKey, itemIdx)}
+                      className="text-red-400 hover:text-red-600 transition-colors p-1"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {item.options.map((opt: any, optIdx: number) => (
+                      <div key={optIdx} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex items-center gap-3">
+                        <div className="flex-1 space-y-1">
+                          <input 
+                            type="text" 
+                            value={opt.l}
+                            onChange={(e) => updateOption(sectionKey, itemIdx, optIdx, 'l', e.target.value)}
+                            className="w-full text-[10px] font-bold text-gray-600 border-none p-0 focus:ring-0"
+                            placeholder="Option label"
+                          />
+                          <div className="flex items-center gap-1">
+                             <span className="text-[8px] font-black text-gray-400 uppercase">Pts:</span>
+                             <input 
+                              type="number" 
+                              value={opt.p}
+                              step="0.1"
+                              onChange={(e) => updateOption(sectionKey, itemIdx, optIdx, 'p', e.target.value)}
+                              className="w-full text-[10px] font-black text-emerald-600 border-none p-0 focus:ring-0"
+                            />
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => deleteOption(sectionKey, itemIdx, optIdx)}
+                          className="text-gray-300 hover:text-red-500 transition-colors"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                    <button 
+                      onClick={() => addOption(sectionKey, itemIdx)}
+                      className="border-2 border-dashed border-gray-200 rounded-xl p-3 flex items-center justify-center text-[9px] font-black text-gray-400 uppercase tracking-widest hover:border-emerald-200 hover:text-emerald-600 transition-all"
+                    >
+                      + Option
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function UserManagement({ user }: { user: UserProfile }) {
   const [users, setUsers] = useState<any[]>([]);
   const [adminKeys, setAdminKeys] = useState<any[]>([]);
@@ -1758,13 +2158,15 @@ function UserManagement({ user }: { user: UserProfile }) {
     const qUsers = query(collection(db, 'users'));
     const unsubUsers = onSnapshot(qUsers, (snapshot) => {
       setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'users');
     });
 
     const qKeys = query(collection(db, 'admin_keys'));
     const unsubKeys = onSnapshot(qKeys, (snapshot) => {
       setAdminKeys(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (err) => {
-      console.error('Firestore error in UserManagement (Keys):', err);
+      handleFirestoreError(err, OperationType.GET, 'admin_keys');
     });
 
     setLoading(false);
@@ -2145,12 +2547,6 @@ function CIDashboard({ user }: { user: UserProfile }) {
   const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
 
   useEffect(() => {
-    // All assignments for leaderboard
-    const qAll = query(collection(db, 'assignments'));
-    const unsubAll = onSnapshot(qAll, (snapshot) => {
-      setAllAssignments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[]);
-    });
-
     const q = query(collection(db, 'assignments'), where('ciOfficerId', '==', user.id));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const assignments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
@@ -2185,12 +2581,11 @@ function CIDashboard({ user }: { user: UserProfile }) {
       });
       setPerformanceData(data);
     }, (err) => {
-      console.error('Firestore error in CIDashboard:', err);
+      handleFirestoreError(err, OperationType.GET, 'assignments');
     });
 
     return () => {
       unsubscribe();
-      unsubAll();
     };
   }, [user.id]);
 
@@ -2405,7 +2800,7 @@ function ProfileSettings({ user, setUser }: { user: UserProfile, setUser: (u: Us
   );
 }
 
-function StatCard({ label, value, icon }: { label: string, value: number, icon: React.ReactNode }) {
+function StatCard({ label, value, icon }: { label: string, value: number | string, icon: React.ReactNode }) {
   return (
     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-4">
       <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center">
@@ -3213,50 +3608,6 @@ function AccountStatus({ user }: { user: UserProfile }) {
               <CreditScoringModule assignment={selected} user={user} />
             )}
 
-            {/* Account Information Section */}
-            <div className="bg-white border-2 border-emerald-100 rounded-3xl p-8 space-y-6">
-              <div className="flex items-center gap-3 border-b border-emerald-50 pb-4">
-                <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center border border-emerald-100">
-                  <Briefcase className="text-emerald-600" size={20} />
-                </div>
-                <div>
-                  <h4 className="text-sm font-black text-emerald-800 uppercase tracking-widest">Account Information</h4>
-                  <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Core application details and financial metrics</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {[
-                  { label: 'Loan Category', value: selected.loanCategory, icon: ShieldCheck },
-                  { label: 'Account Type', value: selected.accountType, icon: UserPlus },
-                  { label: 'Tribe / Region', value: selected.tribe, icon: MapPin },
-                  { label: 'Requested Amount', value: `₱${selected.requestedAmount.toLocaleString()}`, icon: DollarSign },
-                  { label: 'Term', value: `${selected.term} Months`, icon: Calendar },
-                  { label: 'Interest Rate', value: `${selected.intRate}%`, icon: Percent },
-                  { label: 'Mode of Payment', value: selected.mop, icon: Clock },
-                  { label: 'Type of Payment', value: selected.top, icon: Database },
-                  { label: 'Location', value: selected.location, icon: MapPin },
-                ].map((info, idx) => (
-                  <div key={idx} className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 flex items-start gap-3">
-                    <div className="p-2 bg-white rounded-lg border border-gray-100">
-                      <info.icon size={14} className="text-emerald-600" />
-                    </div>
-                    <div>
-                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{info.label}</p>
-                      <p className="text-xs font-black text-emerald-900 uppercase mt-0.5">{info.value}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {selected.crecomComments && (
-                <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100 space-y-2">
-                  <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">CreCom Comments</p>
-                  <p className="text-xs font-bold text-emerald-900">{selected.crecomComments}</p>
-                </div>
-              )}
-            </div>
-
             {/* Cashflow Module */}
             {(selected.status === 'Cashflowing' || selected.cashflowReport) && (
               <CashflowModule assignment={selected} user={user} />
@@ -3283,277 +3634,293 @@ function AccountStatus({ user }: { user: UserProfile }) {
   );
 }
 
+function AccountDossierModal({ assignment, onClose }: { assignment: Assignment, onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-emerald-950/40 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-emerald-100 flex flex-col"
+      >
+        <div className="bg-linear-to-r from-emerald-800 to-emerald-900 p-8 text-white flex justify-between items-center shrink-0">
+           <div>
+             <h3 className="text-xl font-black uppercase tracking-tight">Main Account Repository</h3>
+             <p className="text-[10px] text-white/50 font-bold uppercase tracking-[0.4em] mt-1">Classification: Confidential Dossier</p>
+           </div>
+           <button onClick={onClose} className="hover:rotate-90 transition-transform bg-white/10 p-2 rounded-xl">
+             <X size={20} />
+           </button>
+        </div>
+        
+        <div className="p-8 overflow-y-auto max-h-[70vh]">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
+            {/* Left Column */}
+            <div className="space-y-5">
+              {[
+                { label: 'Name of Borrower', value: assignment.borrowerName },
+                { label: 'Mobile Number', value: assignment.mobileNumber, placeholder: 'e.g. 09123456789' },
+                { label: 'Location', value: assignment.location },
+                { label: 'Business Pin.', value: assignment.businessPin || '-' },
+                { label: 'Requested Loan Amount', value: `₱${assignment.requestedAmount.toLocaleString()}` },
+                { label: 'Int. Rate (%)', value: `${assignment.intRate}%` },
+                { label: 'TOP', value: assignment.top },
+              ].map((field, idx) => (
+                <div key={idx} className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{field.label}</label>
+                  <div className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-100 rounded-lg text-xs font-bold text-gray-800 uppercase">
+                    {field.value || field.placeholder}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Right Column */}
+            <div className="space-y-5">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Account Type</label>
+                <div className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-100 rounded-lg text-xs font-bold text-gray-800 uppercase flex justify-between items-center">
+                  <span>{assignment.accountType}</span>
+                  <ChevronRight size={14} className="rotate-90 text-gray-400" />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Tribe</label>
+                <div className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-100 rounded-lg text-xs font-bold text-gray-800 uppercase flex justify-between items-center">
+                  <span>{assignment.tribe}</span>
+                  <ChevronRight size={14} className="rotate-90 text-gray-400" />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Loan Category</label>
+                <div className="w-full px-4 py-2.5 bg-emerald-50/30 border border-emerald-100 rounded-lg text-xs font-black text-emerald-800 uppercase flex justify-between items-center">
+                  <span>{assignment.loanCategory}</span>
+                  <ChevronRight size={14} className="rotate-90 text-emerald-600" />
+                </div>
+              </div>
+
+              <div className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-xl flex items-center gap-3">
+                <div className={cn(
+                  "w-5 h-5 rounded border flex items-center justify-center transition-colors shadow-sm",
+                  assignment.isMCLReferral ? "bg-emerald-600 border-emerald-600" : "bg-white border-gray-200"
+                )}>
+                  {assignment.isMCLReferral && <Check size={12} className="text-white" />}
+                </div>
+                <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">
+                  MCL Referral (Points: 2)
+                </span>
+              </div>
+
+              {[
+                { label: 'Address Pin.', value: assignment.addressPin || '-' },
+                { label: 'Term', value: `${assignment.term} Months`, placeholder: 'e.g. 12 Months' },
+                { label: 'MOP', value: assignment.mop },
+                { label: 'CI Officer', value: assignment.ciOfficerName },
+              ].map((field, idx) => (
+                <div key={idx} className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{field.label}</label>
+                  <div className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-100 rounded-lg text-xs font-bold text-gray-800 uppercase flex justify-between items-center">
+                    <span>{field.value || field.placeholder}</span>
+                    {field.label === 'MOP' || field.label === 'CI Officer' ? <ChevronRight size={14} className="rotate-90 text-gray-400" /> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 bg-gray-50/50 border-t border-gray-100 flex justify-end gap-3 shrink-0">
+          <button 
+            onClick={onClose}
+            className="px-8 py-3 bg-white border border-gray-200 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-gray-100 transition-all active:scale-95 text-gray-600"
+          >
+            Leave Dossier
+          </button>
+          <button 
+            onClick={onClose}
+            className="px-8 py-3 bg-emerald-800 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-emerald-900 transition-all hover:shadow-xl hover:shadow-emerald-900/20 active:scale-95"
+          >
+            Close Full View
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { assignment: Assignment, user: UserProfile, isReadOnly?: boolean }) {
   const isMCL = assignment.loanCategory === 'MCL';
-  const [isBusinessEnabled, setIsBusinessEnabled] = useState(assignment.creditScore?.isBusinessEnabled ?? true);
-
-  const SME_SCORING_SHEET = {
-    CHARACTER: {
-      max: 20.5,
-      items: [
-        { id: 'neighbor1', label: 'Neighbor 1', options: [{ l: 'Good', p: 3 }, { l: 'Poor', p: 0 }] },
-        { id: 'neighbor2', label: 'Neighbor 2', options: [{ l: 'Good', p: 3 }, { l: 'Poor', p: 0 }] },
-        { id: 'barangayVerification', label: 'Barangay Verification', options: [{ l: 'No Bad Records', p: 3 }, { l: 'With Bad Records', p: 0 }] },
-        { id: 'loanHistory', label: 'Loan History (Other Inst.)', options: [{ l: 'Yes', p: 1 }, { l: 'No', p: 0 }] },
-        { id: 'goodCreditBackground', label: 'Good Credit Background', options: [{ l: 'Yes', p: 1 }, { l: 'No', p: 0.5 }, { l: 'None', p: 0 }] },
-        { id: 'cooperationOfApplicant', label: 'Cooperation of Applicant', options: [{ l: 'Very Cooperative', p: 3.5 }, { l: 'Cooperative', p: 2 }, { l: 'Poor', p: 0 }] },
-      ]
-    },
-    CAPITAL: {
-      max: 10.0,
-      items: [
-        { id: 'totalAssetLiabilities', label: 'Total Asset > Liabilities', options: [{ l: 'Yes', p: 10 }, { l: 'No', p: 0 }] },
-      ]
-    },
-    STABILITY: {
-      max: 18.0,
-      items: [
-        { id: 'houseOwnership', label: 'House Ownership', options: [{ l: 'Owned', p: 5 }, { l: 'Mortgage', p: 3 }, { l: 'Rented', p: 2 }, { l: 'Residing w/ Relatives', p: 1 }] },
-        { id: 'childrenSchooling', label: 'With Children are schooling?', options: [{ l: 'Yes', p: 3 }, { l: 'No', p: 1.5 }] },
-        { id: 'residingDuration', label: 'How long residing in address?', options: [{ l: 'More Than 5yrs.', p: 5 }, { l: '4yrs - 3yrs.', p: 3 }, { l: 'Less than 1yr.', p: 1 }] },
-        { id: 'houseMaterials', label: 'House are made of?', options: [{ l: 'Concrete', p: 5 }, { l: 'Semi-Concrete', p: 3 }, { l: 'Light Materials', p: 1 }] },
-      ]
-    },
-    BUSINESS_STATUS: {
-      max: 24.0,
-      items: [
-        { id: 'businessLocation', label: 'Business location', options: [{ l: 'Commercial', p: 5 }, { l: 'Residential', p: 3 }, { l: 'Public Market', p: 3 }] },
-        { id: 'floodProne', label: 'Flood prone area?', options: [{ l: 'No', p: 1 }, { l: 'Yes', p: 0 }] },
-        { id: 'footTraffic', label: 'Volume of foot traffic', options: [{ l: 'Good', p: 3 }, { l: 'Poor', p: 1 }] },
-        { id: 'businessSpace', label: 'Business space', options: [{ l: 'Owned', p: 3 }, { l: 'Rent Free', p: 2 }, { l: 'Rented', p: 1 }] },
-        { id: 'permitType', label: 'Type of Permit', options: [{ l: "Mayor's Permit", p: 3 }, { l: 'Barangay / DTI', p: 2 }] },
-        { id: 'businessDuration', label: 'How long business running?', options: [{ l: 'More than 10 yrs.', p: 5 }, { l: '5 yrs. - 10 yrs.', p: 4 }, { l: '1 yr. - 5 yrs.', p: 3 }] },
-        { id: 'inventoryVsSales', label: 'Business Inventory Vs. Sales', options: [{ l: 'Good', p: 2 }, { l: 'Minimal', p: 1 }, { l: 'Poor', p: 0 }] },
-      ]
-    },
-    FINANCIAL_MATURITY: {
-      max: 13.5,
-      items: [
-        { id: 'loanVsCashflow', label: 'Requested Amount > Cashflow', options: [{ l: 'No', p: 3 }, { l: 'Yes', p: 1 }] },
-        { id: 'otherIncome', label: 'Other source of Income?', options: [{ l: 'Yes', p: 3 }, { l: 'No', p: 0 }] },
-        { id: 'businessKnowledge', label: 'Business knowledge?', options: [{ l: 'Yes', p: 3 }, { l: 'No', p: 1 }] },
-        { id: 'watchBusiness', label: 'Often watch business?', options: [{ l: 'Full Time', p: 4 }, { l: 'Limited', p: 2 }] },
-        { id: 'bankAccount', label: 'Bank Account Type', options: [{ l: 'CA & SA', p: 3 }, { l: 'CA or SA', p: 1.5 }, { l: 'None', p: 0 }] },
-        { id: 'cicCmapFindings', label: 'CIC & CMAP Findings', options: [{ l: 'None', p: 3 }, { l: 'Current Status', p: 1.5 }, { l: 'With Past Due', p: 0 }] },
-      ]
-    },
-    PERSONAL_STATUS: {
-      max: 14.0,
-      items: [
-        { id: 'medicalCondition', label: 'Medical Condition (Family)', options: [{ l: 'No', p: 2 }, { l: 'Yes', p: 0 }] },
-        { id: 'civilStatus', label: 'Civil Status', options: [{ l: 'Married', p: 3 }, { l: 'Live-in', p: 2 }, { l: 'Single', p: 1 }] },
-        { id: 'ageGroup', label: 'Age Group', options: [{ l: '20-65', p: 2 }, { l: '<20 or >65', p: 1 }] },
-        { id: 'educationalAttainment', label: 'Educational Attainment', options: [{ l: 'College Graduate', p: 3 }, { l: 'College Undergrad', p: 2.3 }, { l: 'HS Graduate', p: 2 }, { l: 'HS Undergrad', p: 1.5 }, { l: 'Elem. Graduate', p: 1 }, { l: 'Elem. Undergrad', p: 0.5 }] },
-        { id: 'loanType', label: 'Type of Loan Application', options: [{ l: 'Renewal', p: 5 }, { l: 'New', p: 3 }, { l: 'New - APL', p: 2 }] },
-      ]
-    }
-  };
-
-  const MCL_SCORING_SHEET = {
-    CHARACTER: {
-      max: 20.0,
-      items: [
-        { id: 'reputation', label: 'Reputation in community', options: [{ l: 'Excellent', p: 5 }, { l: 'Good', p: 4 }, { l: 'Average', p: 3 }, { l: 'Poor', p: 1 }] },
-        { id: 'repaymentHistory', label: 'Loan repayment history', options: [{ l: 'Excellent', p: 5 }, { l: 'Good', p: 4 }, { l: 'Average', p: 3 }, { l: 'Poor', p: 1 }] },
-        { id: 'creditBackground', label: 'Credit background', options: [{ l: 'Excellent', p: 5 }, { l: 'Good', p: 4 }, { l: 'Average', p: 3 }, { l: 'Poor', p: 1 }] },
-        { id: 'cooperation', label: 'Cooperation & honesty', options: [{ l: 'Excellent', p: 5 }, { l: 'Good', p: 4 }, { l: 'Average', p: 3 }, { l: 'Poor', p: 1 }] },
-      ]
-    },
-    INCOME_CAPACITY: {
-      max: 25.0,
-      items: [
-        { id: 'stability', label: 'Primary income stability', options: [{ l: 'Very Stable', p: 8 }, { l: 'Stable', p: 6 }, { l: 'Moderate', p: 4 }, { l: 'Unstable', p: 2 }] },
-        { id: 'incomeVsAmort', label: 'Income vs amortization', options: [{ l: 'Excellent', p: 10 }, { l: 'Good', p: 8 }, { l: 'Average', p: 6 }, { l: 'Tight', p: 3 }] },
-        { id: 'otherIncome', label: 'Other income sources', options: [{ l: 'Multiple', p: 4 }, { l: 'Single', p: 3 }, { l: 'Minimal', p: 2 }, { l: 'None', p: 1 }] },
-        { id: 'bankAccount', label: 'Bank account / discipline', options: [{ l: 'Disciplined', p: 3 }, { l: 'Average', p: 2 }, { l: 'Poor', p: 1 }, { l: 'None', p: 0 }] },
-      ]
-    },
-    EMPLOYMENT_BUSINESS: {
-      max: 20.0,
-      items: [
-        { id: 'typeOfWork', label: 'Type of work', options: [{ l: 'Professional', p: 6 }, { l: 'Skilled', p: 5 }, { l: 'Unskilled', p: 3 }, { l: 'Informal', p: 2 }] },
-        { id: 'lengthOfService', label: 'Length of employment/business', options: [{ l: '>10 Years', p: 7 }, { l: '5-10 Years', p: 5 }, { l: '1-5 Years', p: 3 }, { l: '<1 Year', p: 1 }] },
-        { id: 'consistency', label: 'Income consistency', options: [{ l: 'Consistent', p: 7 }, { l: 'Moderate', p: 5 }, { l: 'Fluctuating', p: 3 }, { l: 'Irregular', p: 1 }] },
-      ]
-    },
-    RESIDENCE: {
-      max: 15.0,
-      items: [
-        { id: 'ownership', label: 'Home ownership', options: [{ l: 'Owned', p: 5 }, { l: 'Mortgage', p: 4 }, { l: 'Rented', p: 3 }, { l: 'Relatives', p: 2 }] },
-        { id: 'lengthOfStay', label: 'Length of stay', options: [{ l: '>10 Years', p: 5 }, { l: '5-10 Years', p: 4 }, { l: '1-5 Years', p: 3 }, { l: '<1 Year', p: 1 }] },
-        { id: 'condition', label: 'Living condition', options: [{ l: 'Excellent', p: 5 }, { l: 'Good', p: 4 }, { l: 'Fair', p: 3 }, { l: 'Poor', p: 1 }] },
-      ]
-    },
-    LOAN_FACTORS: {
-      max: 20.0,
-      items: [
-        { id: 'purpose', label: 'Purpose of motorcycle', options: [{ l: 'Business', p: 6 }, { l: 'Work', p: 5 }, { l: 'Personal', p: 4 }, { l: 'Other', p: 2 }] },
-        { id: 'downpayment', label: 'Downpayment capability', options: [{ l: 'High', p: 5 }, { l: 'Average', p: 4 }, { l: 'Minimal', p: 2 }, { l: 'None', p: 0 }] },
-        { id: 'existingDebts', label: 'Existing debts', options: [{ l: 'None', p: 5 }, { l: 'Minimal', p: 4 }, { l: 'Average', p: 2 }, { l: 'High', p: 0 }] },
-        { id: 'cicCmap', label: 'CIC / CMAP result', options: [{ l: 'Clean', p: 4 }, { l: 'Minor', p: 3 }, { l: 'Major', p: 1 }, { l: 'Blacklisted', p: 0 }] },
-      ]
-    }
-  };
-
-  const CURRENT_SHEET = isMCL ? MCL_SCORING_SHEET : SME_SCORING_SHEET;
-
-  const getInitialState = () => {
-    const baseState = isMCL ? {
-      reputation: 'Average', repaymentHistory: 'Average', creditBackground: 'Average', cooperation: 'Average',
-      stability: 'Moderate', incomeVsAmort: 'Average', otherIncome: 'Minimal', bankAccount: 'None',
-      typeOfWork: 'Unskilled', lengthOfService: '1-5 Years', consistency: 'Moderate',
-      ownership: 'Rented', lengthOfStay: '1-5 Years', condition: 'Fair',
-      purpose: 'Work', downpayment: 'Average', existingDebts: 'None', cicCmap: 'Clean',
-      ciRemarks: '', recommendation: 'Approved'
-    } : {
-      neighbor1: 'Good', neighbor2: 'Good', barangayVerification: 'No Bad Records', loanHistory: 'No', goodCreditBackground: 'None', cooperationOfApplicant: 'Cooperative',
-      totalAssetLiabilities: 'Yes',
-      houseOwnership: 'Rented', childrenSchooling: 'No', residingDuration: 'More Than 5yrs.', houseMaterials: 'Concrete',
-      businessLocation: 'Residential', floodProne: 'No', footTraffic: 'Good', businessSpace: 'Rented', permitType: 'Barangay / DTI', businessDuration: '1 yr. - 5 yrs.', inventoryVsSales: 'Good',
-      loanVsCashflow: 'No', otherIncome: 'No', businessKnowledge: 'Yes', watchBusiness: 'Full Time', bankAccount: 'None', cicCmapFindings: 'None',
-      medicalCondition: 'No', civilStatus: 'Single', ageGroup: '20-65', educationalAttainment: 'HS Graduate', loanType: 'New',
-      ciRemarks: '', recommendation: 'Approved'
-    };
-    return { ...baseState, isBusinessEnabled: true };
-  };
-
-  const [formData, setFormData] = useState<any>(getInitialState());
+  const [dynamicSheet, setDynamicSheet] = useState<any>(null);
+  const [isLoadingSheet, setIsLoadingSheet] = useState(true);
+  const [formData, setFormData] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isBusinessEnabled, setIsBusinessEnabled] = useState(true);
+  const [isViewingAccount, setIsViewingAccount] = useState(false);
+
+  // Load Scoring Configuration
+  useEffect(() => {
+    const configType = isMCL ? 'MCL' : 'SME';
+    const q = query(collection(db, 'scoringConfigs'), where('type', '==', configType), limit(1));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      let sheet;
+      if (!snapshot.empty) {
+        sheet = snapshot.docs[0].data().sections;
+      } else {
+        sheet = isMCL ? DEFAULT_MCL_SCORING_SHEET : DEFAULT_SME_SCORING_SHEET;
+      }
+      setDynamicSheet(sheet);
+      setIsLoadingSheet(false);
+    }, (err) => {
+      console.error(err);
+      setDynamicSheet(isMCL ? DEFAULT_MCL_SCORING_SHEET : DEFAULT_SME_SCORING_SHEET);
+      setIsLoadingSheet(false);
+    });
+    return () => unsubscribe();
+  }, [isMCL]);
+
+  const CURRENT_SHEET = dynamicSheet || (isMCL ? DEFAULT_MCL_SCORING_SHEET : DEFAULT_SME_SCORING_SHEET);
 
   useEffect(() => {
+    if (!CURRENT_SHEET) return;
+
     if (isMCL && assignment.mclCreditScore) {
       const s = assignment.mclCreditScore;
+      const answers = s.answers || {};
       setFormData({
-        ...s.character,
-        ...s.incomeCapacity,
-        ...s.employmentBusiness,
-        ...s.residence,
-        ...s.loanFactors,
+        ...answers,
         isBusinessEnabled: s.isBusinessEnabled ?? true,
         ciRemarks: s.ciRemarks || '',
         recommendation: s.riskClassification === 'High Risk' ? 'Denied' : 'Approved'
       });
       setIsBusinessEnabled(s.isBusinessEnabled ?? true);
     } else if (!isMCL && assignment.creditScore) {
-      setFormData(assignment.creditScore);
-      setIsBusinessEnabled(assignment.creditScore.isBusinessEnabled ?? true);
+      const s = assignment.creditScore;
+      const answers = s.answers || {};
+      setFormData({
+        ...s,
+        ...answers,
+        isBusinessEnabled: s.isBusinessEnabled ?? true,
+        ciRemarks: s.ciRemarks || '',
+        recommendation: s.recommendation || 'Approved'
+      });
+      setIsBusinessEnabled(s.isBusinessEnabled ?? true);
     } else {
-      setFormData(getInitialState());
+      const initialState: any = { ciRemarks: '', recommendation: 'Approved', isBusinessEnabled: true };
+      Object.values(CURRENT_SHEET).forEach((section: any) => {
+        section.items.forEach((item: any) => {
+          initialState[item.id] = item.options[0].l;
+        });
+      });
+      setFormData(initialState);
+      setIsBusinessEnabled(true);
     }
-  }, [assignment.id, assignment.creditScore, assignment.mclCreditScore, isMCL]);
+  }, [assignment.id, assignment.creditScore, assignment.mclCreditScore, isMCL, CURRENT_SHEET]);
 
   const calculateGrades = () => {
+    if (!formData || !CURRENT_SHEET) return null;
+
     const grades: any = {};
     const businessSectionKey = isMCL ? 'EMPLOYMENT_BUSINESS' : 'BUSINESS_STATUS';
     
     let activeTotalMax = 0;
-    Object.entries(CURRENT_SHEET).forEach(([section, data]) => {
-      if (section === businessSectionKey && !isBusinessEnabled) return;
-      activeTotalMax += data.max;
-    });
+    let activeTotalEarned = 0;
 
-    const scaleFactor = 100 / activeTotalMax;
+    Object.entries(CURRENT_SHEET).forEach(([sectionKey, section]: [string, any]) => {
+      const isBusinessSection = sectionKey === businessSectionKey;
+      if (isBusinessSection && !isBusinessEnabled) return;
 
-    Object.entries(CURRENT_SHEET).forEach(([section, data]) => {
-      if (section === businessSectionKey && !isBusinessEnabled) {
-        grades[section.toLowerCase().replace(/_([a-z])/g, (g) => g[1].toUpperCase())] = 0;
-        return;
-      }
-      let sum = 0;
-      data.items.forEach(item => {
-        const selected = item.options.find(o => o.l === formData[item.id]);
-        sum += selected ? selected.p : 0;
+      let sectionEarned = 0;
+      section.items.forEach((item: any) => {
+        const selectedLabel = formData[item.id];
+        const option = item.options.find((o: any) => o.l === selectedLabel);
+        if (option) {
+          sectionEarned += option.p;
+        }
       });
-      
-      // Apply redistribution scaling
-      grades[section.toLowerCase().replace(/_([a-z])/g, (g) => g[1].toUpperCase())] = sum * scaleFactor;
+
+      grades[sectionKey] = sectionEarned;
+      activeTotalMax += section.max;
+      activeTotalEarned += sectionEarned;
     });
-    return grades;
+
+    const riskScore = activeTotalMax > 0 ? (activeTotalEarned / activeTotalMax) * 100 : 0;
+    
+    let riskClassification: 'Low Risk' | 'Medium Risk' | 'High Risk' = 'High Risk';
+    if (riskScore >= 80) riskClassification = 'Low Risk';
+    else if (riskScore >= 60) riskClassification = 'Medium Risk';
+
+    return { 
+      sectionGrades: grades, 
+      totalGrade: activeTotalEarned, 
+      riskScore, 
+      riskClassification,
+      activeTotalMax
+    };
   };
 
-  const sectionGrades = calculateGrades();
-  const totalGrade = Object.values(sectionGrades).reduce((a: any, b: any) => a + b, 0) as number;
-  const riskScore = 100 - totalGrade;
-
+  const results = calculateGrades();
   const isReadOnly = forceReadOnly || assignment.status !== 'Field CIBI' || (user.role !== 'user' && !assignment.creditScore && !assignment.mclCreditScore);
 
-  // Auto-recommendation logic
-  useEffect(() => {
-    if (!isReadOnly) {
-      let rec: any = 'Approved';
-      if (isMCL) {
-        rec = totalGrade < 70 ? 'Denied' : 'Approved';
-      } else {
-        rec = riskScore <= 30 ? 'Approved' : 'Denied';
-      }
-      
-      if (formData.recommendation !== rec) {
-        setFormData(prev => ({ ...prev, recommendation: rec }));
-      }
-    }
-  }, [riskScore, totalGrade, isReadOnly, isMCL]);
-
   const handleSave = async () => {
+    if (!results) return;
     setIsSaving(true);
     try {
-      if (isMCL) {
-        const mclData: any = {
-          character: {
-            reputation: formData.reputation,
-            repaymentHistory: formData.repaymentHistory,
-            creditBackground: formData.creditBackground,
-            cooperation: formData.cooperation
-          },
-          incomeCapacity: {
-            stability: formData.stability,
-            incomeVsAmort: formData.incomeVsAmort,
-            otherIncome: formData.otherIncome,
-            bankAccount: formData.bankAccount
-          },
-          employmentBusiness: {
-            typeOfWork: formData.typeOfWork,
-            lengthOfService: formData.lengthOfService,
-            consistency: formData.consistency
-          },
-          residence: {
-            ownership: formData.ownership,
-            lengthOfStay: formData.lengthOfStay,
-            condition: formData.condition
-          },
-          loanFactors: {
-            purpose: formData.purpose,
-            downpayment: formData.downpayment,
-            existingDebts: formData.existingDebts,
-            cicCmap: formData.cicCmap
-          },
-          isBusinessEnabled,
-          totalScore: totalGrade,
-          riskClassification: totalGrade >= 85 ? 'Low Risk' : (totalGrade >= 70 ? 'Medium Risk' : 'High Risk'),
-          ciRemarks: formData.ciRemarks
-        };
-        await api.patch(`/api/assignments/${assignment.id}`, {
-          mclCreditScore: mclData
+      const { sectionGrades, totalGrade, riskScore, riskClassification } = results;
+      
+      const answers: Record<string, string> = {};
+      Object.values(CURRENT_SHEET).forEach((section: any) => {
+        section.items.forEach((item: any) => {
+          if (formData[item.id]) answers[item.id] = formData[item.id];
         });
-      } else {
-        const scoringData = {
-          ...formData,
+      });
+
+      if (isMCL) {
+        const mclScore = {
+          answers,
+          totalScore: totalGrade,
+          riskClassification,
+          ciRemarks: formData.ciRemarks,
           isBusinessEnabled,
+          // Legacy keys for safety (though mostly relying on answers now)
+          character: {}, incomeCapacity: {}, employmentBusiness: {}, residence: {}, loanFactors: {}
+        };
+        await updateDoc(doc(db, 'assignments', assignment.id), { mclCreditScore: mclScore });
+      } else {
+        const scoreData = {
+          answers,
           sectionGrades,
           totalGrade,
-          riskScore
+          riskScore,
+          recommendation: formData.recommendation,
+          ciRemarks: formData.ciRemarks,
+          isBusinessEnabled
         };
-        await api.patch(`/api/assignments/${assignment.id}`, {
-          creditScore: scoringData
-        });
+        await updateDoc(doc(db, 'assignments', assignment.id), { creditScore: scoreData });
       }
-      alert('Diagnostic data saved successfully!');
+      
+      await addDoc(collection(db, 'notifications'), {
+        userId: 'admin',
+        title: 'Credit Score Updated',
+        message: `Credit score for ${assignment.borrowerName} has been updated by ${user.fullName}.`,
+        type: 'status_change',
+        assignmentId: assignment.id,
+        read: false,
+        createdAt: new Date().toISOString()
+      });
+
+      toast.success('Credit score saved successfully');
     } catch (err) {
       console.error(err);
-      alert('Failed to save assessment data.');
+      toast.error('Failed to save credit score');
     } finally {
       setIsSaving(false);
     }
   };
+
+  if (isLoadingSheet || !formData || !results) return <div className="p-12 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Initializing scoring module...</div>;
+
+  const { riskScore, riskClassification, totalGrade, activeTotalMax, sectionGrades } = results;
 
   return (
     <div className="bg-white border-2 border-emerald-100 rounded-3xl p-8 space-y-12">
@@ -3562,9 +3929,18 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
           <h3 className="text-xl font-black text-emerald-800 uppercase tracking-tight">
             {isMCL ? 'MCL Diagnostic Module' : 'SME Diagnostic Module'}
           </h3>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.3em]">
-            Technical Assessment Protocol {isMCL ? 'vMCL.1' : 'vSME.2'}
-          </p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.3em]">
+              Technical Assessment Protocol {isMCL ? 'vMCL.1' : 'vSME.2'}
+            </p>
+            <span className="text-gray-200">|</span>
+            <button 
+              onClick={() => setIsViewingAccount(true)}
+              className="text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:text-emerald-800 transition-colors flex items-center gap-1"
+            >
+              <FileText size={10} /> View Account Dossier
+            </button>
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100">
@@ -3595,24 +3971,19 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
           </div>
           <div className="w-px h-10 bg-gray-100" />
           <div className="text-right">
-            <p className="text-[10px] font-black text-gray-400 uppercase">{isMCL ? 'Classification' : 'Risk Index'}</p>
+            <p className="text-[10px] font-black text-gray-400 uppercase">Classification</p>
             <p className={cn(
                "text-xl font-black uppercase tracking-tight",
-               isMCL 
-                ? (totalGrade >= 85 ? "text-green-600" : (totalGrade >= 70 ? "text-amber-500" : "text-red-600"))
-                : (riskScore <= 30 ? "text-green-600" : "text-red-600")
+               riskClassification === 'Low Risk' ? "text-green-600" : (riskClassification === 'Medium Risk' ? "text-amber-500" : "text-red-600")
             )}>
-              {isMCL 
-                ? (totalGrade >= 85 ? "Low Risk" : (totalGrade >= 70 ? "Medium Risk" : "High Risk"))
-                : riskScore.toFixed(1)
-              }
+              {riskClassification}
             </p>
           </div>
         </div>
       </div>
 
       <div className="space-y-12">
-        {Object.entries(CURRENT_SHEET).map(([sectionKey, section]) => {
+        {Object.entries(CURRENT_SHEET).map(([sectionKey, section]: [string, any]) => {
           const businessSectionKey = isMCL ? 'EMPLOYMENT_BUSINESS' : 'BUSINESS_STATUS';
           const isDisabled = sectionKey === businessSectionKey && !isBusinessEnabled;
 
@@ -3629,11 +4000,11 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
 
               {!isDisabled && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-                  {section.items.map((item) => (
+                  {section.items.map((item: any) => (
                     <div key={item.id} className="space-y-3">
                       <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide leading-tight">{item.label}</p>
                       <div className="flex flex-wrap gap-2">
-                        {item.options.map((opt) => {
+                        {item.options.map((opt: any) => {
                           const isSelected = formData[item.id] === opt.l;
                           return (
                             <button
@@ -3679,19 +4050,18 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {Object.entries(CURRENT_SHEET).map(([k, v]) => {
-                  const camelKey = k.toLowerCase().replace(/_([a-z])/g, (g) => g[1].toUpperCase());
-                  const actual = sectionGrades[camelKey] || 0;
+                {Object.entries(CURRENT_SHEET).map(([k, v]: [string, any]) => {
+                  const actual = sectionGrades[k] || 0;
                   
                   const businessSectionKey = isMCL ? 'EMPLOYMENT_BUSINESS' : 'BUSINESS_STATUS';
                   const isDisabled = k === businessSectionKey && !isBusinessEnabled;
 
-                  let activeTotalMax = 0;
-                  Object.entries(CURRENT_SHEET).forEach(([section, data]) => {
+                  let activeTotalMaxVal = 0;
+                  Object.entries(CURRENT_SHEET).forEach(([section, data]: [string, any]) => {
                     if (section === businessSectionKey && !isBusinessEnabled) return;
-                    activeTotalMax += data.max;
+                    activeTotalMaxVal += data.max;
                   });
-                  const scaleFactor = 100 / activeTotalMax;
+                  const scaleFactor = 100 / (activeTotalMaxVal || 1);
                   const displayMax = isDisabled ? 0 : v.max * scaleFactor;
                   const diff = displayMax - actual;
 
@@ -3708,11 +4078,11 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
                   );
                 })}
                 <tr className="bg-emerald-50/50 font-black">
-                  <td className="p-4 uppercase text-emerald-800">Total Score</td>
+                  <td className="p-4 uppercase text-emerald-800">Final Weighted Score</td>
                   <td className="p-4 text-center text-lg text-emerald-800">{totalGrade.toFixed(1)}</td>
                   <td className="p-4 text-center text-gray-300">100.0</td>
                   <td className="p-4 text-center text-lg text-amber-600">
-                    {isMCL ? (totalGrade < 70 ? 'FAIL' : 'PASS') : riskScore.toFixed(1)}
+                    {riskScore.toFixed(1)}%
                   </td>
                 </tr>
               </tbody>
@@ -3724,16 +4094,14 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
           <div className="space-y-2">
             <label className="text-xs font-black text-emerald-800 uppercase tracking-widest">Final Status Recommendation</label>
             <div className={cn(
-              "w-full h-12 px-6 flex items-center bg-gray-50 border-2 border-gray-100 rounded-xl text-sm font-black uppercase shadow-sm",
-              formData.recommendation === 'Approved' ? "text-green-600" : "text-red-600"
+               "w-full h-12 px-6 flex items-center border-2 rounded-xl text-sm font-black uppercase shadow-sm",
+               formData.recommendation === 'Approved' ? "bg-green-50 border-green-200 text-green-600" : "bg-red-50 border-red-200 text-red-600"
             )}>
               {formData.recommendation}
             </div>
-            {isMCL && (
-               <p className="text-[10px] text-gray-400 font-bold uppercase px-2">
-                 Threshold: Pass <span className="text-[#4C1D95]">&ge; 70</span> | Low Risk <span className="text-green-600">&ge; 85</span>
-               </p>
-            )}
+            <p className="text-[10px] text-gray-400 font-bold uppercase px-2">
+              Based on {riskScore.toFixed(1)}% Achievement Index
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -3758,6 +4126,13 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
           )}
         </div>
       </div>
+      
+      {isViewingAccount && (
+        <AccountDossierModal 
+          assignment={assignment} 
+          onClose={() => setIsViewingAccount(false)} 
+        />
+      )}
     </div>
   );
 }
@@ -4317,11 +4692,15 @@ function CrecomApproval({ user }: { user: UserProfile }) {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
       setAssignments(data);
       setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'assignments');
     });
 
     const unsubscribeApproved = onSnapshot(qApproved, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
       setApprovedList(data);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'assignments');
     });
 
     return () => {
@@ -5361,6 +5740,7 @@ function DataStorage({ user }: { user: UserProfile }) {
   const [accountTypeFilter, setAccountTypeFilter] = useState('All');
   const [ciOfficerFilter, setCiOfficerFilter] = useState('All');
   const [isEditing, setIsEditing] = useState(false);
+  const [isViewing, setIsViewing] = useState(false);
   const [selected, setSelected] = useState<Assignment | null>(null);
   const [ciOfficers, setCiOfficers] = useState<UserProfile[]>([]);
 
@@ -5488,8 +5868,14 @@ function DataStorage({ user }: { user: UserProfile }) {
               {filtered.map((a) => (
                 <tr key={a.id} className="hover:bg-gray-50 group transition-colors">
                   <td className="px-6 py-5">
-                    <div>
-                      <p className="font-bold text-gray-900 uppercase text-sm">{a.borrowerName}</p>
+                    <div 
+                      className="cursor-pointer group/name" 
+                      onClick={() => {
+                        setSelected(a);
+                        setIsViewing(true);
+                      }}
+                    >
+                      <p className="font-bold text-gray-900 uppercase text-sm group-hover/name:text-emerald-600 transition-colors">{a.borrowerName}</p>
                       <p className="text-[10px] text-gray-400 flex items-center gap-1 mt-1">
                         <Phone size={10} /> {a.mobileNumber}
                       </p>
@@ -5585,6 +5971,89 @@ function DataStorage({ user }: { user: UserProfile }) {
           }} 
         />
       )}
+
+      {isViewing && selected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-emerald-950/40 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl border border-emerald-100"
+          >
+            <div className="bg-linear-to-r from-emerald-800 to-emerald-900 p-8 text-white flex justify-between items-center">
+               <div>
+                 <h3 className="text-xl font-black uppercase tracking-tight">Client Account Dossier</h3>
+                 <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mt-1">Repository Registry ID: {selected.id.slice(0, 16)}</p>
+               </div>
+               <button onClick={() => { setIsViewing(false); setSelected(null); }} className="hover:rotate-90 transition-transform bg-white/10 p-2 rounded-xl">
+                 <X size={20} />
+               </button>
+            </div>
+            
+            <div className="p-8 grid grid-cols-2 gap-8">
+               <div className="space-y-6">
+                 <div className="space-y-1">
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">Full Legal Name</p>
+                    <p className="text-sm font-black text-emerald-800 uppercase">{selected.borrowerName}</p>
+                 </div>
+                 <div className="space-y-1">
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">Contact Protocol</p>
+                    <p className="text-sm font-bold text-gray-700">{selected.mobileNumber || 'N/A'}</p>
+                 </div>
+                 <div className="space-y-1">
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">Geographic Deployment</p>
+                    <p className="text-sm font-bold text-gray-700">{selected.location} <span className="text-[10px] text-gray-400">({selected.tribe})</span></p>
+                 </div>
+                 <div className="space-y-1">
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">Registration Metadata</p>
+                    <p className="text-xs font-mono text-gray-500 italic">{format(new Date(selected.createdAt), 'MMMM dd, yyyy | hh:mm a')}</p>
+                 </div>
+               </div>
+
+               <div className="space-y-6">
+                 <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                    <p className="text-[9px] font-black text-emerald-800 uppercase tracking-widest mb-3">Financial Specifications</p>
+                    <div className="space-y-3">
+                       <div className="flex justify-between items-center bg-white px-3 py-2 rounded-lg border border-emerald-100">
+                          <span className="text-[9px] font-bold text-gray-400 uppercase">Requirement</span>
+                          <span className="text-xs font-black text-emerald-900 border-b-2 border-emerald-500/20 px-1">₱{selected.requestedAmount.toLocaleString()}</span>
+                       </div>
+                       <div className="flex justify-between items-center bg-white px-3 py-2 rounded-lg border border-emerald-100">
+                          <span className="text-[9px] font-bold text-gray-400 uppercase">Configuration</span>
+                          <span className="text-[10px] font-black text-emerald-900 uppercase tracking-tighter bg-emerald-50/50 px-2 rounded-md">{selected.accountType}</span>
+                       </div>
+                       <div className="flex justify-between items-center bg-white px-3 py-2 rounded-lg border border-emerald-100">
+                          <span className="text-[9px] font-bold text-gray-400 uppercase">Duration</span>
+                          <span className="text-[10px] font-black text-emerald-900">{selected.term} STAGES</span>
+                       </div>
+                    </div>
+                 </div>
+
+                 <div className="space-y-1 px-2">
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Assigned Personnel</p>
+                    <div className="flex items-center gap-3">
+                       <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-xs font-black text-emerald-700">
+                          {selected.ciOfficerName.charAt(0)}
+                       </div>
+                       <div>
+                         <p className="text-xs font-black text-gray-700 uppercase leading-none">{selected.ciOfficerName}</p>
+                         <p className="text-[8px] text-emerald-600 font-bold uppercase tracking-widest mt-1">Field CI Officer</p>
+                       </div>
+                    </div>
+                 </div>
+               </div>
+            </div>
+            
+            <div className="p-6 bg-gray-50 flex justify-end gap-3 border-t border-gray-100">
+               <button 
+                 onClick={() => { setIsViewing(false); setSelected(null); }}
+                 className="px-6 py-2.5 bg-emerald-800 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-emerald-900 transition-all shadow-lg shadow-emerald-900/20"
+               >
+                 Acknowledge Repository Entry
+               </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
@@ -5613,7 +6082,7 @@ function ReportsView({ user }: { user: UserProfile }) {
       setAssignments(data);
       setLoading(false);
     }, (err) => {
-      console.error('Firestore Reports listener error:', err);
+      handleFirestoreError(err, OperationType.GET, 'assignments');
       setLoading(false);
     });
     return () => unsubscribe();

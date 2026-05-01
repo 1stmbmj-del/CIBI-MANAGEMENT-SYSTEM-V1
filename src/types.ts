@@ -123,7 +123,10 @@ export interface CashflowReport {
 }
 
 export interface CreditScore {
-  // Character
+  // Catch-all for dynamic questions
+  answers?: Record<string, string>;
+  
+  // Legacy fields (maintain for compatibility if needed, but we'll move to answers)
   neighbor1: 'Good' | 'Poor';
   neighbor2: 'Good' | 'Poor';
   barangayVerification: 'No Bad Records' | 'With Bad Records';
@@ -133,6 +136,7 @@ export interface CreditScore {
   
   // Capital
   totalAssetLiabilities: 'Yes' | 'No';
+  collateral: 'Yes' | 'No';
   
   // Stability
   houseOwnership: 'Owned' | 'Mortgage' | 'Rented' | 'Residing w/ Relatives';
@@ -162,7 +166,7 @@ export interface CreditScore {
   civilStatus: 'Married' | 'Live-in' | 'Single';
   ageGroup: '20-65' | '<20 or >65';
   educationalAttainment: 'College Graduate' | 'College Undergrad' | 'HS Graduate' | 'HS Undergrad' | 'Elem. Graduate' | 'Elem. Undergrad';
-  loanType: 'Renewal' | 'New' | 'New - APL';
+  loanType: 'Renewal' | 'New' | 'Additional';
 
   // Summaries
   sectionGrades: {
@@ -181,6 +185,7 @@ export interface CreditScore {
 }
 
 export interface MCLCreditScore {
+  answers?: Record<string, string>;
   character: {
     reputation: number;
     repaymentHistory: number;

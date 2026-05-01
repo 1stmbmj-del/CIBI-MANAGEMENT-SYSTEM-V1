@@ -67,6 +67,7 @@
             "goodCreditBackground": { "type": "string" },
             "cooperationOfApplicant": { "type": "string" },
             "totalAssetLiabilities": { "type": "string" },
+            "collateral": { "type": "string" },
             "houseOwnership": { "type": "string" },
             "childrenSchooling": { "type": "string" },
             "residingDuration": { "type": "string" },
@@ -89,6 +90,7 @@
             "ageGroup": { "type": "string" },
             "educationalAttainment": { "type": "string" },
             "loanType": { "type": "string" },
+            "isBusinessEnabled": { "type": "boolean" },
             "sectionGrades": { "type": "object" },
             "totalGrade": { "type": "number" },
             "riskScore": { "type": "number" },
@@ -138,9 +140,24 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "title", "message", "type", "read", "createdAt"]
+    },
+    "ScoringConfig": {
+      "title": "ScoringConfig",
+      "description": "Dynamic scoring sheets for MCL and SME",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["MCL", "SME"] },
+        "sections": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "sections", "updatedAt"]
     }
   },
   "firestore": {
+    "/scoringConfigs/{configId}": {
+      "schema": "ScoringConfig",
+      "description": "Dynamic scoring sheets"
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "User profiles"
