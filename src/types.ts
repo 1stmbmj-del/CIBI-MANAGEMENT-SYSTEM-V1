@@ -177,6 +177,7 @@ export interface CreditScore {
   riskScore: number;
   recommendation: 'Approved' | 'Denied' | 'Conditional';
   ciRemarks: string;
+  isBusinessEnabled?: boolean;
 }
 
 export interface MCLCreditScore {
@@ -211,6 +212,7 @@ export interface MCLCreditScore {
   totalScore: number;
   riskClassification: 'Low Risk' | 'Medium Risk' | 'High Risk';
   ciRemarks: string;
+  isBusinessEnabled?: boolean;
 }
 
 export interface Assignment {

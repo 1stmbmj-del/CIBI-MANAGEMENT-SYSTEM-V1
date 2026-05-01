@@ -3213,6 +3213,50 @@ function AccountStatus({ user }: { user: UserProfile }) {
               <CreditScoringModule assignment={selected} user={user} />
             )}
 
+            {/* Account Information Section */}
+            <div className="bg-white border-2 border-emerald-100 rounded-3xl p-8 space-y-6">
+              <div className="flex items-center gap-3 border-b border-emerald-50 pb-4">
+                <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center border border-emerald-100">
+                  <Briefcase className="text-emerald-600" size={20} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-emerald-800 uppercase tracking-widest">Account Information</h4>
+                  <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Core application details and financial metrics</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[
+                  { label: 'Loan Category', value: selected.loanCategory, icon: ShieldCheck },
+                  { label: 'Account Type', value: selected.accountType, icon: UserPlus },
+                  { label: 'Tribe / Region', value: selected.tribe, icon: MapPin },
+                  { label: 'Requested Amount', value: `₱${selected.requestedAmount.toLocaleString()}`, icon: DollarSign },
+                  { label: 'Term', value: `${selected.term} Months`, icon: Calendar },
+                  { label: 'Interest Rate', value: `${selected.intRate}%`, icon: Percent },
+                  { label: 'Mode of Payment', value: selected.mop, icon: Clock },
+                  { label: 'Type of Payment', value: selected.top, icon: Database },
+                  { label: 'Location', value: selected.location, icon: MapPin },
+                ].map((info, idx) => (
+                  <div key={idx} className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 flex items-start gap-3">
+                    <div className="p-2 bg-white rounded-lg border border-gray-100">
+                      <info.icon size={14} className="text-emerald-600" />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{info.label}</p>
+                      <p className="text-xs font-black text-emerald-900 uppercase mt-0.5">{info.value}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {selected.crecomComments && (
+                <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100 space-y-2">
+                  <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">CreCom Comments</p>
+                  <p className="text-xs font-bold text-emerald-900">{selected.crecomComments}</p>
+                </div>
+              )}
+            </div>
+
             {/* Cashflow Module */}
             {(selected.status === 'Cashflowing' || selected.cashflowReport) && (
               <CashflowModule assignment={selected} user={user} />
@@ -3241,6 +3285,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
 
 function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { assignment: Assignment, user: UserProfile, isReadOnly?: boolean }) {
   const isMCL = assignment.loanCategory === 'MCL';
+  const [isBusinessEnabled, setIsBusinessEnabled] = useState(assignment.creditScore?.isBusinessEnabled ?? true);
 
   const SME_SCORING_SHEET = {
     CHARACTER: {
@@ -3353,25 +3398,23 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
   const CURRENT_SHEET = isMCL ? MCL_SCORING_SHEET : SME_SCORING_SHEET;
 
   const getInitialState = () => {
-    if (isMCL) {
-      return {
-        reputation: 'Average', repaymentHistory: 'Average', creditBackground: 'Average', cooperation: 'Average',
-        stability: 'Moderate', incomeVsAmort: 'Average', otherIncome: 'Minimal', bankAccount: 'None',
-        typeOfWork: 'Unskilled', lengthOfService: '1-5 Years', consistency: 'Moderate',
-        ownership: 'Rented', lengthOfStay: '1-5 Years', condition: 'Fair',
-        purpose: 'Work', downpayment: 'Average', existingDebts: 'None', cicCmap: 'Clean',
-        ciRemarks: '', recommendation: 'Approved'
-      };
-    }
-    return {
-    neighbor1: 'Good', neighbor2: 'Good', barangayVerification: 'No Bad Records', loanHistory: 'No', goodCreditBackground: 'None', cooperationOfApplicant: 'Cooperative',
-    totalAssetLiabilities: 'Yes',
-    houseOwnership: 'Rented', childrenSchooling: 'No', residingDuration: 'More Than 5yrs.', houseMaterials: 'Concrete',
-    businessLocation: 'Residential', floodProne: 'No', footTraffic: 'Good', businessSpace: 'Rented', permitType: 'Barangay / DTI', businessDuration: '1 yr. - 5 yrs.', inventoryVsSales: 'Good',
-    loanVsCashflow: 'No', otherIncome: 'No', businessKnowledge: 'Yes', watchBusiness: 'Full Time', bankAccount: 'None', cicCmapFindings: 'None',
+    const baseState = isMCL ? {
+      reputation: 'Average', repaymentHistory: 'Average', creditBackground: 'Average', cooperation: 'Average',
+      stability: 'Moderate', incomeVsAmort: 'Average', otherIncome: 'Minimal', bankAccount: 'None',
+      typeOfWork: 'Unskilled', lengthOfService: '1-5 Years', consistency: 'Moderate',
+      ownership: 'Rented', lengthOfStay: '1-5 Years', condition: 'Fair',
+      purpose: 'Work', downpayment: 'Average', existingDebts: 'None', cicCmap: 'Clean',
+      ciRemarks: '', recommendation: 'Approved'
+    } : {
+      neighbor1: 'Good', neighbor2: 'Good', barangayVerification: 'No Bad Records', loanHistory: 'No', goodCreditBackground: 'None', cooperationOfApplicant: 'Cooperative',
+      totalAssetLiabilities: 'Yes',
+      houseOwnership: 'Rented', childrenSchooling: 'No', residingDuration: 'More Than 5yrs.', houseMaterials: 'Concrete',
+      businessLocation: 'Residential', floodProne: 'No', footTraffic: 'Good', businessSpace: 'Rented', permitType: 'Barangay / DTI', businessDuration: '1 yr. - 5 yrs.', inventoryVsSales: 'Good',
+      loanVsCashflow: 'No', otherIncome: 'No', businessKnowledge: 'Yes', watchBusiness: 'Full Time', bankAccount: 'None', cicCmapFindings: 'None',
       medicalCondition: 'No', civilStatus: 'Single', ageGroup: '20-65', educationalAttainment: 'HS Graduate', loanType: 'New',
       ciRemarks: '', recommendation: 'Approved'
     };
+    return { ...baseState, isBusinessEnabled: true };
   };
 
   const [formData, setFormData] = useState<any>(getInitialState());
@@ -3386,11 +3429,14 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
         ...s.employmentBusiness,
         ...s.residence,
         ...s.loanFactors,
+        isBusinessEnabled: s.isBusinessEnabled ?? true,
         ciRemarks: s.ciRemarks || '',
         recommendation: s.riskClassification === 'High Risk' ? 'Denied' : 'Approved'
       });
+      setIsBusinessEnabled(s.isBusinessEnabled ?? true);
     } else if (!isMCL && assignment.creditScore) {
       setFormData(assignment.creditScore);
+      setIsBusinessEnabled(assignment.creditScore.isBusinessEnabled ?? true);
     } else {
       setFormData(getInitialState());
     }
@@ -3398,13 +3444,29 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
 
   const calculateGrades = () => {
     const grades: any = {};
+    const businessSectionKey = isMCL ? 'EMPLOYMENT_BUSINESS' : 'BUSINESS_STATUS';
+    
+    let activeTotalMax = 0;
     Object.entries(CURRENT_SHEET).forEach(([section, data]) => {
+      if (section === businessSectionKey && !isBusinessEnabled) return;
+      activeTotalMax += data.max;
+    });
+
+    const scaleFactor = 100 / activeTotalMax;
+
+    Object.entries(CURRENT_SHEET).forEach(([section, data]) => {
+      if (section === businessSectionKey && !isBusinessEnabled) {
+        grades[section.toLowerCase().replace(/_([a-z])/g, (g) => g[1].toUpperCase())] = 0;
+        return;
+      }
       let sum = 0;
       data.items.forEach(item => {
         const selected = item.options.find(o => o.l === formData[item.id]);
         sum += selected ? selected.p : 0;
       });
-      grades[section.toLowerCase().replace(/_([a-z])/g, (g) => g[1].toUpperCase())] = sum;
+      
+      // Apply redistribution scaling
+      grades[section.toLowerCase().replace(/_([a-z])/g, (g) => g[1].toUpperCase())] = sum * scaleFactor;
     });
     return grades;
   };
@@ -3464,6 +3526,7 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
             existingDebts: formData.existingDebts,
             cicCmap: formData.cicCmap
           },
+          isBusinessEnabled,
           totalScore: totalGrade,
           riskClassification: totalGrade >= 85 ? 'Low Risk' : (totalGrade >= 70 ? 'Medium Risk' : 'High Risk'),
           ciRemarks: formData.ciRemarks
@@ -3474,6 +3537,7 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
       } else {
         const scoringData = {
           ...formData,
+          isBusinessEnabled,
           sectionGrades,
           totalGrade,
           riskScore
@@ -3503,6 +3567,28 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
           </p>
         </div>
         <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100">
+            <span className="text-[10px] font-black text-emerald-800 uppercase">Business Status</span>
+            <button
+              disabled={isReadOnly}
+              onClick={() => {
+                const newValue = !isBusinessEnabled;
+                setIsBusinessEnabled(newValue);
+                setFormData((prev: any) => ({ ...prev, isBusinessEnabled: newValue }));
+              }}
+              className={cn(
+                "relative w-10 h-5 rounded-full transition-all duration-300",
+                isBusinessEnabled ? "bg-emerald-600" : "bg-gray-300"
+              )}
+            >
+              <div className={cn(
+                "absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-300 shadow-sm",
+                isBusinessEnabled ? "left-6" : "left-1"
+              )} />
+            </button>
+            <span className="text-[10px] font-black text-emerald-700 w-12">{isBusinessEnabled ? 'ENABLED' : 'DISABLED'}</span>
+          </div>
+          <div className="w-px h-6 bg-gray-100" />
           <div className="text-right">
             <p className="text-[10px] font-black text-gray-400 uppercase">Score</p>
             <p className="text-2xl font-black text-emerald-800">{totalGrade.toFixed(1)}</p>
@@ -3526,49 +3612,57 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
       </div>
 
       <div className="space-y-12">
-        {Object.entries(CURRENT_SHEET).map(([sectionKey, section]) => (
-          <section key={sectionKey} className="space-y-6">
-            <div className="flex items-center gap-4">
-              <h4 className="text-xs font-black text-emerald-800 bg-emerald-50 px-4 py-2 rounded-lg uppercase tracking-widest whitespace-nowrap">
-                {sectionKey.replace(/_/g, ' ')}
-              </h4>
-              <div className="h-px w-full bg-gray-100" />
-              <span className="text-[10px] font-black text-gray-300">MAX: {section.max.toFixed(1)}</span>
-            </div>
+        {Object.entries(CURRENT_SHEET).map(([sectionKey, section]) => {
+          const businessSectionKey = isMCL ? 'EMPLOYMENT_BUSINESS' : 'BUSINESS_STATUS';
+          const isDisabled = sectionKey === businessSectionKey && !isBusinessEnabled;
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-              {section.items.map((item) => (
-                <div key={item.id} className="space-y-3">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide leading-tight">{item.label}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {item.options.map((opt) => {
-                      const isSelected = formData[item.id] === opt.l;
-                      return (
-                        <button
-                          key={opt.l}
-                          disabled={isReadOnly}
-                          onClick={() => setFormData({ ...formData, [item.id]: opt.l })}
-                          className={cn(
-                            "px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all border-2",
-                            isSelected 
-                              ? "bg-emerald-600 text-white border-emerald-600 shadow-lg shadow-emerald-900/20 scale-105" 
-                              : "bg-gray-50 text-gray-400 border-transparent hover:border-gray-200"
-                          )}
-                        >
-                          {opt.l}
-                          <span className={cn(
-                            "ml-2 opacity-50",
-                            isSelected ? "text-white" : "text-gray-300"
-                          )}>[{opt.p}]</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+          return (
+            <section key={sectionKey} className={cn("space-y-6 transition-all duration-300", isDisabled && "opacity-30 grayscale blur-[1px] pointer-events-none")}>
+              <div className="flex items-center gap-4">
+                <h4 className="text-xs font-black text-emerald-800 bg-emerald-50 px-4 py-2 rounded-lg uppercase tracking-widest whitespace-nowrap flex items-center gap-2">
+                  {sectionKey.replace(/_/g, ' ')}
+                  {isDisabled && <ShieldCheck size={12} className="text-gray-400" />}
+                </h4>
+                <div className="h-px w-full bg-gray-100" />
+                <span className="text-[10px] font-black text-gray-300">MAX: {section.max.toFixed(1)}</span>
+              </div>
+
+              {!isDisabled && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+                  {section.items.map((item) => (
+                    <div key={item.id} className="space-y-3">
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide leading-tight">{item.label}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {item.options.map((opt) => {
+                          const isSelected = formData[item.id] === opt.l;
+                          return (
+                            <button
+                              key={opt.l}
+                              disabled={isReadOnly}
+                              onClick={() => setFormData({ ...formData, [item.id]: opt.l })}
+                              className={cn(
+                                "px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all border-2",
+                                isSelected 
+                                  ? "bg-emerald-600 text-white border-emerald-600 shadow-lg shadow-emerald-900/20 scale-105" 
+                                  : "bg-gray-50 text-gray-400 border-transparent hover:border-gray-200"
+                              )}
+                            >
+                              {opt.l}
+                              <span className={cn(
+                                "ml-2 opacity-50",
+                                isSelected ? "text-white" : "text-gray-300"
+                              )}>[{opt.p}]</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </section>
-        ))}
+              )}
+            </section>
+          );
+        })}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-12 border-t-4 border-emerald-500/5">
@@ -3588,16 +3682,28 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
                 {Object.entries(CURRENT_SHEET).map(([k, v]) => {
                   const camelKey = k.toLowerCase().replace(/_([a-z])/g, (g) => g[1].toUpperCase());
                   const actual = sectionGrades[camelKey] || 0;
-                  const diff = v.max - actual;
+                  
+                  const businessSectionKey = isMCL ? 'EMPLOYMENT_BUSINESS' : 'BUSINESS_STATUS';
+                  const isDisabled = k === businessSectionKey && !isBusinessEnabled;
+
+                  let activeTotalMax = 0;
+                  Object.entries(CURRENT_SHEET).forEach(([section, data]) => {
+                    if (section === businessSectionKey && !isBusinessEnabled) return;
+                    activeTotalMax += data.max;
+                  });
+                  const scaleFactor = 100 / activeTotalMax;
+                  const displayMax = isDisabled ? 0 : v.max * scaleFactor;
+                  const diff = displayMax - actual;
+
                   return (
-                    <tr key={k} className="hover:bg-gray-100/50 transition-colors">
+                    <tr key={k} className={cn("hover:bg-gray-100/50 transition-colors", isDisabled && "opacity-30")}>
                       <td className="p-3 font-bold uppercase text-gray-500">{k.replace(/_/g, ' ')}</td>
                       <td className="p-3 text-center font-black text-emerald-700">{actual.toFixed(1)}</td>
-                      <td className="p-3 text-center font-mono opacity-50">{v.max.toFixed(1)}</td>
+                      <td className="p-3 text-center font-mono opacity-50">{displayMax.toFixed(1)}</td>
                       <td className={cn(
                         "p-3 text-center font-black",
                         diff > 5 ? "text-red-500" : "text-green-600"
-                      )}>{diff.toFixed(1)}</td>
+                      )}>{isDisabled ? '-' : diff.toFixed(1)}</td>
                     </tr>
                   );
                 })}
