@@ -25,6 +25,7 @@ import {
   Key, 
   LogOut, 
   Menu, 
+  ListChecks,
   X, 
   ChevronRight, 
   Check, 
