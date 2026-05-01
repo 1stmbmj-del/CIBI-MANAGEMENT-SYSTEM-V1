@@ -2154,6 +2154,9 @@ function UserManagement({ user }: { user: UserProfile }) {
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [actionConfirm, setActionConfirm] = useState<{ type: 'delete' | 'edit' | 'deleteKey', id: string, name?: string } | null>(null);
 
+  const [viewingAssignments, setViewingAssignments] = useState<any | null>(null);
+  const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
+
   useEffect(() => {
     const qUsers = query(collection(db, 'users'));
     const unsubUsers = onSnapshot(qUsers, (snapshot) => {
@@ -2169,10 +2172,18 @@ function UserManagement({ user }: { user: UserProfile }) {
       handleFirestoreError(err, OperationType.GET, 'admin_keys');
     });
 
+    const qAssignments = query(collection(db, 'assignments'));
+    const unsubAssignments = onSnapshot(qAssignments, (snapshot) => {
+      setAllAssignments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[]);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.GET, 'assignments');
+    });
+
     setLoading(false);
     return () => {
       unsubUsers();
       unsubKeys();
+      unsubAssignments();
     };
   }, []);
 
@@ -2299,6 +2310,13 @@ function UserManagement({ user }: { user: UserProfile }) {
                 <td className="px-6 py-4 text-right">
                   <div className="flex justify-end gap-2">
                     <button 
+                      onClick={() => setViewingAssignments(u)}
+                      className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
+                      title="View Assigned Accounts"
+                    >
+                      <ListChecks size={16} />
+                    </button>
+                    <button 
                       onClick={() => handleEdit(u)}
                       className="p-2 text-gray-400 hover:text-emerald-700 transition-colors"
                       title="Edit User"
@@ -2328,68 +2346,131 @@ function UserManagement({ user }: { user: UserProfile }) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={() => setEditingUser(null)}
             />
             <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden relative z-10"
             >
-              <div className="bg-emerald-800 p-6 text-white text-center shadow-lg">
-                <h3 className="text-lg font-black uppercase tracking-widest">Edit User Profile</h3>
-                <p className="text-[10px] text-white/60 uppercase tracking-widest mt-1">Update Member Information</p>
+              <div className="bg-linear-to-r from-emerald-800 to-emerald-900 p-8 text-white flex justify-between items-center">
+                <div>
+                  <h3 className="text-xl font-black uppercase tracking-tight">Modify System User</h3>
+                  <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest mt-1">Credentials Authority: System Admin</p>
+                </div>
+                <button onClick={() => setEditingUser(null)} className="hover:rotate-90 transition-transform bg-white/10 p-2 rounded-xl">
+                  <X size={20} />
+                </button>
               </div>
-              <form onSubmit={updateUserInfo} className="p-8 space-y-4">
+              <form onSubmit={updateUserInfo} className="p-8 space-y-6">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-relaxed">Full Name</label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Full Legal Name</label>
                   <input 
                     type="text" 
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
+                    required
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                     value={editingUser.fullName}
                     onChange={e => setEditingUser({...editingUser, fullName: e.target.value})}
-                    required
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-relaxed">Mobile Number</label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Mobile Protocol</label>
                   <input 
                     type="text" 
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
+                    required
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                     value={editingUser.mobileNumber}
                     onChange={e => setEditingUser({...editingUser, mobileNumber: e.target.value})}
-                    required
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-relaxed">User Role</label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Access Privilege Level</label>
                   <select 
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                     value={editingUser.role}
                     onChange={e => setEditingUser({...editingUser, role: e.target.value})}
                   >
-                    <option value="user">User / CI Officer</option>
-                    <option value="admin">Administrator</option>
+                    <option value="user">CI Officer (Standard Access)</option>
+                    <option value="admin">System Administrator (Full Authority)</option>
                   </select>
                 </div>
-                <div className="flex gap-3 pt-4">
+                <div className="pt-4 flex gap-4">
                   <button 
                     type="button"
                     onClick={() => setEditingUser(null)}
-                    className="flex-1 py-3 border border-gray-100 text-gray-400 font-bold rounded-xl text-xs uppercase tracking-widest hover:bg-gray-50 transition-all"
+                    className="flex-1 py-4 bg-gray-50 text-gray-400 font-black rounded-2xl hover:bg-gray-100 transition-all uppercase tracking-widest text-[10px]"
                   >
-                    Cancel
+                    Abort
                   </button>
                   <button 
                     type="submit"
-                    disabled={loading}
-                    className="flex-1 py-3 bg-emerald-600 text-white font-black rounded-xl text-xs uppercase tracking-widest shadow-lg hover:shadow-xl hover:bg-emerald-700 transition-all disabled:opacity-50"
+                    className="flex-1 py-4 bg-emerald-600 text-white font-black rounded-2xl shadow-lg shadow-emerald-900/10 hover:bg-emerald-700 transition-all uppercase tracking-widest text-[10px]"
                   >
-                    {loading ? 'Saving...' : 'Save Changes'}
+                    Update Identity
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+
+        {viewingAssignments && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setViewingAssignments(null)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden relative z-10"
+            >
+              <div className="bg-linear-to-r from-emerald-800 to-emerald-900 p-8 text-white flex justify-between items-center">
+                <div>
+                  <h3 className="text-xl font-black uppercase tracking-tight">Active Portfolio: {viewingAssignments.fullName}</h3>
+                  <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest mt-1">Assigned Borrower Accounts</p>
+                </div>
+                <button onClick={() => setViewingAssignments(null)} className="hover:rotate-90 transition-transform bg-white/10 p-2 rounded-xl">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-8 max-h-[60vh] overflow-y-auto">
+                <div className="space-y-4">
+                  {allAssignments.filter(a => a.ciOfficerId === viewingAssignments.id).length > 0 ? (
+                    allAssignments.filter(a => a.ciOfficerId === viewingAssignments.id).map(a => (
+                      <div key={a.id} className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex justify-between items-center group hover:bg-white hover:border-emerald-100 transition-all">
+                        <div className="space-y-1">
+                          <p className="text-xs font-black text-gray-900 uppercase">{a.borrowerName}</p>
+                          <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">{a.accountType} • {a.status}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-bold text-emerald-800">₱{a.requestedAmount.toLocaleString()}</p>
+                          <p className="text-[9px] text-gray-400 font-mono">{format(new Date(a.createdAt), 'MMM d, yyyy')}</p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-12 text-center">
+                      <ClipboardList className="mx-auto text-gray-200 mb-4" size={48} />
+                      <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">No assigned accounts found</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end">
+                <button 
+                  onClick={() => setViewingAssignments(null)}
+                  className="px-8 py-3 bg-white border border-gray-200 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-gray-100 transition-all text-gray-600"
+                >
+                  Close Portfolio
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
@@ -3291,6 +3372,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
   const [statusFilter, setStatusFilter] = useState('All');
   const [accountTypeFilter, setAccountTypeFilter] = useState('All');
   const [isEditing, setIsEditing] = useState(false);
+  const [isViewingAccount, setIsViewingAccount] = useState(false);
   const [ciOfficers, setCiOfficers] = useState<UserProfile[]>([]);
 
   useEffect(() => {
@@ -3497,6 +3579,12 @@ function AccountStatus({ user }: { user: UserProfile }) {
               </div>
               <div className="flex items-center gap-3">
                 <button 
+                  onClick={() => setIsViewingAccount(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all border border-emerald-100"
+                >
+                  <FileText size={14} /> View Account Information
+                </button>
+                <button 
                   onClick={() => generateAssignmentPPT(selected)}
                   className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all"
                   title="Generate PowerPoint Presentation"
@@ -3627,6 +3715,12 @@ function AccountStatus({ user }: { user: UserProfile }) {
             assignment={selected} 
             ciOfficers={ciOfficers} 
             onClose={() => setIsEditing(false)} 
+          />
+        )}
+        {isViewingAccount && selected && (
+          <AccountDossierModal 
+            assignment={selected} 
+            onClose={() => setIsViewingAccount(false)} 
           />
         )}
       </AnimatePresence>
@@ -4660,6 +4754,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [approvedList, setApprovedList] = useState<Assignment[]>([]);
   const [selected, setSelected] = useState<Assignment | null>(null);
+  const [isViewingAccount, setIsViewingAccount] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [processData, setProcessData] = useState({
@@ -4946,6 +5041,12 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                     <div className="flex items-center gap-4">
                       <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase rounded-full tracking-widest">Step: Discrepancy & Final Approval</span>
                       <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">CI Officer: {selected.ciOfficerName}</span>
+                      <button 
+                        onClick={() => setIsViewingAccount(true)}
+                        className="text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:text-emerald-800 transition-colors flex items-center gap-1 border-l border-emerald-100 pl-4 ml-4"
+                      >
+                        <FileText size={10} /> View Account Information
+                      </button>
                     </div>
                   </div>
                   <button onClick={() => setSelected(null)} className="w-12 h-12 flex items-center justify-center bg-gray-50 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all"><X /></button>
@@ -5091,6 +5192,12 @@ function CrecomApproval({ user }: { user: UserProfile }) {
             </motion.div>
           </motion.div>
         )}
+        {isViewingAccount && selected && (
+          <AccountDossierModal 
+            assignment={selected} 
+            onClose={() => setIsViewingAccount(false)} 
+          />
+        )}
       </AnimatePresence>
     </div>
   );
@@ -5171,6 +5278,7 @@ function AdminKeys({ user }: { user: UserProfile }) {
 function ValidationSurvey({ user }: { user: UserProfile }) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selected, setSelected] = useState<Assignment | null>(null);
+  const [isViewingAccount, setIsViewingAccount] = useState(false);
   const [step, setStep] = useState(1);
   const [validation, setValidation] = useState({
     didAnswerCalls: false,
@@ -5339,6 +5447,12 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
                       <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Validation & Survey</p>
                       <div className="h-1 w-1 bg-gray-300 rounded-full" />
                       <p className="text-xs text-emerald-700 font-black uppercase tracking-widest">Step {step} of 2</p>
+                      <button 
+                        onClick={() => setIsViewingAccount(true)}
+                        className="text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:text-emerald-800 transition-colors flex items-center gap-1 border-l border-emerald-100 pl-4 ml-4"
+                      >
+                        <FileText size={10} /> View Account Information
+                      </button>
                     </div>
                   </div>
                   <button 
@@ -5473,6 +5587,12 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
             </motion.div>
           </motion.div>
         )}
+        {isViewingAccount && selected && (
+          <AccountDossierModal 
+            assignment={selected} 
+            onClose={() => setIsViewingAccount(false)} 
+          />
+        )}
       </AnimatePresence>
     </div>
   );
@@ -5481,6 +5601,7 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
 function ValidationSurveyResults({ user }: { user: UserProfile }) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selected, setSelected] = useState<Assignment | null>(null);
+  const [isViewingAccount, setIsViewingAccount] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
@@ -5619,7 +5740,15 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="text-3xl font-black text-emerald-800 uppercase tracking-tight">{selected.borrowerName}</h3>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Survey received on {format(new Date(selected.survey?.createdAt || ''), 'MMMM d, yyyy | h:mm a')}</p>
+                    <div className="flex items-center gap-3 mt-1">
+                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-relaxed">Survey received on {format(new Date(selected.survey?.createdAt || ''), 'MMMM d, yyyy | h:mm a')}</p>
+                      <button 
+                        onClick={() => setIsViewingAccount(true)}
+                        className="text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:text-emerald-800 transition-colors flex items-center gap-1 border-l border-emerald-100 pl-4 ml-4"
+                      >
+                        <FileText size={10} /> View Account Information
+                      </button>
+                    </div>
                   </div>
                   <div className="flex items-start gap-4">
                     {user.role === 'admin' && (
@@ -5726,6 +5855,12 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
               </div>
             )}
           </AnimatePresence>
+          {isViewingAccount && selected && (
+            <AccountDossierModal 
+              assignment={selected} 
+              onClose={() => setIsViewingAccount(false)} 
+            />
+          )}
         </div>
       </div>
     </div>
