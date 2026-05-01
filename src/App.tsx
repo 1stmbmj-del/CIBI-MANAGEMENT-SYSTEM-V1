@@ -1527,9 +1527,7 @@ function DashboardOverview({ user }: { user: UserProfile }) {
     approved: 0,
     denied: 0,
     monthlyAssigned: 0,
-    avgSatisfaction: 0,
-    monthlyInterest: 0,
-    monthlyPrincipal: 0
+    avgSatisfaction: 0
   });
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [chartData, setChartData] = useState<any[]>([]);
@@ -1563,17 +1561,6 @@ function DashboardOverview({ user }: { user: UserProfile }) {
       });
 
       const approvedMonthly = monthly.filter(a => a.status === 'Approved' || a.status === 'Completed');
-      let totalMonthlyInterest = 0;
-      let totalMonthlyPrincipal = 0;
-
-      approvedMonthly.forEach(a => {
-        const amount = a.approvedAmount || a.requestedAmount;
-        const rate = a.approvedIntRate || a.intRate || 4;
-        const term = Number(a.approvedTerm || a.term) || 1;
-        
-        totalMonthlyInterest += (amount * (rate / 100));
-        totalMonthlyPrincipal += (amount / term);
-      });
 
       setStats({
         total: assignmentsList.length,
@@ -1582,9 +1569,7 @@ function DashboardOverview({ user }: { user: UserProfile }) {
         approved: assignmentsList.filter(a => a.status === 'Approved').length,
         denied: assignmentsList.filter(a => a.status === 'Denied').length,
         monthlyAssigned: monthly.length,
-        avgSatisfaction: Number(avgSat.toFixed(1)),
-        monthlyInterest: totalMonthlyInterest,
-        monthlyPrincipal: totalMonthlyPrincipal
+        avgSatisfaction: Number(avgSat.toFixed(1))
       });
 
       const satDist = [1, 2, 3, 4, 5].map(rating => ({
@@ -1712,7 +1697,7 @@ function DashboardOverview({ user }: { user: UserProfile }) {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-9 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-6">
         <StatCard label="Total Volume" value={stats.total} icon={<ClipboardList className="text-blue-500" />} />
         <StatCard label="Monthly Assigned" value={stats.monthlyAssigned} icon={<Calendar className="text-indigo-500" />} />
         <StatCard label="In Progress" value={stats.pending} icon={<Clock className="text-amber-500" />} />
@@ -1720,16 +1705,6 @@ function DashboardOverview({ user }: { user: UserProfile }) {
         <StatCard label="Approved" value={stats.approved} icon={<Check className="text-emerald-500" />} />
         <StatCard label="Denied" value={stats.denied} icon={<X className="text-red-500" />} />
         <StatCard label="Customer Satisfaction" value={stats.avgSatisfaction} icon={<Star className="text-amber-500" />} />
-        <StatCard 
-          label="Interest Collected" 
-          value={`₱${stats.monthlyInterest.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`} 
-          icon={<TrendingUp className="text-emerald-600" />} 
-        />
-        <StatCard 
-          label="Principal Collected" 
-          value={`₱${stats.monthlyPrincipal.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`} 
-          icon={<Wallet className="text-emerald-800" />} 
-        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
