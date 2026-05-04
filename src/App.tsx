@@ -1026,6 +1026,7 @@ function Dashboard({
   handleLogout: () => void;
 }) {
   const isAdmin = user.role === 'admin';
+  const isCoordinator = user.role === 'coordinator';
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
@@ -1087,6 +1088,13 @@ function Dashboard({
     { id: 'DATA STORAGE', icon: Database },
     { id: 'SCORING CONFIG', icon: Settings2 },
     { id: 'ADMIN KEYS', icon: Key },
+    { id: 'PROFILE', icon: UserSettings },
+  ] : isCoordinator ? [
+    { id: 'DASHBOARD', icon: LayoutDashboard },
+    { id: 'ASSIGN ACCOUNT', icon: UserPlus },
+    { id: 'ACCOUNT STATUS', icon: ClipboardList },
+    { id: 'CRECOM APPROVAL', icon: CheckCircle2 },
+    { id: 'VALIDATION & SURVEY', icon: Star },
     { id: 'PROFILE', icon: UserSettings },
   ] : [
     { id: 'DASHBOARD', icon: LayoutDashboard },
@@ -1347,12 +1355,12 @@ function Dashboard({
             viewportMode !== 'desktop' && "bg-white shadow-2xl"
           )}>
             <AnimatePresence mode="wait">
-              {activeTab === 'DASHBOARD' && (isAdmin ? <DashboardOverview user={user} /> : <CIDashboard user={user} />)}
+              {activeTab === 'DASHBOARD' && ((isAdmin || isCoordinator) ? <DashboardOverview user={user} /> : <CIDashboard user={user} />)}
               {activeTab === 'USERS' && <UserManagement user={user} />}
-              {activeTab === 'ASSIGN ACCOUNT' && <AssignAccount user={user} />}
+              {(activeTab === 'ASSIGN ACCOUNT' && (isAdmin || isCoordinator)) && <AssignAccount user={user} />}
               {activeTab === 'ACCOUNT STATUS' && <AccountStatus user={user} />}
-              {activeTab === 'CRECOM APPROVAL' && <CrecomApproval user={user} />}
-              {activeTab === 'VALIDATION & SURVEY' && <ValidationSurveyResults user={user} />}
+              {(activeTab === 'CRECOM APPROVAL' && (isAdmin || isCoordinator)) && <CrecomApproval user={user} />}
+              {(activeTab === 'VALIDATION & SURVEY' && (isAdmin || isCoordinator)) && <ValidationSurveyResults user={user} />}
               {activeTab === 'REPORTS' && <ReportsView user={user} />}
               {activeTab === 'DATA STORAGE' && <DataStorage user={user} />}
               {activeTab === 'SCORING CONFIG' && <AdminScoringSettings user={user} />}
@@ -1384,7 +1392,7 @@ function LeaderboardSection({ assignments, currentMonth, currentYear }: { assign
       const usersList = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
       const leaderData = usersList
-        .filter((u: any) => u.role === 'user')
+        .filter((u: any) => u.role === 'user' || u.role === 'coordinator')
         .map((u: any) => {
           const personalMonthly = currentMonthAssignments.filter(a => a.ciOfficerId === u.id);
           const approved = personalMonthly.filter(a => a.status === 'Approved').length;
@@ -1537,7 +1545,7 @@ function DashboardOverview({ user }: { user: UserProfile }) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
 
   useEffect(() => {
-    const qUsers = query(collection(db, 'users'), where('role', '==', 'user'));
+    const qUsers = query(collection(db, 'users'), where('role', 'in', ['user', 'coordinator']));
     const unsubUsers = onSnapshot(qUsers, (snapshot) => {
       setCiOfficers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as UserProfile[]);
     });
@@ -2477,6 +2485,7 @@ function UserManagement({ user }: { user: UserProfile }) {
                     onChange={e => setEditingUser({...editingUser, role: e.target.value})}
                   >
                     <option value="user">CI Officer (Standard Access)</option>
+                    <option value="coordinator">CI Coordinator (Limited Admin)</option>
                     <option value="admin">System Administrator (Full Authority)</option>
                   </select>
                 </div>
@@ -3555,7 +3564,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
   useEffect(() => {
     let q = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
     
-    if (user.role !== 'admin') {
+    if (user.role !== 'admin' && user.role !== 'coordinator') {
       q = query(
         collection(db, 'assignments'),
         where('ciOfficerId', '==', user.id),
@@ -3599,11 +3608,11 @@ function AccountStatus({ user }: { user: UserProfile }) {
       });
 
       // Notify relevant parties
-      if (user.role === 'admin') {
+      if (user.role === 'admin' || user.role === 'coordinator') {
         await createNotification(
           assignment.ciOfficerId,
           'Status Update',
-          `Admin updated ${assignment.borrowerName} to ${nextStatus}`,
+          `${user.role === 'admin' ? 'Admin' : 'Coordinator'} updated ${assignment.borrowerName} to ${nextStatus}`,
           'status_change',
           assignment.id
         );
