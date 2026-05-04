@@ -51,8 +51,18 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
     }
 
+    function isCoordinator() {
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "coordinator";
+    }
+
     function isAdmin() {
       return isEmailAdmin() || isDBAdmin();
+    }
+
+    function isPrivileged() {
+      return isAdmin() || isCoordinator();
     }
 
     function isVerified() {
@@ -102,12 +112,12 @@ service cloud.firestore {
 
     match /notifications/{notificationId} {
       // Use resource.data check for list since it's the recipient
-      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
       allow create: if isSignedIn() && isValidNotification(request.resource.data);
       allow update: if isSignedIn() && isOwner(resource.data.userId) && 
                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
-      allow delete: if (isOwner(resource.data.userId) || isAdmin()) && isSignedIn();
+      allow delete: if (isOwner(resource.data.userId) || isPrivileged()) && isSignedIn();
     }
 
     match /scoringConfigs/{configId} {
@@ -136,12 +146,12 @@ service cloud.firestore {
     }
 
     match /assignments/{assignmentId} {
-      // Regular users only see their own assigned accounts. Admins see all.
-      allow list: if isSignedIn() && (isAdmin() || resource.data.ciOfficerId == request.auth.uid);
-      allow get: if isSignedIn() && (isAdmin() || resource.data.ciOfficerId == request.auth.uid);
-      allow create: if isAdmin() && isValidAssignment(request.resource.data);
+      // Regular users only see their own assigned accounts. Privileged roles see all.
+      allow list: if isSignedIn() && (isPrivileged() || resource.data.ciOfficerId == request.auth.uid);
+      allow get: if isSignedIn() && (isPrivileged() || resource.data.ciOfficerId == request.auth.uid);
+      allow create: if isPrivileged() && isValidAssignment(request.resource.data);
       allow update: if isSignedIn() && isValidAssignment(request.resource.data) &&
-                    (isAdmin() || request.auth.uid == resource.data.ciOfficerId);
+                    (isPrivileged() || request.auth.uid == resource.data.ciOfficerId);
       allow delete: if isAdmin();
     }
   }
