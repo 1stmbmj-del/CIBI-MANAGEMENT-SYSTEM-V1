@@ -43,6 +43,7 @@ import {
   Percent,
   Clock,
   Search,
+  BarChart2,
   Settings2,
   Users,
   Trash2,
@@ -1094,7 +1095,8 @@ function Dashboard({
     { id: 'ASSIGN ACCOUNT', icon: UserPlus },
     { id: 'ACCOUNT STATUS', icon: ClipboardList },
     { id: 'CRECOM APPROVAL', icon: CheckCircle2 },
-    { id: 'VALIDATION & SURVEY', icon: Star },
+    { id: 'FOR VALIDATION & SURVEY', icon: Star },
+    { id: 'VALIDATION & SURVEY', icon: BarChart2 },
     { id: 'PROFILE', icon: UserSettings },
   ] : [
     { id: 'DASHBOARD', icon: LayoutDashboard },
@@ -5351,20 +5353,28 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                   </div>
                 </div>
 
-                <div className="pt-8 flex flex-col gap-4 mt-auto">
-                  <button 
-                    onClick={handleDeny}
-                    className="w-full py-5 bg-red-50 text-red-600 text-[10px] font-black rounded-2xl hover:bg-red-500 hover:text-white transition-all uppercase tracking-[0.3em] active:scale-95"
-                  >
-                    Deny Application
-                  </button>
-                  <button 
-                    onClick={handleApprove}
-                    className="w-full py-6 bg-emerald-600 text-white text-[11px] font-black rounded-3xl hover:bg-emerald-700 hover:-translate-y-1 active:translate-y-0 transition-all uppercase tracking-[0.4em] shadow-2xl shadow-emerald-900/40"
-                  >
-                    Confirm Funding & Grant Approval
-                  </button>
-                </div>
+                  <div className="pt-8 flex flex-col gap-4 mt-auto">
+                    {user.role === 'admin' ? (
+                      <>
+                        <button 
+                          onClick={handleDeny}
+                          className="w-full py-5 bg-red-50 text-red-600 text-[10px] font-black rounded-2xl hover:bg-red-500 hover:text-white transition-all uppercase tracking-[0.3em] active:scale-95"
+                        >
+                          Deny Application
+                        </button>
+                        <button 
+                          onClick={handleApprove}
+                          className="w-full py-6 bg-emerald-600 text-white text-[11px] font-black rounded-3xl hover:bg-emerald-700 hover:-translate-y-1 active:translate-y-0 transition-all uppercase tracking-[0.4em] shadow-2xl shadow-emerald-900/40"
+                        >
+                          Confirm Funding & Grant Approval
+                        </button>
+                      </>
+                    ) : (
+                      <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100 italic text-[10px] text-amber-700 font-bold text-center">
+                        Viewing as Coordinator. Final approval authority is restricted to System Administrators.
+                      </div>
+                    )}
+                  </div>
               </div>
             </motion.div>
           </motion.div>
@@ -5476,7 +5486,7 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
 
   useEffect(() => {
     let q = query(collection(db, 'assignments'), where('status', '==', 'Approved'));
-    if (user.role !== 'admin') {
+    if (user.role !== 'admin' && user.role !== 'coordinator') {
       q = query(
         collection(db, 'assignments'),
         where('status', '==', 'Approved'),
