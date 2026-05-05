@@ -4136,12 +4136,16 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
 
     const riskScore = activeTotalMax > 0 ? (activeTotalEarned / activeTotalMax) * 100 : 0;
     
-    let riskClassification: 'Low Risk' | 'Medium Risk' | 'High Risk' = 'High Risk';
-    if (riskScore >= 80) riskClassification = 'Low Risk';
-    else if (riskScore >= 60) riskClassification = 'Medium Risk';
+    let riskClassification = 'High Risk';
+    if (riskScore >= 70) riskClassification = 'Strong Borrower';
+    else if (riskScore >= 50) riskClassification = 'Moderate Risk';
+    else if (riskScore >= 30) riskClassification = 'High Risk';
+    else riskClassification = 'Very High Risk';
 
-    // Auto-update recommendation based on user request (riskScore <= 69 = Denied)
-    const autoRecommendation = riskScore <= 69 ? 'Denied' : 'Approved';
+    // Auto-update recommendation based on user request
+    let autoRecommendation = 'Denied';
+    if (riskScore >= 70) autoRecommendation = 'Approved';
+    else if (riskScore >= 50) autoRecommendation = 'Approved with Conditions';
 
     return { 
       sectionGrades: grades, 
@@ -4276,8 +4280,10 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
           <div className="text-right">
             <p className="text-[10px] font-black text-gray-400 uppercase">Classification</p>
             <p className={cn(
-               "text-xl font-black uppercase tracking-tight",
-               riskClassification === 'Low Risk' ? "text-green-600" : (riskClassification === 'Medium Risk' ? "text-amber-500" : "text-red-600")
+               "text-lg font-black uppercase tracking-tight",
+               riskClassification === 'Strong Borrower' ? "text-green-600" : 
+               riskClassification === 'Moderate Risk' ? "text-amber-500" : 
+               "text-red-600"
             )}>
               {riskClassification}
             </p>
@@ -4397,9 +4403,14 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
           <div className="space-y-2">
             <label className="text-xs font-black text-emerald-800 uppercase tracking-widest">Final Status Recommendation</label>
             <div className={cn(
-               "w-full h-12 px-6 flex items-center border-2 rounded-xl text-sm font-black uppercase shadow-sm",
-               formData.recommendation === 'Approved' ? "bg-green-50 border-green-200 text-green-600" : "bg-red-50 border-red-200 text-red-600"
+               "w-full h-12 px-6 flex items-center border-2 rounded-xl text-sm font-black uppercase shadow-sm gap-3",
+               formData.recommendation === 'Approved' ? "bg-green-50 border-green-200 text-green-600" : 
+               formData.recommendation === 'Approved with Conditions' ? "bg-blue-50 border-blue-200 text-blue-600" :
+               "bg-red-50 border-red-200 text-red-600"
             )}>
+              {formData.recommendation === 'Approved' && <CheckCircle2 size={18} />}
+              {formData.recommendation === 'Approved with Conditions' && <Clock size={18} />}
+              {formData.recommendation === 'Denied' && <Trash2 size={18} />}
               {formData.recommendation}
             </div>
             <p className="text-[10px] text-gray-400 font-bold uppercase px-2">
