@@ -20,7 +20,7 @@ export type AccountType = 'New' | 'Renewal' | 'Restructure' | 'Additional';
 export type Tribe = 'NCR' | 'Rizal' | 'Mindoro' | 'Cavite';
 export type MOP = 'Daily' | 'Weekly' | 'Semi-Monthly' | 'Monthly';
 export type TOP = 'Collection' | 'PDC';
-export type LoanCategory = 'SME' | 'MCL';
+export type LoanCategory = 'SME' | 'MCL' | 'Seaman';
 export type AssignmentStatus = 
   | 'Assigned' 
   | 'Start to Perform Assignment' 

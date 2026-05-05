@@ -3273,7 +3273,8 @@ function AssignAccount({ user }: { user: UserProfile }) {
               onChange={e => setFormData({...formData, loanCategory: e.target.value as LoanCategory})}
             >
               <option value="SME">SME (Standard)</option>
-              <option value="MCL (Motorcycle Loan)">MCL (Motorcycle Loan)</option>
+              <option value="MCL">MCL (Motorcycle Loan)</option>
+              <option value="Seaman">Seaman's Loan</option>
             </select>
           </div>
           <div className="space-y-4 pt-4">
