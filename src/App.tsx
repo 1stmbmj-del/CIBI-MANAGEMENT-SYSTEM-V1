@@ -1999,8 +1999,10 @@ const DEFAULT_MCL_SCORING_SHEET = {
   }
 };
 
+const DEFAULT_SEAMAN_SCORING_SHEET = { ...DEFAULT_MCL_SCORING_SHEET };
+
 function AdminScoringSettings({ user }: { user: UserProfile }) {
-  const [configType, setConfigType] = useState<'SME' | 'MCL'>('SME');
+  const [configType, setConfigType] = useState<'SME' | 'MCL' | 'Seaman'>('SME');
   const [sections, setSections] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -2012,7 +2014,11 @@ function AdminScoringSettings({ user }: { user: UserProfile }) {
       if (!snapshot.empty) {
         setSections(snapshot.docs[0].data().sections);
       } else {
-        setSections(configType === 'SME' ? DEFAULT_SME_SCORING_SHEET : DEFAULT_MCL_SCORING_SHEET);
+        setSections(
+          configType === 'SME' ? DEFAULT_SME_SCORING_SHEET : 
+          configType === 'MCL' ? DEFAULT_MCL_SCORING_SHEET : 
+          DEFAULT_SEAMAN_SCORING_SHEET
+        );
       }
       setIsLoading(false);
     }, (err) => {
@@ -2140,6 +2146,15 @@ function AdminScoringSettings({ user }: { user: UserProfile }) {
               )}
             >
               MCL Sheet
+            </button>
+            <button 
+              onClick={() => setConfigType('Seaman')}
+              className={cn(
+                "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                configType === 'Seaman' ? "bg-white text-emerald-700 shadow-sm" : "text-gray-400 hover:text-gray-600"
+              )}
+            >
+              Seaman Sheet
             </button>
           </div>
           <button 
@@ -4025,6 +4040,7 @@ function AccountDossierModal({ assignment, onClose }: { assignment: Assignment, 
 
 function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { assignment: Assignment, user: UserProfile, isReadOnly?: boolean }) {
   const isMCL = assignment.loanCategory === 'MCL';
+  const isSeaman = assignment.loanCategory === 'Seaman';
   const [dynamicSheet, setDynamicSheet] = useState<any>(null);
   const [isLoadingSheet, setIsLoadingSheet] = useState(true);
   const [formData, setFormData] = useState<any>(null);
@@ -4034,26 +4050,26 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
 
   // Load Scoring Configuration
   useEffect(() => {
-    const configType = isMCL ? 'MCL' : 'SME';
+    const configType = isSeaman ? 'Seaman' : (isMCL ? 'MCL' : 'SME');
     const q = query(collection(db, 'scoringConfigs'), where('type', '==', configType), limit(1));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       let sheet;
       if (!snapshot.empty) {
         sheet = snapshot.docs[0].data().sections;
       } else {
-        sheet = isMCL ? DEFAULT_MCL_SCORING_SHEET : DEFAULT_SME_SCORING_SHEET;
+        sheet = isSeaman ? DEFAULT_SEAMAN_SCORING_SHEET : (isMCL ? DEFAULT_MCL_SCORING_SHEET : DEFAULT_SME_SCORING_SHEET);
       }
       setDynamicSheet(sheet);
       setIsLoadingSheet(false);
     }, (err) => {
       console.error(err);
-      setDynamicSheet(isMCL ? DEFAULT_MCL_SCORING_SHEET : DEFAULT_SME_SCORING_SHEET);
+      setDynamicSheet(isSeaman ? DEFAULT_SEAMAN_SCORING_SHEET : (isMCL ? DEFAULT_MCL_SCORING_SHEET : DEFAULT_SME_SCORING_SHEET));
       setIsLoadingSheet(false);
     });
     return () => unsubscribe();
-  }, [isMCL]);
+  }, [isMCL, isSeaman]);
 
-  const CURRENT_SHEET = dynamicSheet || (isMCL ? DEFAULT_MCL_SCORING_SHEET : DEFAULT_SME_SCORING_SHEET);
+  const CURRENT_SHEET = dynamicSheet || (isSeaman ? DEFAULT_SEAMAN_SCORING_SHEET : (isMCL ? DEFAULT_MCL_SCORING_SHEET : DEFAULT_SME_SCORING_SHEET));
 
   useEffect(() => {
     if (!CURRENT_SHEET) return;
@@ -4095,7 +4111,7 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
     if (!formData || !CURRENT_SHEET) return null;
 
     const grades: any = {};
-    const businessSectionKey = isMCL ? 'EMPLOYMENT_BUSINESS' : 'BUSINESS_STATUS';
+    const businessSectionKey = (isMCL || isSeaman) ? 'EMPLOYMENT_BUSINESS' : 'BUSINESS_STATUS';
     
     let activeTotalMax = 0;
     let activeTotalEarned = 0;
@@ -4124,17 +4140,30 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
     if (riskScore >= 80) riskClassification = 'Low Risk';
     else if (riskScore >= 60) riskClassification = 'Medium Risk';
 
+    // Auto-update recommendation based on user request (riskScore <= 69 = Denied)
+    const autoRecommendation = riskScore <= 69 ? 'Denied' : 'Approved';
+
     return { 
       sectionGrades: grades, 
       totalGrade: activeTotalEarned, 
       riskScore, 
       riskClassification,
-      activeTotalMax
+      activeTotalMax,
+      autoRecommendation
     };
   };
 
   const results = calculateGrades();
   const isReadOnly = forceReadOnly || assignment.status !== 'Field CIBI' || (user.role !== 'user' && !assignment.creditScore && !assignment.mclCreditScore);
+
+  // Automatically update recommendation in formData if it changes based on score
+  useEffect(() => {
+    if (results && results.autoRecommendation && !isReadOnly) {
+      if (formData.recommendation !== results.autoRecommendation) {
+        setFormData((prev: any) => ({ ...prev, recommendation: results.autoRecommendation }));
+      }
+    }
+  }, [results?.autoRecommendation, isReadOnly]);
 
   const handleSave = async () => {
     if (!results) return;
@@ -4201,11 +4230,11 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
       <div className="flex justify-between items-center border-b-4 border-emerald-50/50 pb-6">
         <div>
           <h3 className="text-xl font-black text-emerald-800 uppercase tracking-tight">
-            {isMCL ? 'MCL Diagnostic Module' : 'SME Diagnostic Module'}
+            {isSeaman ? "Seaman's Diagnostic Module" : (isMCL ? 'MCL Diagnostic Module' : 'SME Diagnostic Module')}
           </h3>
           <div className="flex items-center gap-2 mt-1">
             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.3em]">
-              Technical Assessment Protocol {isMCL ? 'vMCL.1' : 'vSME.2'}
+              Technical Assessment Protocol {isSeaman ? 'vSEA.1' : (isMCL ? 'vMCL.1' : 'vSME.2')}
             </p>
             <span className="text-gray-200">|</span>
             <button 
@@ -4258,7 +4287,7 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
 
       <div className="space-y-12">
         {Object.entries(CURRENT_SHEET).map(([sectionKey, section]: [string, any]) => {
-          const businessSectionKey = isMCL ? 'EMPLOYMENT_BUSINESS' : 'BUSINESS_STATUS';
+          const businessSectionKey = (isMCL || isSeaman) ? 'EMPLOYMENT_BUSINESS' : 'BUSINESS_STATUS';
           const isDisabled = sectionKey === businessSectionKey && !isBusinessEnabled;
 
           return (
@@ -4327,7 +4356,7 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
                 {Object.entries(CURRENT_SHEET).map(([k, v]: [string, any]) => {
                   const actual = sectionGrades[k] || 0;
                   
-                  const businessSectionKey = isMCL ? 'EMPLOYMENT_BUSINESS' : 'BUSINESS_STATUS';
+                  const businessSectionKey = (isMCL || isSeaman) ? 'EMPLOYMENT_BUSINESS' : 'BUSINESS_STATUS';
                   const isDisabled = k === businessSectionKey && !isBusinessEnabled;
 
                   let activeTotalMaxVal = 0;
