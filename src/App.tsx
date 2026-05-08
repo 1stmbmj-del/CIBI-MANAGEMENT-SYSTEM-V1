@@ -998,6 +998,7 @@ function Dashboard({
   const isCoordinator = user.role === 'coordinator';
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [paddingRequestsActive, setPendingRequestsActive] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['HR']);
   const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
@@ -1026,6 +1027,41 @@ function Dashboard({
     });
     return () => unsubscribe();
   }, [user.id]);
+
+  useEffect(() => {
+    if (!user || (user.role !== 'admin' && user.role !== 'coordinator')) {
+       setPendingRequestsActive(false);
+       return;
+    }
+
+    const qLeaves = query(collection(db, 'leaves'), where('status', '==', 'Pending'));
+    const qOT = query(collection(db, 'overtime'), where('status', '==', 'Pending'));
+    const qOB = query(collection(db, 'ob_requests'), where('status', '==', 'Pending'));
+
+    const counts = { leaves: 0, ot: 0, ob: 0 };
+    const updateStatus = () => {
+      setPendingRequestsActive(counts.leaves > 0 || counts.ot > 0 || counts.ob > 0);
+    };
+
+    const unsubLeaves = onSnapshot(qLeaves, (snap) => {
+      counts.leaves = snap.size;
+      updateStatus();
+    });
+    const unsubOT = onSnapshot(qOT, (snap) => {
+      counts.ot = snap.size;
+      updateStatus();
+    });
+    const unsubOB = onSnapshot(qOB, (snap) => {
+      counts.ob = snap.size;
+      updateStatus();
+    });
+
+    return () => {
+      unsubLeaves();
+      unsubOT();
+      unsubOB();
+    };
+  }, [user]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -1186,6 +1222,12 @@ function Dashboard({
                           />
                         </>
                       )}
+                      {item.id === 'HR' && paddingRequestsActive && (!sidebarOpen || !expandedMenus.includes('HR')) && (
+                        <div className={cn(
+                          "bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)]",
+                          sidebarOpen ? "w-2 h-2 ml-2" : "absolute top-3 right-3 w-2 h-2 border-2 border-emerald-900"
+                        )} />
+                      )}
                     </button>
                     {sidebarOpen && expandedMenus.includes(item.id) && (
                       <div className="ml-4 space-y-1 border-l border-white/10 pl-2">
@@ -1205,6 +1247,9 @@ function Dashboard({
                           >
                             <child.icon size={16} />
                             <span className="text-[10px] font-bold uppercase tracking-widest truncate">{child.id}</span>
+                            {child.id === 'REVIEW REQUESTS' && paddingRequestsActive && (
+                              <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse ml-auto shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
+                            )}
                           </button>
                         ))}
                       </div>
@@ -1230,11 +1275,17 @@ function Dashboard({
                       "transition-transform",
                       activeTab === item.id ? "scale-110" : "group-hover:scale-110"
                     )} />
+                    {item.id === 'REVIEW REQUESTS' && paddingRequestsActive && (
+                      <div className={cn(
+                        "bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)]",
+                        sidebarOpen ? "w-2 h-2" : "absolute top-3 right-3 w-2 h-2 border-2 border-emerald-900"
+                      )} />
+                    )}
                     {sidebarOpen && (
                       <motion.span 
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        className="text-[11px] font-black uppercase tracking-widest truncate"
+                        className={cn("text-[11px] font-black uppercase tracking-widest truncate", item.id === 'REVIEW REQUESTS' && paddingRequestsActive ? "flex-1" : "")}
                       >
                         {item.id}
                       </motion.span>
