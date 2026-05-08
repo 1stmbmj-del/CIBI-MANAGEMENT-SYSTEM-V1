@@ -107,7 +107,8 @@ service cloud.firestore {
     }
 
     function isValidAttendance(data) {
-      return data.keys().hasAll(['userId', 'userName', 'date', 'status', 'createdAt']) &&
+      let requiredFields = ['userId', 'userName', 'date', 'status', 'createdAt'];
+      return data.keys().hasAll(requiredFields) &&
              data.userId is string &&
              data.userName is string &&
              data.date is string &&
@@ -116,7 +117,8 @@ service cloud.firestore {
     }
 
     function isValidLeaveRequest(data) {
-      return data.keys().hasAll(['userId', 'userName', 'leaveType', 'startDate', 'endDate', 'reason', 'status', 'createdAt']) &&
+      let requiredFields = ['userId', 'userName', 'leaveType', 'startDate', 'endDate', 'reason', 'status', 'createdAt'];
+      return data.keys().hasAll(requiredFields) &&
              data.userId is string &&
              data.userName is string &&
              data.leaveType is string &&
@@ -124,12 +126,12 @@ service cloud.firestore {
              data.endDate is string &&
              data.reason is string &&
              data.status in ['Pending', 'Approved', 'Rejected'] &&
-             data.createdAt is string &&
-             (!data.keys().contains('remarks') || (data.remarks == null || data.remarks is string));
+             data.createdAt is string;
     }
 
     function isValidOvertimeRequest(data) {
-      return data.keys().hasAll(['userId', 'userName', 'date', 'hours', 'minutes', 'reason', 'status', 'createdAt']) &&
+      let requiredFields = ['userId', 'userName', 'date', 'hours', 'minutes', 'reason', 'status', 'createdAt'];
+      return data.keys().hasAll(requiredFields) &&
              data.userId is string &&
              data.userName is string &&
              data.date is string &&
@@ -137,21 +139,19 @@ service cloud.firestore {
              data.minutes is number &&
              data.reason is string &&
              data.status in ['Pending', 'Approved', 'Rejected'] &&
-             data.createdAt is string &&
-             (!data.keys().contains('remarks') || (data.remarks == null || data.remarks is string));
+             data.createdAt is string;
     }
 
     function isValidOBRequest(data) {
-      return data.keys().hasAll(['userId', 'userName', 'startDate', 'endDate', 'reason', 'status', 'createdAt']) &&
+      let requiredFields = ['userId', 'userName', 'startDate', 'endDate', 'reason', 'status', 'createdAt'];
+      return data.keys().hasAll(requiredFields) &&
              data.userId is string &&
              data.userName is string &&
              data.startDate is string &&
              data.endDate is string &&
              data.reason is string &&
              data.status in ['Pending', 'Approved', 'Rejected'] &&
-             data.createdAt is string &&
-             (!data.keys().contains('hours') || (data.hours == null || data.hours is number)) &&
-             (!data.keys().contains('minutes') || (data.minutes == null || data.minutes is number));
+             data.createdAt is string;
     }
 
     // ===============================================================
@@ -161,7 +161,7 @@ service cloud.firestore {
     match /attendance/{attendanceId} {
       allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
       allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
-      allow create: if isSignedIn() && isValidAttendance(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidAttendance(request.resource.data) && (request.resource.data.userId == request.auth.uid || isPrivileged());
       allow update: if isSignedIn() && (isPrivileged() || resource.data.userId == request.auth.uid) && isValidAttendance(request.resource.data);
       allow delete: if isAdmin();
     }
@@ -169,7 +169,7 @@ service cloud.firestore {
     match /leaves/{leaveId} {
       allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
       allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
-      allow create: if isSignedIn() && isValidLeaveRequest(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidLeaveRequest(request.resource.data) && (request.resource.data.userId == request.auth.uid || isPrivileged());
       allow update: if isSignedIn() && (isPrivileged() || resource.data.userId == request.auth.uid) && isValidLeaveRequest(request.resource.data);
       allow delete: if isAdmin();
     }
@@ -177,7 +177,7 @@ service cloud.firestore {
     match /overtime/{overtimeId} {
       allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
       allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
-      allow create: if isSignedIn() && isValidOvertimeRequest(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidOvertimeRequest(request.resource.data) && (request.resource.data.userId == request.auth.uid || isPrivileged());
       allow update: if isSignedIn() && (isPrivileged() || resource.data.userId == request.auth.uid) && isValidOvertimeRequest(request.resource.data);
       allow delete: if isAdmin();
     }

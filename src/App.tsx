@@ -1570,6 +1570,16 @@ const createNotification = async (userId: string, title: string, message: string
   }
 };
 
+const notifyAdmins = async (title: string, message: string, type: string, assignmentId: string = '') => {
+  try {
+    const adminSnap = await getDocs(query(collection(db, 'users'), where('role', 'in', ['admin', 'coordinator'])));
+    const notifications = adminSnap.docs.map(doc => createNotification(doc.id, title, message, type, assignmentId));
+    await Promise.all(notifications);
+  } catch (err) {
+    console.error('Error notifying admins:', err);
+  }
+};
+
 const calculateTAT = (timeline: TimelineStep[]) => {
   if (timeline.length < 2) return '0h 0m';
   const start = new Date(timeline[0].timestamp);
@@ -3637,6 +3647,11 @@ function LeaveModule({ user }: { user: UserProfile }) {
         status: 'Pending',
         createdAt: new Date().toISOString()
       });
+      await notifyAdmins(
+        "New Leave Request",
+        `${user.fullName} has filed for ${formData.leaveType}`,
+        "LEAVE_REQUEST"
+      );
       toast.success("Application submitted successfully");
       setFormData({ leaveType: 'Sick Leave', startDate: '', endDate: '', reason: '' });
     } catch (err) {
@@ -3779,6 +3794,11 @@ function OvertimeModule({ user }: { user: UserProfile }) {
         status: 'Pending',
         createdAt: new Date().toISOString()
       });
+      await notifyAdmins(
+        "New OT Request",
+        `${user.fullName} has filed for ${formData.hours}h ${formData.minutes}m OT`,
+        "OT_REQUEST"
+      );
       toast.success("OT Application sent");
       setFormData({ date: '', hours: 0, minutes: 0, reason: '' });
     } catch (err) {
@@ -7878,6 +7898,11 @@ function OBFillingModule({ user }: { user: UserProfile }) {
         status: 'Pending',
         createdAt: new Date().toISOString()
       });
+      await notifyAdmins(
+        "New OB Request",
+        `${user.fullName} has filed an OB request for ${formData.startDate}`,
+        "OB_REQUEST"
+      );
       toast.success("OB request submitted successfully");
       setFormData({
         startDate: format(new Date(), 'yyyy-MM-dd'),
@@ -8161,9 +8186,9 @@ function AttendanceCalendar({ user }: { user: UserProfile }) {
     const isSaturday = date.getDay() === 6;
     const requiredMinutes = isSaturday ? 7 * 60 : 8 * 60;
 
+    if (leaveActive) return 'LEAVE';
+    if (obActive) return 'OB';
     if (totalWorkMinutes >= requiredMinutes) return 'PRESENT';
-    if (leaveActive) return 'PRESENT';
-    if (obActive) return 'PRESENT';
     if (otActive) return 'OT';
     if (!record) return 'ABSENT';
     
@@ -8217,6 +8242,11 @@ function AttendanceCalendar({ user }: { user: UserProfile }) {
         status: 'Pending', 
         createdAt: new Date().toISOString()
       });
+      await notifyAdmins(
+        "New OB Recorded",
+        `OB recorded for ${userObj?.fullName || 'Staff'} on ${dateStr}`,
+        "OB_REQUEST"
+      );
       toast.success("OB recorded for selected date");
       setFilingDate(null);
       setObReason('');
