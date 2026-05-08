@@ -1459,7 +1459,7 @@ function Dashboard({
               {activeTab === 'ATTENDANCE CALENDAR' && <AttendanceCalendar user={user} />}
               {activeTab === 'LEAVES' && <LeaveModule user={user} />}
               {activeTab === 'OVERTIME' && <OvertimeModule user={user} />}
-              {activeTab === 'OB FILLING' && <OBFillingModule user={user} />}
+              {activeTab === 'OB FILLING' && !isAdmin && <OBFillingModule user={user} />}
               {(activeTab === 'REVIEW REQUESTS' && (isAdmin || isCoordinator)) && <ReviewRequests user={user} />}
               {(activeTab === 'HR REPORTS' && (isAdmin || isCoordinator)) && <HRReportsModule user={user} />}
               {activeTab === 'USERS' && <UserManagement user={user} />}
@@ -7866,6 +7866,7 @@ function ReportsView({ user }: { user: UserProfile }) {
 
 // --- OB FILLING MODULE ---
 function OBFillingModule({ user }: { user: UserProfile }) {
+  const isAdmin = user.role === 'admin';
   const [obRequests, setObRequests] = useState<OBRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -7970,6 +7971,7 @@ function OBFillingModule({ user }: { user: UserProfile }) {
   };
 
   if (loading) return <div className="p-12 text-center text-emerald-800 font-bold uppercase tracking-widest animate-pulse">Loading OB Requests...</div>;
+  if (isAdmin) return <div className="p-12 text-center text-red-800 font-bold uppercase tracking-widest">OB Filing is disabled for Admins.</div>;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
@@ -8247,6 +8249,7 @@ function AttendanceCalendar({ user }: { user: UserProfile }) {
   };
 
   const handleDayClick = (day: Date) => {
+    if (isAdmin) return; // Admins cannot file OB
     setFilingDate(day);
     const dateStr = format(day, 'yyyy-MM-dd');
     const isSaturday = day.getDay() === 6;
@@ -8381,15 +8384,14 @@ function AttendanceCalendar({ user }: { user: UserProfile }) {
                 return (
                   <motion.button
                     key={day.toString()}
-                    whileHover={{ scale: 1.05 }}
+                    whileHover={!isAdmin ? { scale: 1.05 } : {}}
                     onClick={() => handleDayClick(day)}
                     className={cn(
                       "aspect-square rounded-2xl flex flex-col items-center justify-center relative border-2 transition-all p-2 overflow-hidden",
-                      status === 'PRESENT' ? "bg-emerald-50 border-emerald-100 text-emerald-600" :
+                      !isAdmin && "cursor-pointer",
+                      (status === 'PRESENT' || status === 'OB' || status === 'LEAVE') ? "bg-emerald-50 border-emerald-100 text-emerald-600" :
                       status === 'INCOMPLETE' ? "bg-amber-50 border-amber-100 text-amber-600" :
                       status === 'ABSENT' ? "bg-red-50 border-red-100 text-red-400" :
-                      status === 'OB' ? "bg-indigo-50 border-indigo-100 text-indigo-600" :
-                      status === 'LEAVE' ? "bg-purple-50 border-purple-100 text-purple-600" :
                       status === 'OT' ? "bg-blue-50 border-blue-100 text-blue-600" :
                       "bg-gray-50 border-transparent text-gray-300"
                     )}
