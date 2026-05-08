@@ -278,6 +278,7 @@ export interface AttendanceRecord {
   timeOut: string | null;
   status: 'ON TIME' | 'LATE' | 'UNDERTIME' | 'OVERTIME';
   tasks: string;
+  coordinatorRemarks?: string;
   createdAt: string;
 }
 

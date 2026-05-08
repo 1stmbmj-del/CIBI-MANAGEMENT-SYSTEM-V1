@@ -3172,6 +3172,8 @@ function AttendanceModule({ user }: { user: UserProfile }) {
   const [showTaskLog, setShowTaskLog] = useState(false);
   const [taskLog, setTaskLog] = useState('');
   const [isSubmittingTask, setIsSubmittingTask] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
+  const [coordRemarks, setCoordRemarks] = useState('');
 
   useEffect(() => {
     const isAdminOrCoordinator = user.role === 'admin' || user.role === 'coordinator';
@@ -3281,6 +3283,19 @@ function AttendanceModule({ user }: { user: UserProfile }) {
       toast.error("Time out failed");
     } finally {
       setIsSubmittingTask(false);
+    }
+  };
+
+  const handleUpdateRemarks = async () => {
+    if (!editingRecord) return;
+    try {
+      await updateDoc(doc(db, 'attendance', editingRecord.id), {
+        coordinatorRemarks: coordRemarks
+      });
+      toast.success("Remarks updated");
+      setEditingRecord(null);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `attendance/${editingRecord.id}`);
     }
   };
 
@@ -3406,7 +3421,9 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                 <th className="p-4">Date</th>
                 <th className="p-4">Action</th>
                 <th className="p-4">Status</th>
-                <th className="p-4">Tasks</th>
+                <th className="p-4">User Remarks</th>
+                {(isAdmin || user.role === 'coordinator') && <th className="p-4">Coord Remarks</th>}
+                {(isAdmin || user.role === 'coordinator') && <th className="p-4 text-center">Manage</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -3436,9 +3453,29 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                   </td>
                   <td className="p-4 text-[10px] text-gray-400 font-medium italic">
                     {r.tasks ? (
-                      <p className="truncate max-w-[200px]" title={r.tasks}>{r.tasks}</p>
+                      <p className="truncate max-w-[150px]" title={r.tasks}>{r.tasks}</p>
                     ) : "---"}
                   </td>
+                  {(isAdmin || user.role === 'coordinator') && (
+                    <td className="p-4 text-[10px] text-indigo-400 font-medium italic">
+                      {r.coordinatorRemarks ? (
+                        <p className="truncate max-w-[150px]" title={r.coordinatorRemarks}>{r.coordinatorRemarks}</p>
+                      ) : "---"}
+                    </td>
+                  )}
+                  {(isAdmin || user.role === 'coordinator') && (
+                    <td className="p-4 text-center">
+                       <button 
+                         onClick={() => {
+                           setEditingRecord(r);
+                           setCoordRemarks(r.coordinatorRemarks || '');
+                         }}
+                         className="p-2 hover:bg-indigo-50 text-indigo-600 rounded-lg transition-colors"
+                       >
+                         <Pencil size={12} />
+                       </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -3499,6 +3536,60 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                     className="flex-1 h-12 bg-emerald-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-950/20 active:scale-95 transition-all disabled:opacity-50"
                   >
                     {isSubmittingTask ? "Processing..." : "Complete & Time Out"}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Coordinator Remarks Modal */}
+      <AnimatePresence>
+        {editingRecord && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setEditingRecord(null)}
+              className="absolute inset-0 bg-indigo-950/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative z-10 p-8"
+            >
+              <div className="text-center space-y-4 mb-8">
+                <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto">
+                   <Settings2 size={32} className="text-indigo-600" />
+                </div>
+                <h3 className="text-2xl font-black text-indigo-900 uppercase tracking-tighter">Add Coordinator Remarks</h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">For: {editingRecord.userName} on {editingRecord.date}</p>
+              </div>
+
+              <div className="space-y-4">
+                <textarea
+                  value={coordRemarks}
+                  onChange={(e) => setCoordRemarks(e.target.value)}
+                  placeholder="Official remarks from coordinator/admin..."
+                  className="w-full h-40 bg-gray-50 border-2 border-indigo-50 rounded-2xl p-4 text-xs font-bold focus:border-indigo-500 focus:outline-none transition-all resize-none"
+                  autoFocus
+                />
+
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setEditingRecord(null)}
+                    className="flex-1 h-12 border-2 border-gray-100 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleUpdateRemarks}
+                    className="flex-1 h-12 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-950/20 active:scale-95 transition-all"
+                  >
+                    Save Remarks
                   </button>
                 </div>
               </div>
@@ -8372,6 +8463,8 @@ function HRReportsModule({ user }: { user: UserProfile }) {
     overtime: number;
     ob: number;
   }[]>([]);
+  const [detailedAttendance, setDetailedAttendance] = useState<AttendanceRecord[]>([]);
+  const [reportTab, setReportTab] = useState<'SUMMARY' | 'DETAILED'>('SUMMARY');
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -8427,6 +8520,7 @@ function HRReportsModule({ user }: { user: UserProfile }) {
       });
 
       setReportData(combined);
+      setDetailedAttendance(allAttendance.sort((a, b) => b.date.localeCompare(a.date)));
     } catch (err) {
       console.error(err);
       toast.error("Failed to generate report");
@@ -8436,20 +8530,45 @@ function HRReportsModule({ user }: { user: UserProfile }) {
   };
 
   const exportCSV = () => {
-    if (reportData.length === 0) return;
-    const headers = ['Name', 'Role', 'Attendance Days', 'Total Late', 'Approved Leaves', 'Approved Overtime', 'Approved OB'];
-    const rows = reportData.map(r => [r.name, r.role, r.attendance, r.late, r.leaves, r.overtime, r.ob]);
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + headers.join(",") + "\n"
-      + rows.map(e => e.join(",")).join("\n");
-    
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `HR_Report_${startDate}_to_${endDate}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    if (reportTab === 'SUMMARY') {
+      if (reportData.length === 0) return;
+      const headers = ['Name', 'Role', 'Attendance Days', 'Total Late', 'Approved Leaves', 'Approved Overtime', 'Approved OB'];
+      const rows = reportData.map(r => [r.name, r.role, r.attendance, r.late, r.leaves, r.overtime, r.ob]);
+      const csvContent = "data:text/csv;charset=utf-8," 
+        + headers.join(",") + "\n"
+        + rows.map(e => e.join(",")).join("\n");
+      
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `HR_Summary_Report_${startDate}_to_${endDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      if (detailedAttendance.length === 0) return;
+      const headers = ['Date', 'Staff Name', 'Time In', 'Time Out', 'Status', 'User Tasks/Remarks', 'Coordinator Remarks'];
+      const rows = detailedAttendance.map(r => [
+        r.date, 
+        r.userName, 
+        r.timeIn || 'NA', 
+        r.timeOut || 'NA', 
+        r.status, 
+        (r.tasks || '').replace(/,/g, ';'), 
+        (r.coordinatorRemarks || '').replace(/,/g, ';')
+      ]);
+      const csvContent = "data:text/csv;charset=utf-8," 
+        + headers.join(",") + "\n"
+        + rows.map(e => e.join(",")).join("\n");
+      
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `HR_Detailed_Attendance_${startDate}_to_${endDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   return (
@@ -8491,47 +8610,103 @@ function HRReportsModule({ user }: { user: UserProfile }) {
       </div>
 
       <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden">
-         <div className="p-8 border-b border-gray-50 flex justify-between items-center">
-            <h4 className="text-[10px] font-black text-indigo-800 uppercase tracking-widest">Report Preview</h4>
-            {reportData.length > 0 && (
+         <div className="p-8 border-b border-gray-50 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="flex bg-gray-100 p-1 rounded-2xl w-full md:w-auto">
+               <button 
+                 onClick={() => setReportTab('SUMMARY')}
+                 className={cn(
+                   "flex-1 md:w-40 py-2 px-6 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                   reportTab === 'SUMMARY' ? "bg-white text-indigo-600 shadow-sm" : "text-gray-400"
+                 )}
+               >
+                 Summary
+               </button>
+               <button 
+                 onClick={() => setReportTab('DETAILED')}
+                 className={cn(
+                   "flex-1 md:w-40 py-2 px-6 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                   reportTab === 'DETAILED' ? "bg-white text-indigo-600 shadow-sm" : "text-gray-400"
+                 )}
+               >
+                 Detailed Logs
+               </button>
+            </div>
+            {((reportTab === 'SUMMARY' && reportData.length > 0) || (reportTab === 'DETAILED' && detailedAttendance.length > 0)) && (
               <button 
                 onClick={exportCSV}
                 className="flex items-center gap-2 text-emerald-600 hover:bg-emerald-50 px-4 py-2 rounded-xl transition-all"
               >
                 <Download size={16} />
-                <span className="text-[10px] font-black uppercase tracking-widest">Export CSV</span>
+                <span className="text-[10px] font-black uppercase tracking-widest">Export {reportTab} CSV</span>
               </button>
             )}
          </div>
          <div className="overflow-x-auto no-scrollbar">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest text-left">
-                  <th className="p-8">Staff Name</th>
-                  <th className="p-8 text-center">Attendance</th>
-                  <th className="p-8 text-center text-amber-600">Times Late</th>
-                  <th className="p-8 text-center text-indigo-600">Leaves</th>
-                  <th className="p-8 text-center text-emerald-600">Overtime</th>
-                  <th className="p-8 text-center text-blue-600">OB</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {reportData.map((r, i) => (
-                  <tr key={i} className="group hover:bg-indigo-50/20 transition-all duration-300">
-                    <td className="p-8">
-                       <p className="text-sm font-black text-indigo-950 uppercase">{r.name}</p>
-                       <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-1">{r.role}</p>
-                    </td>
-                    <td className="p-8 text-center text-sm font-black text-gray-700">{r.attendance}</td>
-                    <td className="p-8 text-center text-sm font-black text-amber-600">{r.late}</td>
-                    <td className="p-8 text-center text-sm font-black text-indigo-600">{r.leaves}</td>
-                    <td className="p-8 text-center text-sm font-black text-emerald-600">{r.overtime}</td>
-                    <td className="p-8 text-center text-sm font-black text-blue-600">{r.ob}</td>
+            {reportTab === 'SUMMARY' ? (
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest text-left">
+                    <th className="p-8">Staff Name</th>
+                    <th className="p-8 text-center">Attendance</th>
+                    <th className="p-8 text-center text-amber-600">Times Late</th>
+                    <th className="p-8 text-center text-indigo-600">Leaves</th>
+                    <th className="p-8 text-center text-emerald-600">Overtime</th>
+                    <th className="p-8 text-center text-blue-600">OB</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            {reportData.length === 0 && (
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {reportData.map((r, i) => (
+                    <tr key={i} className="group hover:bg-indigo-50/20 transition-all duration-300">
+                      <td className="p-8">
+                         <p className="text-sm font-black text-indigo-950 uppercase">{r.name}</p>
+                         <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-1">{r.role}</p>
+                      </td>
+                      <td className="p-8 text-center text-sm font-black text-gray-700">{r.attendance}</td>
+                      <td className="p-8 text-center text-sm font-black text-amber-600">{r.late}</td>
+                      <td className="p-8 text-center text-sm font-black text-indigo-600">{r.leaves}</td>
+                      <td className="p-8 text-center text-sm font-black text-emerald-600">{r.overtime}</td>
+                      <td className="p-8 text-center text-sm font-black text-blue-600">{r.ob}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest text-left">
+                    <th className="p-8">Date</th>
+                    <th className="p-8">Staff Name</th>
+                    <th className="p-8 text-center">Time</th>
+                    <th className="p-8 text-center">Status</th>
+                    <th className="p-8">User Tasks/Remarks</th>
+                    <th className="p-8">Coord Remarks</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {detailedAttendance.map((r, i) => (
+                    <tr key={i} className="group hover:bg-indigo-50/20 transition-all duration-300">
+                      <td className="p-8 text-xs font-bold text-gray-500">{r.date}</td>
+                      <td className="p-8">
+                         <p className="text-xs font-black text-indigo-950 uppercase">{r.userName}</p>
+                      </td>
+                      <td className="p-8 text-center">
+                         <p className="text-[10px] font-mono text-gray-600">{r.timeIn || '--:--'} - {r.timeOut || '--:--'}</p>
+                      </td>
+                      <td className="p-8 text-center text-[10px] font-black uppercase tracking-widest">
+                         <span className={cn(r.status === 'ON TIME' ? 'text-emerald-500' : 'text-amber-500')}>{r.status}</span>
+                      </td>
+                      <td className="p-8 max-w-[200px]">
+                         <p className="text-[10px] text-gray-400 font-medium italic line-clamp-2" title={r.tasks}>{r.tasks || '--'}</p>
+                      </td>
+                      <td className="p-8 max-w-[200px]">
+                         <p className="text-[10px] text-indigo-400 font-medium italic line-clamp-2" title={r.coordinatorRemarks}>{r.coordinatorRemarks || '--'}</p>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {((reportTab === 'SUMMARY' && reportData.length === 0) || (reportTab === 'DETAILED' && detailedAttendance.length === 0)) && (
               <div className="py-24 text-center text-gray-300">
                  <FileBarChart className="mx-auto mb-4 opacity-10 text-indigo-950" size={64} />
                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Set date range and click generate</p>
