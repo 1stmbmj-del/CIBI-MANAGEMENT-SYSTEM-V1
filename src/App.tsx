@@ -1059,9 +1059,6 @@ function Dashboard({
       children: [
         { id: 'ATTENDANCE', icon: Fingerprint },
         { id: 'ATTENDANCE CALENDAR', icon: CalendarRange },
-        { id: 'LEAVES', icon: CalendarDays },
-        { id: 'OVERTIME', icon: Timer },
-        { id: 'OB FILLING', icon: Briefcase },
         { id: 'REVIEW REQUESTS', icon: ClipboardCheck },
         { id: 'HR REPORTS', icon: FileBarChart },
       ]
@@ -8058,20 +8055,27 @@ function AttendanceCalendar({ user }: { user: UserProfile }) {
       ot.date === dateStr
     );
 
-    if (leaveActive) return 'LEAVE';
-    if (obActive) return 'OB';
-    if (otActive) return 'OT';
-    if (!record) return 'ABSENT';
-    if (record.timeIn && record.timeOut) {
+    // Calculate total minutes including approved OBs
+    let totalWorkMinutes = 0;
+    if (record && record.timeIn && record.timeOut) {
       const [hIn, mIn] = record.timeIn.split(':').map(Number);
       const [hOut, mOut] = record.timeOut.split(':').map(Number);
-      const totalMinutes = (hOut * 60 + mOut) - (hIn * 60 + mIn);
-      const isSaturday = date.getDay() === 6;
-      const requiredMinutes = isSaturday ? 7 * 60 : 8 * 60;
-      
-      if (totalMinutes < requiredMinutes) return 'INCOMPLETE';
-      return 'PRESENT';
+      totalWorkMinutes = (hOut * 60 + mOut) - (hIn * 60 + mIn);
     }
+
+    if (obActive) {
+      totalWorkMinutes += (Number(obActive.hours || 0) * 60 + Number(obActive.minutes || 0));
+    }
+
+    const isSaturday = date.getDay() === 6;
+    const requiredMinutes = isSaturday ? 7 * 60 : 8 * 60;
+
+    if (totalWorkMinutes >= requiredMinutes) return 'PRESENT';
+    if (leaveActive) return 'PRESENT';
+    if (obActive) return 'PRESENT';
+    if (otActive) return 'OT';
+    if (!record) return 'ABSENT';
+    
     return 'INCOMPLETE';
   };
 
@@ -8119,7 +8123,7 @@ function AttendanceCalendar({ user }: { user: UserProfile }) {
         hours: Number(obHours),
         minutes: Number(obMinutes),
         reason: obReason.trim(),
-        status: 'Approved', 
+        status: 'Pending', 
         createdAt: new Date().toISOString()
       });
       toast.success("OB recorded for selected date");
@@ -8180,14 +8184,35 @@ function AttendanceCalendar({ user }: { user: UserProfile }) {
            </div>
            <div className="grid grid-cols-7 gap-3">
               {days.map(day => {
+                const dateStr = format(day, 'yyyy-MM-dd');
                 const status = getDayStatus(day);
+                
+                // Track active filings specifically for indicators
+                const obActive = obRequests.find(ob => 
+                  ob.userId === selectedUser && 
+                  ob.status === 'Approved' && 
+                  isWithinInterval(day, { start: parseISO(ob.startDate), end: parseISO(ob.endDate) })
+                );
+
+                const leaveActive = leaves.find(l => 
+                  l.userId === selectedUser && 
+                  l.status === 'Approved' && 
+                  isWithinInterval(day, { start: parseISO(l.startDate), end: parseISO(l.endDate) })
+                );
+
+                const otActive = overtime.find(ot => 
+                  ot.userId === selectedUser && 
+                  ot.status === 'Approved' && 
+                  ot.date === dateStr
+                );
+
                 return (
                   <motion.button
                     key={day.toString()}
                     whileHover={{ scale: 1.05 }}
                     onClick={() => handleDayClick(day)}
                     className={cn(
-                      "aspect-square rounded-2xl flex flex-col items-center justify-center relative border-2 transition-all p-2",
+                      "aspect-square rounded-2xl flex flex-col items-center justify-center relative border-2 transition-all p-2 overflow-hidden",
                       status === 'PRESENT' ? "bg-emerald-50 border-emerald-100 text-emerald-600" :
                       status === 'INCOMPLETE' ? "bg-amber-50 border-amber-100 text-amber-600" :
                       status === 'ABSENT' ? "bg-red-50 border-red-100 text-red-400" :
@@ -8204,6 +8229,25 @@ function AttendanceCalendar({ user }: { user: UserProfile }) {
                     {status === 'OB' && <Briefcase size={14} />}
                     {status === 'LEAVE' && <div className="text-[8px] font-black uppercase">LV</div>}
                     {status === 'OT' && <div className="text-[8px] font-black uppercase">OT</div>}
+
+                    {/* Small Corner Indicators */}
+                    <div className="absolute bottom-1 right-1 flex gap-0.5">
+                      {obActive && (
+                        <div className="w-2.5 h-2.5 bg-indigo-500 rounded-full flex items-center justify-center shadow-sm">
+                          <Briefcase size={4} className="text-white" />
+                        </div>
+                      )}
+                      {leaveActive && (
+                        <div className="w-2.5 h-2.5 bg-purple-500 rounded-full flex items-center justify-center shadow-sm">
+                          <span className="text-[4px] text-white font-black leading-none">LV</span>
+                        </div>
+                      )}
+                      {otActive && (
+                        <div className="w-2.5 h-2.5 bg-blue-500 rounded-full flex items-center justify-center shadow-sm">
+                          <span className="text-[4px] text-white font-black leading-none">OT</span>
+                        </div>
+                      )}
+                    </div>
                   </motion.button>
                 );
               })}
