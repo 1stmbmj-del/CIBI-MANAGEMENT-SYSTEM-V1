@@ -74,7 +74,7 @@ service cloud.firestore {
     }
 
     function isValidId(id) {
-      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return id is string && id.size() > 0 && id.size() <= 128;
     }
 
     function isValidAssignment(data) {
@@ -106,9 +106,89 @@ service cloud.firestore {
              data.createdAt is string;
     }
 
+    function isValidAttendance(data) {
+      return data.keys().hasAll(['userId', 'userName', 'date', 'status', 'createdAt']) &&
+             data.userId is string &&
+             data.userName is string &&
+             data.date is string &&
+             data.status in ["ON TIME", "LATE", "UNDERTIME", "OVERTIME"] &&
+             data.createdAt is string;
+    }
+
+    function isValidLeaveRequest(data) {
+      return data.keys().hasAll(['userId', 'userName', 'leaveType', 'startDate', 'endDate', 'reason', 'status', 'createdAt']) &&
+             data.userId is string &&
+             data.userName is string &&
+             data.leaveType is string &&
+             data.startDate is string &&
+             data.endDate is string &&
+             data.reason is string &&
+             data.status in ['Pending', 'Approved', 'Rejected'] &&
+             data.createdAt is string &&
+             (!data.keys().contains('remarks') || (data.remarks == null || data.remarks is string));
+    }
+
+    function isValidOvertimeRequest(data) {
+      return data.keys().hasAll(['userId', 'userName', 'date', 'hours', 'minutes', 'reason', 'status', 'createdAt']) &&
+             data.userId is string &&
+             data.userName is string &&
+             data.date is string &&
+             data.hours is number &&
+             data.minutes is number &&
+             data.reason is string &&
+             data.status in ['Pending', 'Approved', 'Rejected'] &&
+             data.createdAt is string &&
+             (!data.keys().contains('remarks') || (data.remarks == null || data.remarks is string));
+    }
+
+    function isValidOBRequest(data) {
+      return data.keys().hasAll(['userId', 'userName', 'startDate', 'endDate', 'reason', 'status', 'createdAt']) &&
+             data.userId is string &&
+             data.userName is string &&
+             data.startDate is string &&
+             data.endDate is string &&
+             data.reason is string &&
+             data.status in ['Pending', 'Approved', 'Rejected'] &&
+             data.createdAt is string &&
+             (!data.keys().contains('hours') || (data.hours == null || data.hours is number)) &&
+             (!data.keys().contains('minutes') || (data.minutes == null || data.minutes is number));
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
+
+    match /attendance/{attendanceId} {
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
+      allow create: if isSignedIn() && isValidAttendance(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && (isPrivileged() || resource.data.userId == request.auth.uid) && isValidAttendance(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /leaves/{leaveId} {
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
+      allow create: if isSignedIn() && isValidLeaveRequest(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && (isPrivileged() || resource.data.userId == request.auth.uid) && isValidLeaveRequest(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /overtime/{overtimeId} {
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
+      allow create: if isSignedIn() && isValidOvertimeRequest(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && (isPrivileged() || resource.data.userId == request.auth.uid) && isValidOvertimeRequest(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /ob_requests/{obId} {
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
+      allow create: if isSignedIn() && isValidOBRequest(request.resource.data) && (request.resource.data.userId == request.auth.uid || isPrivileged());
+      allow update: if isSignedIn() && (isPrivileged() || resource.data.userId == request.auth.uid) && isValidOBRequest(request.resource.data);
+      allow delete: if isAdmin();
+    }
 
     match /notifications/{notificationId} {
       // Use resource.data check for list since it's the recipient

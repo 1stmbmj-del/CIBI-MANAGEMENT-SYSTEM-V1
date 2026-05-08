@@ -151,6 +151,73 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["type", "sections", "updatedAt"]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "Daily staff attendance record",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "date": { "type": "string" },
+        "timeIn": { "type": ["string", "null"] },
+        "timeOut": { "type": ["string", "null"] },
+        "status": { "type": "string", "enum": ["ON TIME", "LATE", "UNDERTIME", "OVERTIME"] },
+        "tasks": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "date", "status", "createdAt"]
+    },
+    "LeaveRequest": {
+      "title": "LeaveRequest",
+      "description": "Staff leave exemption request",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "leaveType": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "reason": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "leaveType", "startDate", "endDate", "reason", "status", "createdAt"]
+    },
+    "OvertimeRequest": {
+      "title": "OvertimeRequest",
+      "description": "Extended protocol claim",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "date": { "type": "string" },
+        "hours": { "type": "number" },
+        "minutes": { "type": "number" },
+        "reason": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected"] },
+        "remarks": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "date", "hours", "minutes", "reason", "status", "createdAt"]
+    },
+    "OBRequest": {
+      "title": "OBRequest",
+      "description": "Official Business request",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "hours": { "type": "number" },
+        "minutes": { "type": "number" },
+        "reason": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected"] },
+        "remarks": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "startDate", "endDate", "reason", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -173,6 +240,22 @@
     "/notifications/{notificationId}": {
       "schema": "Notification",
       "description": "User notifications"
+    },
+    "/attendance/{attendanceId}": {
+      "schema": "Attendance",
+      "description": "Staff attendance logs"
+    },
+    "/leaves/{leaveId}": {
+      "schema": "LeaveRequest",
+      "description": "Staff leave applications"
+    },
+    "/overtime/{overtimeId}": {
+      "schema": "OvertimeRequest",
+      "description": "Staff overtime claims"
+    },
+    "/ob_requests/{obId}": {
+      "schema": "OBRequest",
+      "description": "Official Business requests"
     }
   }
 }

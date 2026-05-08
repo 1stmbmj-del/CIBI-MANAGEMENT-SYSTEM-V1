@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, UserRole, Assignment, AssignmentStatus, TimelineStep, AuthResponse, Liability, CashflowMonth, CashflowReport, MOP, TOP, LoanCategory, MCLCreditScore } from './types';
+import { UserProfile, UserRole, Assignment, AssignmentStatus, TimelineStep, Liability, CashflowReport, MOP, TOP, LoanCategory, AttendanceRecord, LeaveRequest, OvertimeRequest, LeaveType, OBRequest } from './types';
 import { 
   LineChart,
   Line,
@@ -17,7 +17,6 @@ import {
 } from 'recharts';
 import { 
   TrendingUp,
-  Wallet,
   LayoutDashboard, 
   Star,
   UserPlus, 
@@ -35,12 +34,7 @@ import {
   Database,
   User,
   Phone,
-  Lock,
-  MapPin,
-  Briefcase,
-  DollarSign,
   Calendar,
-  Percent,
   Clock,
   Search,
   BarChart2,
@@ -50,8 +44,6 @@ import {
   Pencil,
   Download,
   Save,
-  Plus,
-  Settings as UserSettings,
   FileText,
   Bell,
   Presentation,
@@ -59,25 +51,32 @@ import {
   Tablet,
   Smartphone,
   CheckCircle,
-  ShieldCheck
+  ShieldCheck,
+  CalendarDays,
+  Timer,
+  Fingerprint,
+  ClipboardCheck,
+  BarChart3,
+  Filter,
+  ArrowRight,
+  Briefcase,
+  FileBarChart,
+  CalendarRange,
+  XCircle
 } from 'lucide-react';
 import pptxgen from "pptxgenjs";
 import { motion, AnimatePresence } from 'framer-motion';
-import { format, differenceInMinutes } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWithinInterval, parseISO } from 'date-fns';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import * as XLSX from 'xlsx';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { auth, db } from './firebase';
 import { 
   onAuthStateChanged, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signOut,
-  updateProfile,
   updatePassword,
   GoogleAuthProvider,
   signInWithPopup
@@ -95,11 +94,57 @@ import {
   onSnapshot,
   orderBy,
   limit,
-  Timestamp,
   getDocFromServer,
   addDoc,
   deleteField
 } from 'firebase/firestore';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 import { AppNotification } from './types';
 
@@ -206,73 +251,6 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId: string | undefined;
-    email: string | null | undefined;
-    emailVerified: boolean | undefined;
-    isAnonymous: boolean | undefined;
-    tenantId: string | null | undefined;
-    providerInfo: {
-      providerId: string;
-      displayName: string | null;
-      email: string | null;
-      photoUrl: string | null;
-    }[];
-  }
-}
-
-const createNotification = async (userId: string, title: string, message: string, type: string, assignmentId?: string) => {
-  try {
-    await addDoc(collection(db, 'notifications'), {
-      userId,
-      title,
-      message,
-      type,
-      assignmentId: assignmentId || null,
-      read: false,
-      createdAt: new Date().toISOString()
-    });
-  } catch (err) {
-    console.error('Failed to create notification:', err);
-  }
-};
-
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
-    operationType,
-    path
-  };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
-
 // API Helpers (Migrated to Firebase)
 const api = {
   get: async (path: string) => {
@@ -299,7 +277,7 @@ const api = {
       handleFirestoreError(error, OperationType.GET, path);
     }
   },
-  post: async (path: string, data: any) => {
+  post: async (path: string, data: Record<string, unknown>) => {
     try {
       if (path === '/api/assignments') {
         const docRef = doc(collection(db, 'assignments'));
@@ -307,7 +285,8 @@ const api = {
         return { id: docRef.id };
       }
       if (path === '/api/admin-keys') {
-        const docRef = doc(db, 'admin_keys', data.key);
+        const key = data['key'] as string;
+        const docRef = doc(db, 'admin_keys', key);
         await setDoc(docRef, { ...data, createdAt: new Date().toISOString(), used: false });
         return { success: true };
       }
@@ -316,34 +295,34 @@ const api = {
       handleFirestoreError(error, OperationType.WRITE, path);
     }
   },
-  patch: async (path: string, data: any) => {
+  patch: async (path: string, data: Record<string, unknown>) => {
     try {
       const parts = path.split('/');
       if (parts[1] === 'api' && parts[2] === 'assignments') {
         const id = parts[3];
-        await updateDoc(doc(db, 'assignments', id), data);
+        await updateDoc(doc(db, 'assignments', id), data as { [x: string]: any });
         return { success: true };
       }
       if (path === '/api/auth/profile') {
         const user = auth.currentUser;
         if (!user) throw new Error('Not authenticated');
-        const updateData: any = {};
+        const updateData: Record<string, unknown> = {};
         if (data.fullName) updateData.fullName = data.fullName;
         if (data.mobileNumber) updateData.mobileNumber = data.mobileNumber;
         if (data.photoURL !== undefined) updateData.photoURL = data.photoURL;
         
         if (Object.keys(updateData).length > 0) {
-          await updateDoc(doc(db, 'users', user.uid), updateData);
+          await updateDoc(doc(db, 'users', user.uid), updateData as { [x: string]: any });
         }
         
         if (data.password) {
-          await updatePassword(user, data.password);
+          await updatePassword(user, data.password as string);
         }
         return { success: true };
       }
       if (parts[1] === 'api' && parts[2] === 'users') {
         const id = parts[3];
-        await updateDoc(doc(db, 'users', id), data);
+        await updateDoc(doc(db, 'users', id), data as { [x: string]: any });
         return { success: true };
       }
       throw new Error(`Endpoint not implemented: ${path}`);
@@ -490,15 +469,11 @@ export default function App() {
         {currentView === 'login' && (
           <Login 
             onSwitch={() => setCurrentView('register')} 
-            setUser={setUser} 
-            setCurrentView={setCurrentView} 
           />
         )}
         {currentView === 'register' && (
           <Register 
             onSwitch={() => setCurrentView('login')} 
-            setUser={setUser} 
-            setCurrentView={setCurrentView} 
           />
         )}
         {currentView === 'dashboard' && user && (
@@ -528,13 +503,9 @@ export default function App() {
 
 // --- LOGIN COMPONENT ---
 function Login({ 
-  onSwitch, 
-  setUser, 
-  setCurrentView 
+  onSwitch
 }: { 
-  onSwitch: () => void; 
-  setUser: (u: UserProfile) => void; 
-  setCurrentView: (v: any) => void; 
+  onSwitch: () => void;
 }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -548,7 +519,7 @@ function Login({
     try {
       await signInWithEmailAndPassword(auth, email, password);
       // onAuthStateChanged will handle the rest
-    } catch (err: any) {
+    } catch {
       setError('Invalid email or password');
     } finally {
       setLoading(false);
@@ -562,8 +533,9 @@ function Login({
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
       // onAuthStateChanged will handle profile creation if needed
-    } catch (err: any) {
-      setError(err.message || 'Google sign-in failed');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Google sign-in failed';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -675,13 +647,9 @@ function Login({
 
 // --- REGISTER COMPONENT ---
 function Register({ 
-  onSwitch, 
-  setUser, 
-  setCurrentView 
+  onSwitch
 }: { 
   onSwitch: () => void; 
-  setUser: (u: UserProfile) => void; 
-  setCurrentView: (v: any) => void; 
 }) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -689,7 +657,6 @@ function Register({
   const [role, setRole] = useState<UserRole>('user');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [adminKey, setAdminKey] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -722,8 +689,9 @@ function Register({
       await setDoc(doc(db, 'users', firebaseUser.uid), userData);
       
       // onAuthStateChanged will handle the rest
-    } catch (err: any) {
-      setError(err.message || 'Registration failed');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Registration failed';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -1030,6 +998,7 @@ function Dashboard({
   const isCoordinator = user.role === 'coordinator';
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [expandedMenus, setExpandedMenus] = useState<string[]>(['HR']);
   const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
 
@@ -1047,13 +1016,11 @@ function Dashboard({
   useEffect(() => {
     const q = query(
       collection(db, 'notifications'),
-      where('userId', '==', user.id),
-      orderBy('createdAt', 'desc'),
-      limit(20)
+      where('userId', '==', user.id)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AppNotification[];
-      setNotifications(data);
+      setNotifications(data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 50));
     }, (err) => {
       console.error('Firestore notification listener error:', err);
     });
@@ -1078,32 +1045,63 @@ function Dashboard({
     setShowNotifications(false);
   };
 
+  const toggleMenu = (menuId: string) => {
+    setExpandedMenus(prev => 
+      prev.includes(menuId) ? prev.filter(id => id !== menuId) : [...prev, menuId]
+    );
+  };
+
   const menuItems = isAdmin ? [
     { id: 'DASHBOARD', icon: LayoutDashboard },
+    { 
+      id: 'HR', 
+      icon: Users,
+      children: [
+        { id: 'ATTENDANCE', icon: Fingerprint },
+        { id: 'ATTENDANCE CALENDAR', icon: CalendarRange },
+        { id: 'LEAVES', icon: CalendarDays },
+        { id: 'OVERTIME', icon: Timer },
+        { id: 'OB FILLING', icon: Briefcase },
+        { id: 'REVIEW REQUESTS', icon: ClipboardCheck },
+        { id: 'HR REPORTS', icon: FileBarChart },
+      ]
+    },
+    { id: 'REPORTS', icon: FileText },
     { id: 'USERS', icon: Users },
     { id: 'ASSIGN ACCOUNT', icon: UserPlus },
     { id: 'ACCOUNT STATUS', icon: ClipboardList },
     { id: 'CRECOM APPROVAL', icon: CheckCircle2 },
     { id: 'VALIDATION & SURVEY', icon: Star },
-    { id: 'REPORTS', icon: FileText },
     { id: 'DATA STORAGE', icon: Database },
     { id: 'SCORING CONFIG', icon: Settings2 },
     { id: 'ADMIN KEYS', icon: Key },
-    { id: 'PROFILE', icon: UserSettings },
+    { id: 'PROFILE', icon: User },
   ] : isCoordinator ? [
     { id: 'DASHBOARD', icon: LayoutDashboard },
+    { id: 'ATTENDANCE', icon: Fingerprint },
+    { id: 'ATTENDANCE CALENDAR', icon: CalendarRange },
+    { id: 'LEAVES', icon: CalendarDays },
+    { id: 'OVERTIME', icon: Timer },
+    { id: 'OB FILLING', icon: Briefcase },
+    { id: 'REVIEW REQUESTS', icon: ClipboardCheck },
+    { id: 'HR REPORTS', icon: FileBarChart },
     { id: 'ASSIGN ACCOUNT', icon: UserPlus },
     { id: 'ACCOUNT STATUS', icon: ClipboardList },
     { id: 'CRECOM APPROVAL', icon: CheckCircle2 },
     { id: 'FOR VALIDATION & SURVEY', icon: Star },
     { id: 'VALIDATION & SURVEY', icon: BarChart2 },
-    { id: 'PROFILE', icon: UserSettings },
+    { id: 'PROFILE', icon: User },
   ] : [
     { id: 'DASHBOARD', icon: LayoutDashboard },
+    { id: 'ATTENDANCE', icon: Fingerprint },
+    { id: 'ATTENDANCE CALENDAR', icon: CalendarRange },
+    { id: 'LEAVES', icon: CalendarDays },
+    { id: 'OVERTIME', icon: Timer },
+    { id: 'OB FILLING', icon: Briefcase },
     { id: 'ACCOUNT STATUS', icon: ClipboardList },
     { id: 'FOR VALIDATION & SURVEY', icon: CheckCircle2 },
     { id: 'REPORTS', icon: FileText },
-    { id: 'PROFILE', icon: UserSettings },
+    { id: 'PROFILE', icon: User },
   ];
 
   return (
@@ -1166,36 +1164,87 @@ function Dashboard({
 
           {/* Navigation */}
           <nav className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar">
-            {menuItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setActiveTab(item.id);
-                  if (isMobile) setSidebarOpen(false);
-                }}
-                className={cn(
-                  "w-full flex items-center transition-all duration-200 rounded-xl group",
-                  activeTab === item.id 
-                    ? "bg-linear-to-r from-white to-emerald-50 text-emerald-800 shadow-lg shadow-black/20 scale-105" 
-                    : "hover:bg-white/10 text-white/70 hover:text-white",
-                  sidebarOpen ? "px-4 py-3 space-x-3" : "py-4 justify-center"
-                )}
-                title={!sidebarOpen ? item.id : undefined}
-              >
-                <item.icon size={20} className={cn(
-                  "transition-transform",
-                  activeTab === item.id ? "scale-110" : "group-hover:scale-110"
-                )} />
-                {sidebarOpen && (
-                  <motion.span 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-[11px] font-black uppercase tracking-widest truncate"
+            {menuItems.map((item: any) => (
+              <React.Fragment key={item.id}>
+                {item.children ? (
+                  <div className="space-y-1">
+                    <button
+                      onClick={() => toggleMenu(item.id)}
+                      className={cn(
+                        "w-full flex items-center transition-all duration-200 rounded-xl group",
+                        sidebarOpen ? "px-4 py-3 space-x-3" : "py-4 justify-center",
+                        expandedMenus.includes(item.id) ? "text-white" : "text-white/70 hover:text-white"
+                      )}
+                    >
+                      <item.icon size={20} />
+                      {sidebarOpen && (
+                        <>
+                          <span className="flex-1 text-[11px] font-black uppercase tracking-widest text-left">{item.id}</span>
+                          <ChevronRight 
+                            size={14} 
+                            className={cn(
+                              "transition-transform",
+                              expandedMenus.includes(item.id) && "rotate-90"
+                            )} 
+                          />
+                        </>
+                      )}
+                    </button>
+                    {sidebarOpen && expandedMenus.includes(item.id) && (
+                      <div className="ml-4 space-y-1 border-l border-white/10 pl-2">
+                        {item.children.map((child: any) => (
+                          <button
+                            key={child.id}
+                            onClick={() => {
+                              setActiveTab(child.id);
+                              if (isMobile) setSidebarOpen(false);
+                            }}
+                            className={cn(
+                              "w-full flex items-center px-4 py-2 space-x-3 transition-all duration-200 rounded-lg group",
+                              activeTab === child.id 
+                                ? "bg-white text-emerald-800" 
+                                : "text-white/60 hover:text-white hover:bg-white/5"
+                            )}
+                          >
+                            <child.icon size={16} />
+                            <span className="text-[10px] font-bold uppercase tracking-widest truncate">{child.id}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      if (isMobile) setSidebarOpen(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center transition-all duration-200 rounded-xl group",
+                      activeTab === item.id 
+                        ? "bg-linear-to-r from-white to-emerald-50 text-emerald-800 shadow-lg shadow-black/20 scale-105" 
+                        : "hover:bg-white/10 text-white/70 hover:text-white",
+                      sidebarOpen ? "px-4 py-3 space-x-3" : "py-4 justify-center"
+                    )}
+                    title={!sidebarOpen ? item.id : undefined}
                   >
-                    {item.id}
-                  </motion.span>
+                    <item.icon size={20} className={cn(
+                      "transition-transform",
+                      activeTab === item.id ? "scale-110" : "group-hover:scale-110"
+                    )} />
+                    {sidebarOpen && (
+                      <motion.span 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="text-[11px] font-black uppercase tracking-widest truncate"
+                      >
+                        {item.id}
+                      </motion.span>
+                    )}
+                  </button>
                 )}
-              </button>
+              </React.Fragment>
             ))}
           </nav>
 
@@ -1358,6 +1407,13 @@ function Dashboard({
           )}>
             <AnimatePresence mode="wait">
               {activeTab === 'DASHBOARD' && ((isAdmin || isCoordinator) ? <DashboardOverview user={user} /> : <CIDashboard user={user} />)}
+              {activeTab === 'ATTENDANCE' && <AttendanceModule user={user} />}
+              {activeTab === 'ATTENDANCE CALENDAR' && <AttendanceCalendar user={user} />}
+              {activeTab === 'LEAVES' && <LeaveModule user={user} />}
+              {activeTab === 'OVERTIME' && <OvertimeModule user={user} />}
+              {activeTab === 'OB FILLING' && <OBFillingModule user={user} />}
+              {(activeTab === 'REVIEW REQUESTS' && (isAdmin || isCoordinator)) && <ReviewRequests user={user} />}
+              {(activeTab === 'HR REPORTS' && (isAdmin || isCoordinator)) && <HRReportsModule user={user} />}
               {activeTab === 'USERS' && <UserManagement user={user} />}
               {(activeTab === 'ASSIGN ACCOUNT' && (isAdmin || isCoordinator)) && <AssignAccount user={user} />}
               {activeTab === 'ACCOUNT STATUS' && <AccountStatus user={user} />}
@@ -1365,7 +1421,7 @@ function Dashboard({
               {(activeTab === 'VALIDATION & SURVEY' && (isAdmin || isCoordinator)) && <ValidationSurveyResults user={user} />}
               {activeTab === 'REPORTS' && <ReportsView user={user} />}
               {activeTab === 'DATA STORAGE' && <DataStorage user={user} />}
-              {activeTab === 'SCORING CONFIG' && <AdminScoringSettings user={user} />}
+              {activeTab === 'SCORING CONFIG' && <AdminScoringSettings />}
               {activeTab === 'ADMIN KEYS' && <AdminKeys user={user} />}
               {activeTab === 'FOR VALIDATION & SURVEY' && <ValidationSurvey user={user} />}
               {activeTab === 'PROFILE' && <ProfileSettings user={user} setUser={setUser} />}
@@ -1380,8 +1436,19 @@ function Dashboard({
 // --- SHARED UTILS ---
 // Constants & Utilities
 
+interface LeaderboardEntry {
+  id: string;
+  fullName: string;
+  photoURL?: string;
+  points: number;
+  approvedCount: number;
+  deniedCount: number;
+  mclCount: number;
+  madeCount: number;
+}
+
 function LeaderboardSection({ assignments, currentMonth, currentYear }: { assignments: Assignment[], currentMonth: number, currentYear: number }) {
-  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
@@ -1490,6 +1557,22 @@ const steps = [
   'Completed'
 ];
 
+const createNotification = async (userId: string, title: string, message: string, type: string, assignmentId: string) => {
+  try {
+    await addDoc(collection(db, 'notifications'), {
+      userId,
+      title,
+      message,
+      type,
+      assignmentId,
+      read: false,
+      createdAt: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Failed to create notification:', err);
+  }
+};
+
 const calculateTAT = (timeline: TimelineStep[]) => {
   if (timeline.length < 2) return '0h 0m';
   const start = new Date(timeline[0].timestamp);
@@ -1550,6 +1633,8 @@ function DashboardOverview({ user }: { user: UserProfile }) {
     const qUsers = query(collection(db, 'users'), where('role', 'in', ['user', 'coordinator']));
     const unsubUsers = onSnapshot(qUsers, (snapshot) => {
       setCiOfficers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as UserProfile[]);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'users');
     });
 
     const q = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
@@ -1569,8 +1654,6 @@ function DashboardOverview({ user }: { user: UserProfile }) {
         const date = new Date(a.createdAt);
         return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
       });
-
-      const approvedMonthly = monthly.filter(a => a.status === 'Approved' || a.status === 'Completed');
 
       setStats({
         total: assignmentsList.length,
@@ -2001,7 +2084,7 @@ const DEFAULT_MCL_SCORING_SHEET = {
 
 const DEFAULT_SEAMAN_SCORING_SHEET = { ...DEFAULT_MCL_SCORING_SHEET };
 
-function AdminScoringSettings({ user }: { user: UserProfile }) {
+function AdminScoringSettings() {
   const [configType, setConfigType] = useState<'SME' | 'MCL' | 'Seaman'>('SME');
   const [sections, setSections] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -2257,10 +2340,10 @@ function AdminScoringSettings({ user }: { user: UserProfile }) {
 }
 
 function UserManagement({ user }: { user: UserProfile }) {
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
   const [adminKeys, setAdminKeys] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [actionConfirm, setActionConfirm] = useState<{ type: 'delete' | 'edit' | 'deleteKey', id: string, name?: string } | null>(null);
 
   const [viewingAssignments, setViewingAssignments] = useState<any | null>(null);
@@ -2284,11 +2367,12 @@ function UserManagement({ user }: { user: UserProfile }) {
     const qAssignments = query(collection(db, 'assignments'));
     const unsubAssignments = onSnapshot(qAssignments, (snapshot) => {
       setAllAssignments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[]);
+      setLoading(false);
     }, (err) => {
       handleFirestoreError(err, OperationType.GET, 'assignments');
+      setLoading(false);
     });
 
-    setLoading(false);
     return () => {
       unsubUsers();
       unsubKeys();
@@ -2516,9 +2600,10 @@ function UserManagement({ user }: { user: UserProfile }) {
                   </button>
                   <button 
                     type="submit"
-                    className="flex-1 py-4 bg-emerald-600 text-white font-black rounded-2xl shadow-lg shadow-emerald-900/10 hover:bg-emerald-700 transition-all uppercase tracking-widest text-[10px]"
+                    disabled={loading}
+                    className="flex-1 py-4 bg-emerald-600 text-white font-black rounded-2xl shadow-lg shadow-emerald-900/10 hover:bg-emerald-700 transition-all uppercase tracking-widest text-[10px] disabled:opacity-50"
                   >
-                    Update Identity
+                    {loading ? "Processing..." : "Update Identity"}
                   </button>
                 </div>
               </form>
@@ -2800,11 +2885,17 @@ function CIDashboard({ user }: { user: UserProfile }) {
       handleFirestoreError(err, OperationType.GET, 'assignments');
     });
 
-    // Also fetch ALL assignments for the shared leaderboard
-    const qAll = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
-    const unsubAll = onSnapshot(qAll, (snapshot) => {
-      setAllAssignments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[]);
-    });
+    // Also fetch ALL assignments for the shared leaderboard only if privileged
+    // Regular workers won't see are not allowed to list all assignments for security
+    let unsubAll = () => {};
+    if (user.role === 'admin' || user.role === 'coordinator') {
+      const qAll = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'), limit(500));
+      unsubAll = onSnapshot(qAll, (snapshot) => {
+        setAllAssignments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[]);
+      }, (err) => {
+        console.error("Leaderboard query failed:", err);
+      });
+    }
 
     return () => {
       unsubscribe();
@@ -3075,6 +3166,847 @@ function ProfileSettings({ user, setUser }: { user: UserProfile, setUser: (u: Us
   );
 }
 
+// --- ATTENDANCE MODULE ---
+function AttendanceModule({ user }: { user: UserProfile }) {
+  const isAdmin = user.role === 'admin';
+  const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
+  const [showTaskLog, setShowTaskLog] = useState(false);
+  const [taskLog, setTaskLog] = useState('');
+  const [isSubmittingTask, setIsSubmittingTask] = useState(false);
+
+  useEffect(() => {
+    const isAdminOrCoordinator = user.role === 'admin' || user.role === 'coordinator';
+    const q = isAdminOrCoordinator 
+      ? query(collection(db, 'attendance'), orderBy('createdAt', 'desc'), limit(100))
+      : query(collection(db, 'attendance'), where('userId', '==', user.id), orderBy('createdAt', 'desc'), limit(50));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AttendanceRecord[];
+      setRecords(data);
+      if (!isAdminOrCoordinator) {
+        const today = format(new Date(), 'yyyy-MM-dd');
+        const todayRec = data.find(r => r.date === today);
+        setTodayRecord(todayRec || null);
+      }
+      setIsLoading(false);
+    }, (err) => {
+       handleFirestoreError(err, OperationType.LIST, 'attendance');
+       setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user.id, user.role]);
+
+  const handleTimeAction = async (type: 'in' | 'out') => {
+    const now = new Date();
+    const today = format(now, 'yyyy-MM-dd');
+    const timeStr = format(now, 'HH:mm:ss');
+    
+    try {
+      if (type === 'in') {
+        if (todayRecord) {
+          toast.error("Already timed in for today");
+          return;
+        }
+        const hour = now.getHours();
+        const minutes = now.getMinutes();
+        const isSaturday = now.getDay() === 6;
+        let status: 'LATE' | 'ON TIME' = 'ON TIME';
+        
+        if (isSaturday) {
+          // Saturday: <= 9:00 AM is ON TIME, 9:01 AM onwards is LATE
+          if (hour > 9 || (hour === 9 && minutes >= 1)) {
+            status = 'LATE';
+          }
+        } else {
+          // Monday - Friday: Lateness is recorded from 8:00 AM onwards
+          if (hour >= 8) {
+            status = 'LATE';
+          }
+        }
+        
+        try {
+          await addDoc(collection(db, 'attendance'), {
+            userId: user.id,
+            userName: user.fullName,
+            date: today,
+            timeIn: timeStr,
+            timeOut: null,
+            status,
+            tasks: '',
+            createdAt: now.toISOString()
+          });
+          toast.success("Timed in successfully");
+        } catch (err) {
+          handleFirestoreError(err, OperationType.CREATE, 'attendance');
+        }
+      } else {
+        if (!todayRecord) {
+          toast.error("You must time in first");
+          return;
+        }
+        if (todayRecord.timeOut) {
+          toast.error("Already timed out for today");
+          return;
+        }
+        
+        setShowTaskLog(true);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Action failed");
+    }
+  };
+
+  const confirmTimeOut = async () => {
+    if (!taskLog.trim()) {
+      toast.error("Please fill in your task log before timing out");
+      return;
+    }
+    if (!todayRecord) return;
+
+    setIsSubmittingTask(true);
+    const now = new Date();
+    const timeStr = format(now, 'HH:mm:ss');
+
+    try {
+      await updateDoc(doc(db, 'attendance', todayRecord.id), {
+        timeOut: timeStr,
+        tasks: taskLog
+      });
+      toast.success("Timed out successfully");
+      setShowTaskLog(false);
+      setTaskLog('');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `attendance/${todayRecord.id}`);
+      toast.error("Time out failed");
+    } finally {
+      setIsSubmittingTask(false);
+    }
+  };
+
+  if (isLoading) return <div className="p-12 text-center text-emerald-800 font-bold uppercase tracking-widest animate-pulse">Loading Records...</div>;
+
+  return (
+    <div className="space-y-12">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white p-6 rounded-3xl border border-emerald-50 shadow-sm"
+        >
+           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Total Presence</p>
+           <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
+                <CheckCircle size={20} />
+              </div>
+              <span className="text-4xl font-black text-emerald-900 tracking-tighter">{records.length}</span>
+           </div>
+           <p className="text-[9px] font-bold text-gray-400 uppercase mt-2">Active Duty Days</p>
+        </motion.div>
+
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-white p-6 rounded-3xl border border-amber-50 shadow-sm"
+        >
+           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 text-amber-600">Total Late</p>
+           <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-500">
+                <AlertCircle size={20} />
+              </div>
+              <span className="text-4xl font-black text-amber-600 tracking-tighter">{records.filter(r => r.status === 'LATE').length}</span>
+           </div>
+           <p className="text-[9px] font-bold text-gray-400 uppercase mt-2">Time-In Violations</p>
+        </motion.div>
+      </div>
+
+      {!isAdmin && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            className={cn(
+              "h-48 rounded-3xl p-8 flex flex-col justify-between relative overflow-hidden transition-all shadow-xl",
+              todayRecord ? "bg-emerald-900/10 border-2 border-emerald-500/20" : "bg-black text-white"
+            )}
+          >
+             <div className="z-10">
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Entry Activity</p>
+                <h3 className={cn("text-4xl font-black uppercase tracking-tighter mt-1", todayRecord ? "text-emerald-900" : "text-white")}>
+                    {todayRecord ? "Time In" : "Ready to Start"}
+                </h3>
+             </div>
+             <div className="z-10 flex items-center justify-between">
+                {todayRecord?.timeIn ? (
+                  <span className="text-2xl font-mono text-emerald-600 font-black">{todayRecord.timeIn}</span>
+                ) : (
+                  <button 
+                    onClick={() => handleTimeAction('in')}
+                    className="bg-white text-black px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+                  >
+                    Time In Now
+                  </button>
+                )}
+                <TrendingUp size={32} className="opacity-20 translate-x-4" />
+             </div>
+             <Fingerprint className="absolute -right-8 -bottom-8 w-48 h-48 opacity-5" />
+          </motion.div>
+
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            className={cn(
+              "h-48 rounded-3xl p-8 flex flex-col justify-between relative overflow-hidden transition-all shadow-xl",
+              (todayRecord?.timeOut) ? "bg-indigo-900/10 border-2 border-indigo-500/20" : "bg-linear-to-br from-indigo-700 to-purple-800 text-white"
+            )}
+          >
+             <div className="z-10">
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Exit Activity</p>
+                <h3 className={cn("text-4xl font-black uppercase tracking-tighter mt-1", todayRecord?.timeOut ? "text-indigo-900" : "text-white")}>
+                    {todayRecord?.timeOut ? "Time Out" : "Duty in Progress"}
+                </h3>
+             </div>
+             <div className="z-10 flex items-center justify-between">
+                {todayRecord?.timeOut ? (
+                  <span className="text-2xl font-mono text-indigo-600 font-black">{todayRecord.timeOut}</span>
+                ) : (
+                  <button 
+                    onClick={() => handleTimeAction('out')}
+                    disabled={!todayRecord}
+                    className="bg-white text-indigo-900 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    Time Out Now
+                  </button>
+                )}
+                <Clock size={32} className="opacity-20 translate-x-4" />
+             </div>
+             <Timer className="absolute -right-8 -bottom-8 w-48 h-48 opacity-5" />
+          </motion.div>
+        </div>
+      )}
+
+      {/* RECENT ACTIVITY */}
+      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
+        <div className="flex justify-between items-center mb-8">
+          <h3 className="text-xs font-black text-emerald-800 uppercase tracking-[0.2em]">
+            {isAdmin ? "Summary of Attendance" : "Recent Activity"}
+          </h3>
+          <div className="flex items-center gap-4">
+             <span className="text-[9px] text-gray-400 font-bold uppercase">{records.length} records found</span>
+             <button className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full uppercase tracking-tighter hover:bg-emerald-100 transition-colors">
+                Refresh
+             </button>
+          </div>
+        </div>
+        
+        <div className="overflow-x-auto no-scrollbar">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest text-left">
+                <th className="p-4">Employee</th>
+                <th className="p-4">Date</th>
+                <th className="p-4">Action</th>
+                <th className="p-4">Status</th>
+                <th className="p-4">Tasks</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {records.map((r) => (
+                <tr key={r.id} className="group hover:bg-gray-50/50 transition-colors">
+                  <td className="p-4">
+                    <p className="text-[11px] font-black text-emerald-900 uppercase truncate max-w-[150px]">{r.userName}</p>
+                  </td>
+                  <td className="p-4">
+                    <p className="text-[11px] font-bold text-gray-600">{format(new Date(r.date), 'MMM dd, yyyy')}</p>
+                    <p className="text-[9px] text-gray-400 uppercase font-mono mt-0.5">{r.timeIn || "--:--"} · {r.timeOut || "--:--"}</p>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex gap-2">
+                       {r.timeIn && (
+                         <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[8px] font-black uppercase tracking-tighter">In</span>
+                       )}
+                       {r.timeOut && (
+                         <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[8px] font-black uppercase tracking-tighter">Out</span>
+                       )}
+                    </div>
+                  </td>
+                  <td className="p-4 font-black text-[9px] uppercase tracking-widest">
+                    <span className={cn(
+                      r.status === 'ON TIME' ? "text-emerald-500" : "text-amber-500"
+                    )}>{r.status}</span>
+                  </td>
+                  <td className="p-4 text-[10px] text-gray-400 font-medium italic">
+                    {r.tasks ? (
+                      <p className="truncate max-w-[200px]" title={r.tasks}>{r.tasks}</p>
+                    ) : "---"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {records.length === 0 && (
+            <div className="py-24 text-center text-gray-300">
+               <Fingerprint className="mx-auto mb-2 opacity-20" size={48} />
+               <p className="text-[10px] font-bold uppercase tracking-widest">No activity reported</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Task Log Modal */}
+      <AnimatePresence>
+        {showTaskLog && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowTaskLog(false)}
+              className="absolute inset-0 bg-emerald-950/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative z-10 p-8"
+            >
+              <div className="text-center space-y-4 mb-8">
+                <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto">
+                   <ClipboardList size={32} className="text-emerald-600" />
+                </div>
+                <h3 className="text-2xl font-black text-emerald-900 uppercase tracking-tighter">Task Log Required</h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Please summarize your activities today before timing out</p>
+              </div>
+
+              <div className="space-y-4">
+                <textarea
+                  value={taskLog}
+                  onChange={(e) => setTaskLog(e.target.value)}
+                  placeholder="What have you accomplished today?..."
+                  className="w-full h-40 bg-gray-50 border-2 border-emerald-50 rounded-2xl p-4 text-xs font-bold focus:border-emerald-500 focus:outline-none transition-all resize-none"
+                  autoFocus
+                />
+
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setShowTaskLog(false)}
+                    className="flex-1 h-12 border-2 border-gray-100 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmTimeOut}
+                    disabled={isSubmittingTask || !taskLog.trim()}
+                    className="flex-1 h-12 bg-emerald-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-950/20 active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    {isSubmittingTask ? "Processing..." : "Complete & Time Out"}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// --- LEAVE MODULE ---
+function LeaveModule({ user }: { user: UserProfile }) {
+  const [formData, setFormData] = useState<Partial<LeaveRequest>>({
+    leaveType: 'Sick Leave',
+    startDate: '',
+    endDate: '',
+    reason: ''
+  });
+  const [history, setHistory] = useState<LeaveRequest[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const q = query(collection(db, 'leaves'), where('userId', '==', user.id), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as LeaveRequest[]);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'leaves');
+    });
+    return () => unsubscribe();
+  }, [user.id]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.startDate || !formData.endDate || !formData.reason) {
+      toast.error("Please provide all details");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, 'leaves'), {
+        ...formData,
+        userId: user.id,
+        userName: user.fullName,
+        status: 'Pending',
+        createdAt: new Date().toISOString()
+      });
+      toast.success("Application submitted successfully");
+      setFormData({ leaveType: 'Sick Leave', startDate: '', endDate: '', reason: '' });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, 'leaves');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+      <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 flex flex-col justify-between">
+        <div>
+          <h3 className="text-xl font-black text-emerald-900 uppercase tracking-tight mb-8">Application Form</h3>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Leave Category</label>
+              <select 
+                value={formData.leaveType}
+                onChange={e => setFormData({...formData, leaveType: e.target.value as LeaveType})}
+                className="w-full h-12 bg-gray-50 border-2 border-gray-100 rounded-xl px-4 text-xs font-bold focus:border-emerald-500 focus:outline-none transition-all"
+              >
+                <option>Sick Leave</option>
+                <option>Vacation Leave</option>
+                <option>Emergency Leave</option>
+                <option>Maternity Leave</option>
+                <option>Paternity Leave</option>
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+               <div className="space-y-2">
+                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Start Date</label>
+                 <input 
+                   type="date"
+                   value={formData.startDate}
+                   onChange={e => setFormData({...formData, startDate: e.target.value})}
+                   className="w-full h-12 bg-gray-50 border-2 border-gray-100 rounded-xl px-4 text-xs font-bold focus:border-emerald-500 focus:outline-none transition-all"
+                 />
+               </div>
+               <div className="space-y-2">
+                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">End Date</label>
+                 <input 
+                   type="date"
+                   value={formData.endDate}
+                   onChange={e => setFormData({...formData, endDate: e.target.value})}
+                   className="w-full h-12 bg-gray-50 border-2 border-gray-100 rounded-xl px-4 text-xs font-bold focus:border-emerald-500 focus:outline-none transition-all"
+                 />
+               </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Reason</label>
+              <textarea 
+                value={formData.reason}
+                onChange={e => setFormData({...formData, reason: e.target.value})}
+                placeholder="State your reason for leave..."
+                className="w-full h-32 bg-gray-50 border-2 border-gray-100 rounded-xl p-4 text-xs font-bold focus:border-emerald-500 focus:outline-none transition-all resize-none"
+              />
+            </div>
+            <button 
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full h-14 bg-emerald-800 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] shadow-lg shadow-emerald-950/20 active:scale-95 transition-all disabled:opacity-50"
+            >
+              {isSubmitting ? "Processing..." : "Submit Application"}
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col h-full">
+        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-8">Leave History</h3>
+        <div className="flex-1 space-y-4 overflow-y-auto no-scrollbar pr-2">
+          {history.map(item => (
+            <div key={item.id} className="p-4 rounded-2xl border border-gray-50 bg-gray-50/50 flex justify-between items-center group hover:bg-white hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-white border border-gray-100 flex items-center justify-center font-black text-emerald-800 text-xl shadow-sm">
+                   {item.leaveType[0]}
+                </div>
+                <div>
+                  <p className="text-[11px] font-black text-emerald-900 uppercase">{item.leaveType}</p>
+                  <p className="text-[9px] text-gray-400 font-bold mt-0.5 tracking-tighter">
+                    {format(new Date(item.startDate), 'MMM dd')} - {format(new Date(item.endDate), 'MMM dd, yyyy')}
+                  </p>
+                </div>
+              </div>
+              <div className={cn(
+                "px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest",
+                item.status === 'Approved' ? "bg-emerald-100 text-emerald-600" :
+                item.status === 'Rejected' ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"
+              )}>
+                {item.status}
+              </div>
+            </div>
+          ))}
+          {history.length === 0 && (
+            <div className="py-24 text-center text-gray-300">
+               <CalendarDays className="mx-auto mb-2 opacity-20" size={48} />
+               <p className="text-[10px] font-bold uppercase tracking-widest">No history recorded</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- OVERTIME MODULE ---
+function OvertimeModule({ user }: { user: UserProfile }) {
+  const [formData, setFormData] = useState<Partial<OvertimeRequest>>({
+    date: '',
+    hours: 0,
+    minutes: 0,
+    reason: ''
+  });
+  const [history, setHistory] = useState<OvertimeRequest[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const q = query(collection(db, 'overtime'), where('userId', '==', user.id), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as OvertimeRequest[]);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'overtime');
+    });
+    return () => unsubscribe();
+  }, [user.id]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.date || (!formData.hours && !formData.minutes) || !formData.reason) {
+      toast.error("Please fill all OT details");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, 'overtime'), {
+        ...formData,
+        userId: user.id,
+        userName: user.fullName,
+        status: 'Pending',
+        createdAt: new Date().toISOString()
+      });
+      toast.success("OT Application sent");
+      setFormData({ date: '', hours: 0, minutes: 0, reason: '' });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, 'overtime');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+      <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100">
+        <h3 className="text-xl font-black text-emerald-900 uppercase tracking-tight mb-8">OT Application</h3>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Overtime Date</label>
+            <input 
+              type="date"
+              value={formData.date}
+              onChange={e => setFormData({...formData, date: e.target.value})}
+              className="w-full h-12 bg-gray-50 border-2 border-gray-100 rounded-xl px-4 text-xs font-bold focus:border-emerald-500 focus:outline-none transition-all"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+             <div className="space-y-2">
+               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Hours</label>
+               <input 
+                 type="number"
+                 value={formData.hours}
+                 onChange={e => setFormData({...formData, hours: parseInt(e.target.value) || 0})}
+                 min="0"
+                 className="w-full h-12 bg-gray-50 border-2 border-gray-100 rounded-xl px-4 text-xs font-bold focus:border-indigo-500 focus:outline-none transition-all"
+               />
+             </div>
+             <div className="space-y-2">
+               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Minutes</label>
+               <input 
+                 type="number"
+                 value={formData.minutes}
+                 onChange={e => setFormData({...formData, minutes: parseInt(e.target.value) || 0})}
+                 min="0"
+                 max="59"
+                 className="w-full h-12 bg-gray-50 border-2 border-gray-100 rounded-xl px-4 text-xs font-bold focus:border-indigo-500 focus:outline-none transition-all"
+               />
+             </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">OT Reason</label>
+            <textarea 
+              value={formData.reason}
+              onChange={e => setFormData({...formData, reason: e.target.value})}
+              placeholder="Justify your overtime claim..."
+              className="w-full h-32 bg-gray-50 border-2 border-gray-100 rounded-xl p-4 text-xs font-bold focus:border-indigo-500 focus:outline-none transition-all resize-none"
+            />
+          </div>
+          <button 
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full h-14 bg-indigo-800 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] shadow-lg shadow-indigo-950/20 active:scale-95 transition-all disabled:opacity-50"
+          >
+            {isSubmitting ? "Sending..." : "Send OT Request"}
+          </button>
+        </form>
+      </div>
+
+      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col h-full">
+        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-8">OT History</h3>
+        <div className="flex-1 space-y-4 overflow-y-auto no-scrollbar pr-2">
+          {history.map(item => (
+            <div key={item.id} className="p-4 rounded-2xl border border-gray-50 bg-gray-50/50 flex justify-between items-center group hover:bg-white hover:shadow-xl transition-all">
+              <div className="flex items-center gap-4">
+                 <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center font-black text-indigo-700 text-lg shadow-sm">
+                    {item.hours}h
+                 </div>
+                 <div>
+                   <p className="text-[11px] font-black text-indigo-900 uppercase">{item.hours}h {item.minutes}m Claim</p>
+                   <p className="text-[9px] text-gray-400 font-bold mt-0.5 tracking-tighter">
+                     {format(new Date(item.date), 'MMMM dd, yyyy')}
+                   </p>
+                 </div>
+              </div>
+              <div className={cn(
+                "px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest",
+                item.status === 'Approved' ? "bg-emerald-100 text-emerald-600" :
+                item.status === 'Rejected' ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"
+              )}>
+                {item.status}
+              </div>
+            </div>
+          ))}
+          {history.length === 0 && (
+            <div className="py-24 text-center text-gray-300">
+               <Timer className="mx-auto mb-2 opacity-20" size={48} />
+               <p className="text-[10px] font-bold uppercase tracking-widest">No overtime logs</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- REVIEW REQUESTS ---
+function ReviewRequests() {
+  const [requests, setRequests] = useState<any[]>([]);
+  const [rejectionData, setRejectionData] = useState<{ id: string, type: string } | null>(null);
+  const [remarks, setRemarks] = useState('');
+
+  useEffect(() => {
+    const unsubLeaves = onSnapshot(query(collection(db, 'leaves'), where('status', '==', 'Pending')), (snap) => {
+      const leaves = snap.docs.map(doc => ({ id: doc.id, type: 'leave', ...doc.data() }));
+      setRequests(prev => {
+        const others = prev.filter(r => r.type !== 'leave');
+        return [...others, ...leaves].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      });
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'leaves');
+    });
+
+    const unsubOT = onSnapshot(query(collection(db, 'overtime'), where('status', '==', 'Pending')), (snap) => {
+      const ots = snap.docs.map(doc => ({ id: doc.id, type: 'ot', ...doc.data() }));
+      setRequests(prev => {
+        const others = prev.filter(r => r.type !== 'ot');
+        return [...others, ...ots].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      });
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'overtime');
+    });
+
+    const unsubOB = onSnapshot(query(collection(db, 'ob_requests'), where('status', '==', 'Pending')), (snap) => {
+      const obs = snap.docs.map(doc => ({ id: doc.id, type: 'ob', ...doc.data() }));
+      setRequests(prev => {
+        const others = prev.filter(r => r.type !== 'ob');
+        return [...others, ...obs].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      });
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'ob_requests');
+    });
+
+    return () => {
+      unsubLeaves();
+      unsubOT();
+      unsubOB();
+    };
+  }, []);
+
+  const handleAction = async (requestId: string, type: string, action: 'Approved' | 'Rejected') => {
+    if (action === 'Rejected') {
+      setRejectionData({ id: requestId, type });
+      return;
+    }
+
+    try {
+      const coll = type === 'leave' ? 'leaves' : type === 'ot' ? 'overtime' : 'ob_requests';
+      await updateDoc(doc(db, coll, requestId), { status: action });
+      toast.success(`Request marked as ${action}`);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `${type}/${requestId}`);
+    }
+  };
+
+  const confirmRejection = async () => {
+    if (!rejectionData || !remarks.trim()) {
+      toast.error("Please provide remarks for rejection");
+      return;
+    }
+
+    try {
+      const coll = rejectionData.type === 'leave' ? 'leaves' : rejectionData.type === 'ot' ? 'overtime' : 'ob_requests';
+      await updateDoc(doc(db, coll, rejectionData.id), { 
+        status: 'Rejected',
+        remarks: remarks.trim()
+      });
+      toast.success("Request rejected with remarks");
+      setRejectionData(null);
+      setRemarks('');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `${rejectionData.type}/${rejectionData.id}`);
+    }
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-8 pb-20">
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h2 className="text-xl font-black text-emerald-900 uppercase tracking-tight">Review Requests</h2>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Pending Leave, OT & OB Applications</p>
+        </div>
+        <div className="bg-emerald-50 text-emerald-700 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">
+           {requests.length} Pending
+        </div>
+      </div>
+      
+      <div className="space-y-4">
+        {requests.map(req => (
+          <motion.div 
+            key={req.id}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 group hover:shadow-xl hover:border-emerald-500/20 transition-all duration-500"
+          >
+            <div className="flex gap-4 items-center">
+              <div className={cn(
+                "w-14 h-14 rounded-2xl flex items-center justify-center font-black text-2xl shadow-inner",
+                req.type === 'leave' ? "bg-emerald-50 text-emerald-600" : 
+                req.type === 'ot' ? "bg-indigo-50 text-indigo-600" : "bg-amber-50 text-amber-600"
+              )}>
+                {req.type === 'leave' ? req.leaveType[0] : req.type === 'ot' ? 'OT' : 'OB'}
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                   <h4 className="text-[13px] font-black uppercase text-gray-900 leading-none">{req.userName}</h4>
+                   <span className={cn(
+                     "px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter",
+                     req.type === 'leave' ? "bg-emerald-100 text-emerald-600" : 
+                     req.type === 'ot' ? "bg-indigo-100 text-indigo-600" : "bg-amber-100 text-amber-600"
+                   )}>{req.type.toUpperCase()}</span>
+                </div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">
+                  {req.type === 'leave' ? (
+                    `${req.leaveType}: ${format(new Date(req.startDate), 'MMM dd')} - ${format(new Date(req.endDate), 'MMM dd, yyyy')}`
+                  ) : req.type === 'ot' ? (
+                    `Overtime Claim: ${format(new Date(req.date), 'MMMM dd, yyyy')} (${req.hours}h ${req.minutes}m)`
+                  ) : (
+                    `Official Business: ${format(new Date(req.startDate), 'MMM dd')} - ${format(new Date(req.endDate), 'MMM dd, yyyy')} (${req.hours || 0}h ${req.minutes || 0}m)`
+                  )}
+                </p>
+                <div className="relative pt-3 mt-3 border-t border-gray-50 flex items-start gap-2">
+                   <p className="text-[11px] text-gray-600 italic line-clamp-2 max-w-sm">"{req.reason}"</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex gap-3 w-full md:w-auto h-12">
+              <button 
+                onClick={() => handleAction(req.id, req.type, 'Approved')}
+                className="flex-1 md:flex-none px-8 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-emerald-700/20 hover:bg-emerald-700 transition-all hover:scale-105 active:scale-95"
+              >
+                Approve
+              </button>
+              <button 
+                onClick={() => handleAction(req.id, req.type, 'Rejected')}
+                className="flex-1 md:flex-none px-8 bg-red-50 text-red-600 border border-red-100 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-red-100 transition-all active:scale-95"
+              >
+                Reject
+              </button>
+            </div>
+          </motion.div>
+        ))}
+        {requests.length === 0 && (
+          <div className="py-32 text-center text-gray-300">
+             <ClipboardCheck className="mx-auto mb-4 opacity-10" size={64} />
+             <p className="text-[10px] font-black uppercase tracking-[0.3em]">All caught up!</p>
+             <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-2">No pending applications for review</p>
+          </div>
+        )}
+      </div>
+
+      {/* Rejection Remarks Modal */}
+      <AnimatePresence>
+        {rejectionData && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setRejectionData(null)}
+              className="absolute inset-0 bg-emerald-950/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative z-10 p-8"
+            >
+              <div className="text-center space-y-4 mb-8">
+                <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto">
+                   <XCircle size={32} className="text-red-500" />
+                </div>
+                <h3 className="text-2xl font-black text-red-900 uppercase tracking-tighter">Rejection Remarks</h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Please indicate why this request is being rejected</p>
+              </div>
+
+              <div className="space-y-4">
+                <textarea
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  placeholder="Enter rejection reason..."
+                  className="w-full h-32 bg-gray-50 border-2 border-red-50 rounded-2xl p-4 text-xs font-bold focus:border-red-500 focus:outline-none transition-all resize-none"
+                  autoFocus
+                />
+
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setRejectionData(null)}
+                    className="flex-1 h-12 border-2 border-gray-100 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmRejection}
+                    disabled={!remarks.trim()}
+                    className="flex-1 h-12 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-red-900/20 active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    Confirm Reject
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 function StatCard({ label, value, icon }: { label: string, value: number | string, icon: React.ReactNode }) {
   return (
     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-4">
@@ -3089,7 +4021,7 @@ function StatCard({ label, value, icon }: { label: string, value: number | strin
   );
 }
 
-function AssignAccount({ user }: { user: UserProfile }) {
+function AssignAccount() {
   const [loading, setLoading] = useState(false);
   const [ciOfficers, setCiOfficers] = useState<UserProfile[]>([]);
   const [formData, setFormData] = useState({
@@ -4062,7 +4994,7 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
       setDynamicSheet(sheet);
       setIsLoadingSheet(false);
     }, (err) => {
-      console.error(err);
+      handleFirestoreError(err, OperationType.GET, 'scoringConfigs');
       setDynamicSheet(isSeaman ? DEFAULT_SEAMAN_SCORING_SHEET : (isMCL ? DEFAULT_MCL_SCORING_SHEET : DEFAULT_SME_SCORING_SHEET));
       setIsLoadingSheet(false);
     });
@@ -4227,7 +5159,7 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
 
   if (isLoadingSheet || !formData || !results) return <div className="p-12 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Initializing scoring module...</div>;
 
-  const { riskScore, riskClassification, totalGrade, activeTotalMax, sectionGrades } = results;
+  const { riskScore, riskClassification, totalGrade, sectionGrades } = results;
 
   return (
     <div className="bg-white border-2 border-emerald-100 rounded-3xl p-8 space-y-12">
@@ -4975,7 +5907,6 @@ function CrecomApproval({ user }: { user: UserProfile }) {
   const [approvedList, setApprovedList] = useState<Assignment[]>([]);
   const [selected, setSelected] = useState<Assignment | null>(null);
   const [isViewingAccount, setIsViewingAccount] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [processData, setProcessData] = useState({
     amount: '',
@@ -5001,19 +5932,18 @@ function CrecomApproval({ user }: { user: UserProfile }) {
 
   useEffect(() => {
     const qPending = query(collection(db, 'assignments'), where('status', '==', 'Pre-approved'));
-    const qApproved = query(collection(db, 'assignments'), where('status', '==', 'Approved'), orderBy('createdAt', 'desc'), limit(10));
+    const qApproved = query(collection(db, 'assignments'), where('status', '==', 'Approved'));
 
     const unsubscribePending = onSnapshot(qPending, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
-      setAssignments(data);
-      setLoading(false);
+      setAssignments(data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'assignments');
     });
 
     const unsubscribeApproved = onSnapshot(qApproved, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
-      setApprovedList(data);
+      setApprovedList(data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 50));
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'assignments');
     });
@@ -5441,7 +6371,7 @@ function AdminKeys({ user }: { user: UserProfile }) {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setKeys(data);
     }, (err) => {
-      console.error('Firestore AdminKeys listener error:', err);
+      handleFirestoreError(err, OperationType.LIST, 'admin_keys');
     });
 
     return () => unsubscribe();
@@ -5538,7 +6468,7 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
       setAssignments(data);
     }, (err) => {
-      console.error('Firestore ValidationSurvey listener error:', err);
+      handleFirestoreError(err, OperationType.LIST, 'assignments');
     });
 
     return () => unsubscribe();
@@ -5840,6 +6770,9 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
       setAssignments(data.filter(a => a.survey));
       setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'assignments');
+      setLoading(false);
     });
     return () => unsubscribe();
   }, []);
@@ -6111,11 +7044,16 @@ function DataStorage({ user }: { user: UserProfile }) {
     const q = query(collection(db, 'users'));
     const unsubUsers = onSnapshot(q, (snapshot) => {
       setCiOfficers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as UserProfile[]);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'users');
     });
 
     const qAss = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
     const unsubAss = onSnapshot(qAss, (snapshot) => {
       setAssignments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[]);
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'assignments');
       setLoading(false);
     });
 
@@ -6422,7 +7360,11 @@ function DataStorage({ user }: { user: UserProfile }) {
 }
 
 function ReportsView({ user }: { user: UserProfile }) {
+  const [activeReportTab, setActiveReportTab] = useState<'assignments' | 'attendance' | 'leaves' | 'overtime'>('assignments');
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
+  const [overtime, setOvertime] = useState<OvertimeRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -6430,328 +7372,1128 @@ function ReportsView({ user }: { user: UserProfile }) {
   const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
-    let q = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
-    
-    if (user.role !== 'admin') {
-      q = query(
-        collection(db, 'assignments'),
-        where('ciOfficerId', '==', user.id),
-        orderBy('createdAt', 'desc')
-      );
-    }
+    setLoading(true);
+    const unsubscribes: (() => void)[] = [];
+    const isAdminOrCoordinator = user.role === 'admin' || user.role === 'coordinator';
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
-      setAssignments(data);
+    // Assignments
+    const qAssign = isAdminOrCoordinator 
+      ? query(collection(db, 'assignments'), limit(1000))
+      : query(collection(db, 'assignments'), where('ciOfficerId', '==', user.id));
+    
+    unsubscribes.push(onSnapshot(qAssign, (snap) => {
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Assignment[];
+      setAssignments(data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'assignments');
+    }));
+
+    // Attendance
+    const qAtt = isAdminOrCoordinator
+      ? query(collection(db, 'attendance'), limit(1000))
+      : query(collection(db, 'attendance'), where('userId', '==', user.id));
+    
+    unsubscribes.push(onSnapshot(qAtt, (snap) => {
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() })) as AttendanceRecord[];
+      setAttendance(data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'attendance');
+    }));
+
+    // Leaves
+    const qLeave = isAdminOrCoordinator
+      ? query(collection(db, 'leaves'), limit(1000))
+      : query(collection(db, 'leaves'), where('userId', '==', user.id));
+    
+    unsubscribes.push(onSnapshot(qLeave, (snap) => {
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() })) as LeaveRequest[];
+      setLeaves(data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'leaves');
+    }));
+
+    // Overtime
+    const qOt = isAdminOrCoordinator
+      ? query(collection(db, 'overtime'), limit(1000))
+      : query(collection(db, 'overtime'), where('userId', '==', user.id));
+    
+    unsubscribes.push(onSnapshot(qOt, (snap) => {
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() })) as OvertimeRequest[];
+      setOvertime(data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
       setLoading(false);
     }, (err) => {
-      handleFirestoreError(err, OperationType.GET, 'assignments');
+      handleFirestoreError(err, OperationType.LIST, 'overtime');
       setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
+    }));
 
-  const filtered = assignments.filter(a => {
-    const matchesSearch = 
-      a.borrowerName.toLowerCase().includes(search.toLowerCase()) ||
-      a.ciOfficerName.toLowerCase().includes(search.toLowerCase());
-    
+    return () => unsubscribes.forEach(unsub => unsub());
+  }, [user.id, user.role]);
+
+  const filteredAssignments = assignments.filter(a => {
+    const matchesSearch = a.borrowerName.toLowerCase().includes(search.toLowerCase()) || a.ciOfficerName.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === 'All' || a.status === statusFilter;
-    
-    const assignmentDate = new Date(a.createdAt);
-    let matchesDate = true;
-    if (startDate) {
-      matchesDate = matchesDate && assignmentDate >= new Date(startDate);
-    }
-    if (endDate) {
-      // Set end date to end of day
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      matchesDate = matchesDate && assignmentDate <= end;
-    }
-
+    const date = new Date(a.createdAt);
+    const matchesDate = (!startDate || date >= new Date(startDate)) && (!endDate || date <= new Date(endDate + 'T23:59:59'));
     return matchesSearch && matchesStatus && matchesDate;
   });
 
-  const exportToCSV = () => {
-    const fields = ['Borrower Name', 'Mobile Number', 'Account Type', 'Location', 'Tribe', 'Requested Amount', 'Term', 'CI Officer', 'Status', 'Created At'];
-    const csvContent = [
-      fields.join(','),
-      ...filtered.map(a => [
-        `"${a.borrowerName}"`,
-        `"${a.mobileNumber}"`,
-        `"${a.accountType}"`,
-        `"${a.location}"`,
-        `"${a.tribe}"`,
-        a.requestedAmount,
-        `"${a.term}"`,
-        `"${a.ciOfficerName}"`,
-        `"${a.status}"`,
-        `"${format(new Date(a.createdAt), 'MMM d, yyyy | h:mm a')}"`
-      ].join(','))
-    ].join('\n');
+  const filteredAttendance = attendance.filter(a => {
+    const matchesSearch = a.userName.toLowerCase().includes(search.toLowerCase());
+    const date = new Date(a.date);
+    const matchesDate = (!startDate || date >= new Date(startDate)) && (!endDate || date <= new Date(endDate + 'T23:59:59'));
+    return matchesSearch && matchesDate;
+  });
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const filteredLeaves = leaves.filter(l => {
+    const matchesSearch = l.userName.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === 'All' || l.status === statusFilter;
+    const date = new Date(l.startDate);
+    const matchesDate = (!startDate || date >= new Date(startDate)) && (!endDate || date <= new Date(endDate + 'T23:59:59'));
+    return matchesSearch && matchesStatus && matchesDate;
+  });
+
+  const filteredOvertime = overtime.filter(o => {
+    const matchesSearch = o.userName.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === 'All' || o.status === statusFilter;
+    const date = new Date(o.date);
+    const matchesDate = (!startDate || date >= new Date(startDate)) && (!endDate || date <= new Date(endDate + 'T23:59:59'));
+    return matchesSearch && matchesStatus && matchesDate;
+  });
+
+  const getExportData = () => {
+    switch(activeReportTab) {
+      case 'assignments': return filteredAssignments;
+      case 'attendance': return filteredAttendance;
+      case 'leaves': return filteredLeaves;
+      case 'overtime': return filteredOvertime;
+    }
+  };
+
+  const exportCSV = () => {
+    const data = getExportData();
+    let headers: string[] = [];
+    let rows: any[] = [];
+
+    if (activeReportTab === 'assignments') {
+      headers = ['Borrower', 'Account Type', 'Officer', 'Status', 'Date'];
+      rows = (data as Assignment[]).map(a => [a.borrowerName, a.accountType, a.ciOfficerName, a.status, a.createdAt]);
+    } else if (activeReportTab === 'attendance') {
+      headers = ['Employee', 'Date', 'Time In', 'Time Out', 'Status'];
+      rows = (data as AttendanceRecord[]).map(a => [a.userName, a.date, a.timeIn, a.timeOut, a.status]);
+    } else if (activeReportTab === 'leaves') {
+      headers = ['Employee', 'Type', 'Start', 'End', 'Status'];
+      rows = (data as LeaveRequest[]).map(l => [l.userName, l.leaveType, l.startDate, l.endDate, l.status]);
+    } else if (activeReportTab === 'overtime') {
+      headers = ['Employee', 'Date', 'Hours', 'Minutes', 'Status'];
+      rows = (data as OvertimeRequest[]).map(o => [o.userName, o.date, o.hours, o.minutes, o.status]);
+    }
+
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CIBI_${activeReportTab}_Report.csv`;
+    a.click();
+  };
+
+  const statusOptions = [
+    'All', 'Assigned', 'Start to Perform Assignment', 'Reviewing', 'Field CIBI', 'Cashflowing', 'Report Submitted', 'Completed', 'Approved', 'Denied'
+  ];
+
+  if (loading) return <div className="p-20 text-center animate-pulse uppercase font-black text-emerald-800">Compiling Report Data...</div>;
+
+  return (
+    <div className="space-y-8 max-w-6xl mx-auto pb-32">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm relative overflow-hidden">
+        <div className="space-y-1 z-10">
+          <h2 className="text-3xl font-black text-emerald-900 uppercase tracking-tighter">Reporting Hub</h2>
+          <div className="flex flex-wrap items-center gap-2 mt-4">
+            {(['assignments', 'attendance', 'leaves', 'overtime'] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => { setActiveReportTab(tab); setSearch(''); setStatusFilter('All'); }}
+                className={cn(
+                  "px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95",
+                  activeReportTab === tab ? "bg-emerald-800 text-white shadow-xl shadow-emerald-900/20" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                )}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-4 z-10 w-full lg:w-auto">
+          <button 
+            onClick={exportCSV}
+            className="flex-1 lg:flex-none flex items-center justify-center gap-3 px-10 py-4 bg-linear-to-br from-emerald-600 to-emerald-800 text-white rounded-[1.25rem] text-[11px] font-black uppercase tracking-[0.2em] hover:shadow-2xl hover:shadow-emerald-900/40 transition-all active:scale-95 group"
+          >
+            <Download size={18} className="group-hover:translate-y-0.5 transition-transform" /> 
+            Export Records
+          </button>
+        </div>
+        <BarChart3 className="absolute -right-12 -bottom-12 w-64 h-64 text-emerald-800/5 rotate-12" />
+      </div>
+
+      {/* SEARCH & FILTERS */}
+      <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="relative group">
+          <Search size={16} className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-emerald-500 transition-colors" />
+          <input 
+            type="text" 
+            placeholder="Search Intelligence..."
+            className="w-full h-14 pl-14 pr-6 bg-gray-50 border-2 border-transparent rounded-2xl text-xs font-bold focus:border-emerald-500 focus:bg-white focus:outline-none transition-all"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        
+        {activeReportTab !== 'attendance' && (
+          <div className="relative">
+             <select 
+               className="w-full h-14 px-6 bg-gray-50 border-2 border-transparent rounded-2xl text-xs font-bold focus:border-emerald-500 focus:bg-white focus:outline-none appearance-none cursor-pointer capitalize"
+               value={statusFilter}
+               onChange={e => setStatusFilter(e.target.value)}
+             >
+               <option value="All">All Status Manifests</option>
+               {activeReportTab === 'assignments' && statusOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+               {(activeReportTab === 'leaves' || activeReportTab === 'overtime') && ['Pending', 'Approved', 'Rejected'].map(opt => <option key={opt} value={opt}>{opt}</option>)}
+             </select>
+             <Filter className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" size={16} />
+          </div>
+        )}
+
+        <div className="relative">
+          <input 
+            type="date"
+            className="w-full h-14 px-6 bg-gray-50 border-2 border-transparent rounded-2xl text-xs font-bold focus:border-emerald-500 focus:bg-white focus:outline-none uppercase"
+            value={startDate}
+            onChange={e => setStartDate(e.target.value)}
+          />
+          <p className="absolute -top-2.5 left-5 bg-white px-2 text-[8px] font-black text-gray-400 uppercase tracking-widest">From Date</p>
+        </div>
+
+        <div className="relative">
+          <input 
+            type="date"
+            className="w-full h-14 px-6 bg-gray-50 border-2 border-transparent rounded-2xl text-xs font-bold focus:border-emerald-500 focus:bg-white focus:outline-none uppercase"
+            value={endDate}
+            onChange={e => setEndDate(e.target.value)}
+          />
+          <p className="absolute -top-2.5 left-5 bg-white px-2 text-[8px] font-black text-gray-400 uppercase tracking-widest">To Date</p>
+        </div>
+      </div>
+
+      {/* DATA VIEWPORT */}
+      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
+        <div className="overflow-x-auto no-scrollbar">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-gray-50/80 border-b border-gray-100">
+                <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Primary Entity</th>
+                <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Operational Data</th>
+                <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Temporal Stamp</th>
+                <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">System Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50/50">
+              {activeReportTab === 'assignments' && filteredAssignments.map(a => (
+                <tr key={a.id} className="group hover:bg-emerald-50/30 transition-all duration-300">
+                  <td className="p-8">
+                    <p className="text-sm font-black text-emerald-950 uppercase">{a.borrowerName}</p>
+                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{a.accountType}</p>
+                  </td>
+                  <td className="p-8">
+                    <p className="text-xs font-black text-emerald-800">₱{a.requestedAmount.toLocaleString()}</p>
+                    <p className="text-[9px] text-gray-400 font-medium italic mt-0.5">{a.term} Duration</p>
+                  </td>
+                  <td className="p-8">
+                    <p className="text-xs font-mono text-gray-500 font-bold">{format(new Date(a.createdAt), 'MMM dd, yyyy')}</p>
+                  </td>
+                  <td className="p-8">
+                    <span className="px-5 py-1.5 bg-emerald-100/50 text-emerald-700 text-[9px] font-black uppercase rounded-full tracking-widest border border-emerald-200/50">{a.status}</span>
+                  </td>
+                </tr>
+              ))}
+              
+              {activeReportTab === 'attendance' && filteredAttendance.map(a => (
+                <tr key={a.id} className="group hover:bg-emerald-50/30 transition-all duration-300">
+                  <td className="p-8">
+                    <p className="text-sm font-black text-emerald-950 uppercase">{a.userName}</p>
+                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Staff Resource</p>
+                  </td>
+                  <td className="p-8">
+                    <div className="flex items-center gap-3">
+                       <span className="px-3 py-1 bg-white border border-gray-100 rounded-lg text-[10px] font-mono text-emerald-600 font-black">{a.timeIn}</span>
+                       <ArrowRight size={12} className="text-gray-300" />
+                       <span className="px-3 py-1 bg-white border border-gray-100 rounded-lg text-[10px] font-mono text-indigo-600 font-black">{a.timeOut || 'ACTIVE'}</span>
+                    </div>
+                  </td>
+                  <td className="p-8">
+                    <p className="text-xs font-mono text-gray-500 font-bold">{format(new Date(a.date), 'MMM dd, yyyy')}</p>
+                  </td>
+                  <td className="p-8">
+                    <span className={cn(
+                      "px-5 py-1.5 text-[9px] font-black uppercase rounded-full tracking-widest border",
+                      a.status === 'ON TIME' ? "bg-emerald-100/50 text-emerald-700 border-emerald-200/50" : "bg-amber-100/50 text-amber-700 border-amber-200/50"
+                    )}>{a.status}</span>
+                  </td>
+                </tr>
+              ))}
+
+              {activeReportTab === 'leaves' && filteredLeaves.map(l => (
+                <tr key={l.id} className="group hover:bg-blue-50/30 transition-all duration-300">
+                  <td className="p-8">
+                    <p className="text-sm font-black text-gray-900 uppercase">{l.userName}</p>
+                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Exemption Request</p>
+                  </td>
+                  <td className="p-8">
+                    <p className="text-xs font-black text-blue-800 uppercase tracking-tighter">{l.leaveType}</p>
+                    <p className="text-[9px] text-gray-400 font-medium italic mt-0.5 line-clamp-1 max-w-[200px]">"{l.reason}"</p>
+                  </td>
+                  <td className="p-8">
+                    <p className="text-xs font-mono text-gray-500 font-bold">{format(new Date(l.startDate), 'MMM dd')} - {format(new Date(l.endDate), 'MMM dd, yyyy')}</p>
+                  </td>
+                  <td className="p-8">
+                    <span className={cn(
+                      "px-5 py-1.5 text-[9px] font-black uppercase rounded-full tracking-widest border",
+                      l.status === 'Approved' ? "bg-emerald-100/50 text-emerald-700 border-emerald-200/50" :
+                      l.status === 'Rejected' ? "bg-red-100/50 text-red-700 border-red-200/50" : "bg-blue-100/50 text-blue-700 border-blue-200/50"
+                    )}>{l.status}</span>
+                  </td>
+                </tr>
+              ))}
+
+              {activeReportTab === 'overtime' && filteredOvertime.map(o => (
+                <tr key={o.id} className="group hover:bg-indigo-50/30 transition-all duration-300">
+                  <td className="p-8">
+                    <p className="text-sm font-black text-indigo-950 uppercase">{o.userName}</p>
+                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Extended Protocol</p>
+                  </td>
+                  <td className="p-8">
+                    <p className="text-xs font-black text-indigo-700 uppercase">{o.hours}h {o.minutes}m Claim</p>
+                    <p className="text-[9px] text-gray-400 font-medium italic mt-0.5 line-clamp-1 max-w-[200px]">"{o.reason}"</p>
+                  </td>
+                  <td className="p-8">
+                    <p className="text-xs font-mono text-gray-500 font-bold">{format(new Date(o.date), 'MMM dd, yyyy')}</p>
+                  </td>
+                  <td className="p-8">
+                    <span className={cn(
+                      "px-5 py-1.5 text-[9px] font-black uppercase rounded-full tracking-widest border",
+                      o.status === 'Approved' ? "bg-emerald-100/50 text-emerald-700 border-emerald-200/50" :
+                      o.status === 'Rejected' ? "bg-red-100/50 text-red-700 border-red-200/50" : "bg-indigo-100/50 text-indigo-700 border-indigo-200/50"
+                    )}>{o.status}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          
+          {(activeReportTab === 'assignments' ? filteredAssignments : activeReportTab === 'attendance' ? filteredAttendance : activeReportTab === 'leaves' ? filteredLeaves : filteredOvertime).length === 0 && (
+            <div className="py-32 text-center">
+              <div className="relative inline-block">
+                <ClipboardList className="mx-auto text-gray-100 mb-6" size={80} />
+                <AlertCircle className="absolute -right-2 -bottom-2 text-emerald-900/10" size={32} />
+              </div>
+              <p className="text-xs font-black text-gray-300 uppercase tracking-[0.4em]">Zero Results Detected</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">Adjust search parameters or status filters</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- OB FILLING MODULE ---
+function OBFillingModule({ user }: { user: UserProfile }) {
+  const [obRequests, setObRequests] = useState<OBRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    startDate: format(new Date(), 'yyyy-MM-dd'),
+    endDate: format(new Date(), 'yyyy-MM-dd'),
+    hours: format(new Date(), 'i') === '6' ? '7' : '8',
+    minutes: '0',
+    reason: ''
+  });
+
+  const updateDefaultHours = async (dateStr: string) => {
+    try {
+      const date = parseISO(dateStr);
+      const isSaturday = date.getDay() === 6;
+      let suggestedHours = isSaturday ? '7' : '8';
+      let suggestedMinutes = '0';
+
+      // Check if user has attendance for this day to suggest lateness correction
+      const q = query(
+        collection(db, 'attendance'), 
+        where('userId', '==', user.id),
+        where('date', '==', dateStr)
+      );
+      const snap = await getDocs(q);
+      
+      if (!snap.empty) {
+        const record = snap.docs[0].data() as AttendanceRecord;
+        if (record.timeIn) {
+          const [h, m] = record.timeIn.split(':').map(Number);
+          const startHour = isSaturday ? 9 : 8;
+          if (h > startHour || (h === startHour && m > 0)) {
+            const diff = (h * 60 + m) - (startHour * 60);
+            if (diff > 0) {
+              suggestedHours = Math.floor(diff / 60).toString();
+              suggestedMinutes = (diff % 60).toString();
+            }
+          }
+        }
+      }
+
+      setFormData(prev => ({ ...prev, hours: suggestedHours, minutes: suggestedMinutes }));
+    } catch (e) {
+      console.error("Error parsing date:", e);
+    }
+  };
+
+  useEffect(() => {
+    // We remove the orderby server-side to avoid needing a composite index
+    // which often causes permission denied or failed queries in development
+    const q = query(collection(db, 'ob_requests'), where('userId', '==', user.id));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as OBRequest[];
+      // Sort client-side instead
+      setObRequests(data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      setLoading(false);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'ob_requests');
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [user.id]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.reason.trim()) {
+      toast.error("Please provide a reason");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, 'ob_requests'), {
+        userId: user.id,
+        userName: user.fullName,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        hours: Number(formData.hours),
+        minutes: Number(formData.minutes),
+        reason: formData.reason.trim(),
+        status: 'Pending',
+        createdAt: new Date().toISOString()
+      });
+      toast.success("OB request submitted successfully");
+      setFormData({
+        startDate: format(new Date(), 'yyyy-MM-dd'),
+        endDate: format(new Date(), 'yyyy-MM-dd'),
+        hours: '0',
+        minutes: '0',
+        reason: ''
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, 'ob_requests');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (loading) return <div className="p-12 text-center text-emerald-800 font-bold uppercase tracking-widest animate-pulse">Loading OB Requests...</div>;
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-8 pb-20">
+      <div className="bg-white p-8 rounded-3xl border border-emerald-100 shadow-xl shadow-emerald-900/5 relative overflow-hidden">
+         <div className="absolute top-0 right-0 p-8 opacity-5">
+            <Briefcase size={120} className="text-emerald-900" />
+         </div>
+         <div className="relative z-10">
+           <h3 className="text-2xl font-black text-emerald-900 uppercase tracking-tighter mb-2">OB Application</h3>
+           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-8">Official Business Authorization Form</p>
+           
+           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+             <div className="space-y-1">
+               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Start Date</label>
+               <div className="relative">
+                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600" size={16} />
+                 <input 
+                   type="date"
+                   required
+                   className="w-full pl-12 pr-4 py-4 bg-emerald-50/30 border-2 border-emerald-50 rounded-2xl text-xs font-black focus:border-emerald-500 focus:outline-none transition-all"
+                   value={formData.startDate}
+                   onChange={e => {
+                     setFormData({...formData, startDate: e.target.value});
+                     updateDefaultHours(e.target.value);
+                   }}
+                 />
+               </div>
+             </div>
+             
+             <div className="space-y-1">
+               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">End Date</label>
+               <div className="relative">
+                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600" size={16} />
+                 <input 
+                   type="date"
+                   required
+                   className="w-full pl-12 pr-4 py-4 bg-emerald-50/30 border-2 border-emerald-50 rounded-2xl text-xs font-black focus:border-emerald-500 focus:outline-none transition-all"
+                   value={formData.endDate}
+                   onChange={e => setFormData({...formData, endDate: e.target.value})}
+                 />
+               </div>
+             </div>
+
+             <div className="space-y-1">
+               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Hours</label>
+               <div className="relative">
+                 <Timer className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600" size={16} />
+                 <input 
+                   type="number"
+                   required
+                   min="0"
+                   className="w-full pl-12 pr-4 py-4 bg-emerald-50/30 border-2 border-emerald-50 rounded-2xl text-xs font-black focus:border-emerald-500 focus:outline-none transition-all"
+                   value={formData.hours}
+                   onChange={e => setFormData({...formData, hours: e.target.value})}
+                 />
+               </div>
+             </div>
+
+             <div className="space-y-1">
+               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Minutes</label>
+               <div className="relative">
+                 <Timer className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600" size={16} />
+                 <input 
+                   type="number"
+                   required
+                   min="0"
+                   max="59"
+                   className="w-full pl-12 pr-4 py-4 bg-emerald-50/30 border-2 border-emerald-50 rounded-2xl text-xs font-black focus:border-emerald-500 focus:outline-none transition-all"
+                   value={formData.minutes}
+                   onChange={e => setFormData({...formData, minutes: e.target.value})}
+                 />
+               </div>
+             </div>
+             
+             <div className="md:col-span-2 space-y-1">
+               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Purpose / Reason</label>
+               <textarea 
+                 required
+                 placeholder="Please specify the official business details..."
+                 className="w-full h-32 p-4 bg-emerald-50/30 border-2 border-emerald-50 rounded-2xl text-xs font-bold focus:border-emerald-500 focus:outline-none transition-all resize-none"
+                 value={formData.reason}
+                 onChange={e => setFormData({...formData, reason: e.target.value})}
+               />
+             </div>
+             
+             <div className="md:col-span-2">
+               <button 
+                 type="submit"
+                 disabled={isSubmitting}
+                 className="w-full h-16 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-[0.3em] text-[10px] shadow-xl shadow-emerald-700/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+               >
+                 {isSubmitting ? "Submitting Application..." : "Submit OB Application"}
+               </button>
+             </div>
+           </form>
+         </div>
+      </div>
+
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="p-8 border-b border-gray-50 flex justify-between items-center">
+           <h4 className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Your OB History</h4>
+        </div>
+        <div className="overflow-x-auto no-scrollbar">
+           <table className="w-full">
+             <thead>
+               <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest text-left">
+                 <th className="p-8">Inclusive Dates</th>
+                 <th className="p-8 text-center text-emerald-600">Duration</th>
+                 <th className="p-8">Reason</th>
+                 <th className="p-8">Status</th>
+                 <th className="p-8">Remarks</th>
+               </tr>
+             </thead>
+             <tbody className="divide-y divide-gray-50">
+               {obRequests.map(req => (
+                 <tr key={req.id} className="group hover:bg-emerald-50/30 transition-all duration-300">
+                   <td className="p-8">
+                      <p className="text-sm font-black text-emerald-950 uppercase">{format(new Date(req.startDate), 'MMM dd')} - {format(new Date(req.endDate), 'MMM dd, yyyy')}</p>
+                      <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-1">Inclusive Days</p>
+                   </td>
+                   <td className="p-8 text-center">
+                      <p className="text-xs font-black text-emerald-600 uppercase">{(req.hours || 0)}h {(req.minutes || 0)}m</p>
+                   </td>
+                   <td className="p-8">
+                      <p className="text-xs text-gray-600 font-bold italic line-clamp-2 max-w-[300px]">"{req.reason}"</p>
+                   </td>
+                   <td className="p-8">
+                     <span className={cn(
+                       "px-5 py-1.5 text-[9px] font-black uppercase rounded-full tracking-widest border",
+                       req.status === 'Approved' ? "bg-emerald-100/50 text-emerald-700 border-emerald-200/50" :
+                       req.status === 'Rejected' ? "bg-red-100/50 text-red-700 border-red-200/50" : "bg-blue-100/50 text-blue-700 border-blue-200/50"
+                     )}>{req.status}</span>
+                   </td>
+                   <td className="p-8">
+                      <p className="text-[10px] text-gray-400 font-medium italic">{req.remarks || "---"}</p>
+                   </td>
+                 </tr>
+               ))}
+             </tbody>
+           </table>
+           {obRequests.length === 0 && (
+             <div className="py-24 text-center text-gray-300">
+                <Briefcase className="mx-auto mb-4 opacity-10" size={48} />
+                <p className="text-[10px] font-bold uppercase tracking-widest">No previous OB applications</p>
+             </div>
+           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- ATTENDANCE CALENDAR ---
+function AttendanceCalendar({ user }: { user: UserProfile }) {
+  const isAdmin = user.role === 'admin';
+  const isCoordinator = user.role === 'coordinator';
+  const canManage = isAdmin || isCoordinator;
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [obRequests, setObRequests] = useState<OBRequest[]>([]);
+  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
+  const [overtime, setOvertime] = useState<OvertimeRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedUser, setSelectedUser] = useState<string>(canManage ? '' : user.id);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  // OB from calendar
+  const [filingDate, setFilingDate] = useState<Date | null>(null);
+  const [obReason, setObReason] = useState('');
+  const [obHours, setObHours] = useState('0');
+  const [obMinutes, setObMinutes] = useState('0');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    let unsubUsers = () => {};
+    if (canManage) {
+      unsubUsers = onSnapshot(query(collection(db, 'users'), where('role', 'in', ['user', 'coordinator'])), (snap) => {
+          setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })) as UserProfile[]);
+      });
+    }
+
+    const qAtt = canManage 
+      ? query(collection(db, 'attendance'), limit(1000))
+      : query(collection(db, 'attendance'), where('userId', '==', user.id));
+
+    const unsubAtt = onSnapshot(qAtt, (snap) => {
+        setAttendance(snap.docs.map(d => ({ id: d.id, ...d.data() })) as AttendanceRecord[]);
+    }, (err) => {
+        handleFirestoreError(err, OperationType.LIST, 'attendance');
+    });
+
+    const qOB = canManage
+      ? query(collection(db, 'ob_requests'), limit(500))
+      : query(collection(db, 'ob_requests'), where('userId', '==', user.id));
+
+    const unsubOB = onSnapshot(qOB, (snap) => {
+        setObRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })) as OBRequest[]);
+    }, (err) => {
+        handleFirestoreError(err, OperationType.LIST, 'ob_requests');
+    });
+
+    const qLeaves = canManage
+      ? query(collection(db, 'leaves'), limit(500))
+      : query(collection(db, 'leaves'), where('userId', '==', user.id));
+
+    const unsubLeaves = onSnapshot(qLeaves, (snap) => {
+        setLeaves(snap.docs.map(d => ({ id: d.id, ...d.data() })) as LeaveRequest[]);
+    }, (err) => {
+        handleFirestoreError(err, OperationType.LIST, 'leaves');
+    });
+
+    const qOT = canManage
+      ? query(collection(db, 'overtime'), limit(500))
+      : query(collection(db, 'overtime'), where('userId', '==', user.id));
+
+    const unsubOT = onSnapshot(qOT, (snap) => {
+        setOvertime(snap.docs.map(d => ({ id: d.id, ...d.data() })) as OvertimeRequest[]);
+    }, (err) => {
+        handleFirestoreError(err, OperationType.LIST, 'overtime');
+    });
+
+    setLoading(false);
+    return () => { unsubUsers(); unsubAtt(); unsubOB(); unsubLeaves(); unsubOT(); };
+  }, [canManage]);
+
+  const days = eachDayOfInterval({
+    start: startOfMonth(currentMonth),
+    end: endOfMonth(currentMonth)
+  });
+
+  const getDayStatus = (date: Date) => {
+    if (!selectedUser) return null;
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const record = attendance.find(a => a.userId === selectedUser && a.date === dateStr);
+    const obActive = obRequests.find(ob => 
+      ob.userId === selectedUser && 
+      ob.status === 'Approved' && 
+      isWithinInterval(date, { start: parseISO(ob.startDate), end: parseISO(ob.endDate) })
+    );
+
+    const leaveActive = leaves.find(l => 
+      l.userId === selectedUser && 
+      l.status === 'Approved' && 
+      isWithinInterval(date, { start: parseISO(l.startDate), end: parseISO(l.endDate) })
+    );
+
+    const otActive = overtime.find(ot => 
+      ot.userId === selectedUser && 
+      ot.status === 'Approved' && 
+      ot.date === dateStr
+    );
+
+    if (leaveActive) return 'LEAVE';
+    if (obActive) return 'OB';
+    if (otActive) return 'OT';
+    if (!record) return 'ABSENT';
+    if (record.timeIn && record.timeOut) {
+      const [hIn, mIn] = record.timeIn.split(':').map(Number);
+      const [hOut, mOut] = record.timeOut.split(':').map(Number);
+      const totalMinutes = (hOut * 60 + mOut) - (hIn * 60 + mIn);
+      const isSaturday = date.getDay() === 6;
+      const requiredMinutes = isSaturday ? 7 * 60 : 8 * 60;
+      
+      if (totalMinutes < requiredMinutes) return 'INCOMPLETE';
+      return 'PRESENT';
+    }
+    return 'INCOMPLETE';
+  };
+
+  const handleDayClick = (day: Date) => {
+    setFilingDate(day);
+    const dateStr = format(day, 'yyyy-MM-dd');
+    const isSaturday = day.getDay() === 6;
+    const record = attendance.find(r => r.userId === selectedUser && r.date === dateStr);
+    
+    let suggestedHours = isSaturday ? '7' : '8';
+    let suggestedMinutes = '0';
+
+    if (record && record.timeIn) {
+      const [h, m] = record.timeIn.split(':').map(Number);
+      const startHour = isSaturday ? 9 : 8;
+      
+      // Calculate diff from expected start time
+      if (h > startHour || (h === startHour && m > 0)) {
+        const totalMinutesActual = h * 60 + m;
+        const totalMinutesExpected = startHour * 60;
+        const diffTotal = totalMinutesActual - totalMinutesExpected;
+        
+        if (diffTotal > 0) {
+          suggestedHours = Math.floor(diffTotal / 60).toString();
+          suggestedMinutes = (diffTotal % 60).toString();
+        }
+      }
+    }
+
+    setObHours(suggestedHours);
+    setObMinutes(suggestedMinutes);
+  };
+
+  const handleFileOB = async () => {
+    if (!selectedUser || !filingDate || !obReason.trim()) return;
+    setIsSubmitting(true);
+    try {
+      const userObj = users.find(u => u.id === selectedUser);
+      const dateStr = format(filingDate, 'yyyy-MM-dd');
+      await addDoc(collection(db, 'ob_requests'), {
+        userId: selectedUser,
+        userName: userObj?.fullName || 'Unknown',
+        startDate: dateStr,
+        endDate: dateStr,
+        hours: Number(obHours),
+        minutes: Number(obMinutes),
+        reason: obReason.trim(),
+        status: 'Approved', 
+        createdAt: new Date().toISOString()
+      });
+      toast.success("OB recorded for selected date");
+      setFilingDate(null);
+      setObReason('');
+      setObHours('0');
+      setObMinutes('0');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, 'ob_requests');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (loading) return <div className="p-12 text-center text-emerald-800 font-bold uppercase tracking-widest animate-pulse">Initializing Calendar...</div>;
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-8 pb-20">
+      <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center">
+             <CalendarRange className="text-emerald-600" size={24} />
+          </div>
+          <div>
+            <h3 className="text-lg font-black text-emerald-900 uppercase tracking-tight">Attendance Calendar</h3>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Visualize staff activity & filed sessions</p>
+          </div>
+        </div>
+        
+        <div className="flex flex-wrap gap-4 items-center">
+          {canManage && (
+            <select 
+               className="bg-gray-50 border-2 border-emerald-50 rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest focus:border-emerald-500 outline-none transition-all"
+               value={selectedUser}
+               onChange={e => setSelectedUser(e.target.value)}
+            >
+               <option value="">Select Staff Member</option>
+               {users.map(u => (
+                 <option key={u.id} value={u.id}>{u.fullName}</option>
+               ))}
+            </select>
+          )}
+          
+          <div className="flex items-center bg-gray-50 rounded-xl p-1 border border-emerald-50">
+             <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 hover:bg-white rounded-lg transition-all text-emerald-800"><ChevronRight className="rotate-180" size={16} /></button>
+             <span className="px-4 text-[10px] font-black uppercase tracking-widest text-emerald-900">{format(currentMonth, 'MMMM yyyy')}</span>
+             <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 hover:bg-white rounded-lg transition-all text-emerald-800"><ChevronRight size={16} /></button>
+          </div>
+        </div>
+      </div>
+
+      {selectedUser ? (
+        <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-xl">
+           <div className="grid grid-cols-7 mb-4">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                <div key={d} className="text-center text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] py-2">{d}</div>
+              ))}
+           </div>
+           <div className="grid grid-cols-7 gap-3">
+              {days.map(day => {
+                const status = getDayStatus(day);
+                return (
+                  <motion.button
+                    key={day.toString()}
+                    whileHover={{ scale: 1.05 }}
+                    onClick={() => handleDayClick(day)}
+                    className={cn(
+                      "aspect-square rounded-2xl flex flex-col items-center justify-center relative border-2 transition-all p-2",
+                      status === 'PRESENT' ? "bg-emerald-50 border-emerald-100 text-emerald-600" :
+                      status === 'INCOMPLETE' ? "bg-amber-50 border-amber-100 text-amber-600" :
+                      status === 'ABSENT' ? "bg-red-50 border-red-100 text-red-400" :
+                      status === 'OB' ? "bg-indigo-50 border-indigo-100 text-indigo-600" :
+                      status === 'LEAVE' ? "bg-purple-50 border-purple-100 text-purple-600" :
+                      status === 'OT' ? "bg-blue-50 border-blue-100 text-blue-600" :
+                      "bg-gray-50 border-transparent text-gray-300"
+                    )}
+                  >
+                    <span className="text-xs font-black mb-1">{format(day, 'd')}</span>
+                    {status === 'PRESENT' && <Check size={14} className="stroke-[4px]" />}
+                    {status === 'INCOMPLETE' && <X size={14} className="stroke-[4px]" />}
+                    {status === 'ABSENT' && <X size={14} className="stroke-[4px]" strokeOpacity={0.3} />}
+                    {status === 'OB' && <Briefcase size={14} />}
+                    {status === 'LEAVE' && <div className="text-[8px] font-black uppercase">LV</div>}
+                    {status === 'OT' && <div className="text-[8px] font-black uppercase">OT</div>}
+                  </motion.button>
+                );
+              })}
+           </div>
+           
+           <div className="mt-8 flex flex-wrap gap-6 justify-center border-t border-gray-50 pt-8">
+              {[
+                { label: 'Present', color: 'bg-emerald-500', icon: Check },
+                { label: 'Incomplete', color: 'bg-amber-500', icon: X },
+                { label: 'Absent', color: 'bg-red-300', icon: X },
+                { label: 'OB', color: 'bg-indigo-500', icon: Briefcase },
+                { label: 'Leave', color: 'bg-purple-500', char: 'LV' },
+                { label: 'Overtime', color: 'bg-blue-500', char: 'OT' }
+              ].map(tag => (
+                <div key={tag.label} className="flex items-center gap-2">
+                   <div className={cn("w-3 h-3 rounded-full flex items-center justify-center", tag.color)}>
+                     {tag.icon ? <tag.icon className="text-white" size={8} /> : <span className="text-[5px] text-white font-black">{tag.char}</span>}
+                   </div>
+                   <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">{tag.label}</span>
+                </div>
+              ))}
+           </div>
+        </div>
+      ) : (
+        <div className="bg-white p-24 rounded-3xl border border-gray-100 shadow-sm text-center">
+           <Users className="mx-auto mb-4 opacity-10 text-emerald-950" size={64} />
+           <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Select a Staff Member to View Calendar</p>
+        </div>
+      )}
+
+      {/* File OB Modal from Calendar */}
+      <AnimatePresence>
+        {filingDate && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setFilingDate(null)}
+              className="absolute inset-0 bg-emerald-950/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative z-10 p-8"
+            >
+              <div className="text-center space-y-4 mb-8">
+                <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto">
+                   <Briefcase size={32} className="text-indigo-600" />
+                </div>
+                <h3 className="text-2xl font-black text-indigo-900 uppercase tracking-tighter">Record OB</h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Recording Official Business for {format(filingDate, 'MMMM dd, yyyy')}</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Hours</label>
+                    <input 
+                      type="number"
+                      min="0"
+                      className="w-full px-4 py-3 bg-gray-50 border-2 border-indigo-50 rounded-2xl text-xs font-black focus:border-indigo-500 focus:outline-none transition-all"
+                      value={obHours}
+                      onChange={e => setObHours(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Minutes</label>
+                    <input 
+                      type="number"
+                      min="0"
+                      max="59"
+                      className="w-full px-4 py-3 bg-gray-50 border-2 border-indigo-50 rounded-2xl text-xs font-black focus:border-indigo-500 focus:outline-none transition-all"
+                      value={obMinutes}
+                      onChange={e => setObMinutes(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <textarea
+                  value={obReason}
+                  onChange={(e) => setObReason(e.target.value)}
+                  placeholder="Reason for OB..."
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-indigo-50 rounded-2xl text-xs font-black focus:border-indigo-500 focus:outline-none transition-all min-h-[100px]"
+                />
+                
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={() => setFilingDate(null)}
+                    className="flex-1 px-6 py-4 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleFileOB}
+                    disabled={isSubmitting || !obReason.trim()}
+                    className="flex-1 px-6 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
+                  >
+                    {isSubmitting ? 'Confirming...' : 'Record OB'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// --- HR REPORTS MODULE ---
+function HRReportsModule({ user }: { user: UserProfile }) {
+  const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [reportData, setReportData] = useState<{
+    name: string;
+    role: string;
+    attendance: number;
+    late: number;
+    leaves: number;
+    overtime: number;
+    ob: number;
+  }[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    // Keep user in scope if needed, or just log
+    console.log("HR Report accessed by:", user.fullName);
+  }, [user.fullName]);
+
+  const generateReport = async () => {
+    setIsLoading(true);
+    try {
+      const usersSnap = await getDocs(query(collection(db, 'users'), where('role', 'in', ['user', 'coordinator'])));
+      const staff = usersSnap.docs.map(d => ({ id: d.id, ...d.data() })) as UserProfile[];
+      
+      const start = parseISO(startDate);
+      const end = parseISO(endDate);
+
+      const [attSnap, leaveSnap, otSnap, obSnap] = await Promise.all([
+        getDocs(query(collection(db, 'attendance'), where('date', '>=', startDate), where('date', '<=', endDate))),
+        getDocs(query(collection(db, 'leaves'), where('status', '==', 'Approved'))),
+        getDocs(query(collection(db, 'overtime'), where('status', '==', 'Approved'), where('date', '>=', startDate), where('date', '<=', endDate))),
+        getDocs(query(collection(db, 'ob_requests'), where('status', '==', 'Approved')))
+      ]);
+
+      const allAttendance = attSnap.docs.map(d => ({ id: d.id, ...d.data() })) as AttendanceRecord[];
+      const allLeaves = leaveSnap.docs.map(d => ({ id: d.id, ...d.data() })) as LeaveRequest[];
+      const allOT = otSnap.docs.map(d => ({ id: d.id, ...d.data() })) as OvertimeRequest[];
+      const allOB = obSnap.docs.map(d => ({ id: d.id, ...d.data() })) as OBRequest[];
+
+      const combined = staff.map(s => {
+        const staffAtt = allAttendance.filter(a => a.userId === s.id);
+        const staffLeaves = allLeaves.filter(l => l.userId === s.id && 
+          ((parseISO(l.startDate) >= start && parseISO(l.startDate) <= end) || 
+           (parseISO(l.endDate) >= start && parseISO(l.endDate) <= end))
+        );
+        const staffOT = allOT.filter(o => o.userId === s.id);
+        const staffOB = allOB.filter(ob => ob.userId === s.id && 
+          ((parseISO(ob.startDate) >= start && parseISO(ob.startDate) <= end) || 
+           (parseISO(ob.endDate) >= start && parseISO(ob.endDate) <= end))
+        );
+
+        const totalLate = staffAtt.filter(a => a.status === 'LATE').length;
+        const totalDays = staffAtt.length;
+
+        return {
+          name: s.fullName,
+          role: s.role,
+          attendance: totalDays,
+          late: totalLate,
+          leaves: staffLeaves.length,
+          overtime: staffOT.length,
+          ob: staffOB.length
+        };
+      });
+
+      setReportData(combined);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate report");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const exportCSV = () => {
+    if (reportData.length === 0) return;
+    const headers = ['Name', 'Role', 'Attendance Days', 'Total Late', 'Approved Leaves', 'Approved Overtime', 'Approved OB'];
+    const rows = reportData.map(r => [r.name, r.role, r.attendance, r.late, r.leaves, r.overtime, r.ob]);
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + headers.join(",") + "\n"
+      + rows.map(e => e.join(",")).join("\n");
+    
+    const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `CIBI_Report_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`);
-    link.style.visibility = 'hidden';
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `HR_Report_${startDate}_to_${endDate}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  const exportToExcel = () => {
-    const worksheet = XLSX.utils.json_to_sheet(filtered.map(a => ({
-      'Borrower Name': a.borrowerName,
-      'Mobile Number': a.mobileNumber,
-      'Account Type': a.accountType,
-      'Location': a.location,
-      'Tribe': a.tribe,
-      'Requested Amount': a.requestedAmount,
-      'Term': a.term,
-      'CI Officer': a.ciOfficerName,
-      'Status': a.status,
-      'Created At': format(new Date(a.createdAt), 'MMM d, yyyy | h:mm a')
-    })));
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Assignments");
-    XLSX.writeFile(workbook, `CIBI_Report_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
-  };
-
-  const exportToPDF = () => {
-    const doc = new jsPDF();
-    doc.setFontSize(18);
-    doc.text("CIBI - Assignment Report", 14, 22);
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Generated by: ${user.fullName} | ${format(new Date(), 'MMM d, yyyy h:mm a')}`, 14, 30);
-    if (statusFilter !== 'All') doc.text(`Status: ${statusFilter}`, 14, 35);
-    if (startDate || endDate) doc.text(`Range: ${startDate || 'Start'} to ${endDate || 'End'}`, 14, 40);
-    
-    const tableColumn = ["Borrower", "Type", "CI Officer", "Status", "Created At"];
-    const tableRows = filtered.map(a => [
-      a.borrowerName,
-      a.accountType,
-      a.ciOfficerName,
-      a.status,
-      format(new Date(a.createdAt), 'MMM d, yyyy')
-    ]);
-
-    autoTable(doc, {
-      head: [tableColumn],
-      body: tableRows,
-      startY: (statusFilter !== 'All' || startDate || endDate) ? 45 : 35,
-      theme: 'grid',
-      headStyles: { fillColor: [5, 150, 105], textColor: [255, 255, 255], fontStyle: 'bold' },
-      styles: { fontSize: 8, cellPadding: 3 }
-    });
-    
-    doc.save(`CIBI_Report_${format(new Date(), 'yyyyMMdd_HHmm')}.pdf`);
-  };
-
-  const statusOptions = [
-    'All',
-    'Assigned',
-    'Start to Perform Assignment',
-    'Reviewing',
-    'Field CIBI',
-    'Cashflowing',
-    'Report Submitted',
-    'Completed',
-    'Approved',
-    'Denied'
-  ];
-
-  if (loading) return (
-    <div className="h-full flex items-center justify-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
-    </div>
-  );
-
   return (
-    <div className="space-y-8 max-w-6xl mx-auto">
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
-        <div className="space-y-1">
-          <h2 className="text-2xl font-black text-emerald-800 uppercase tracking-tight">Reporting Command</h2>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] flex items-center gap-2">
-            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" /> Live Repository Data
-          </p>
+    <div className="max-w-6xl mx-auto space-y-8 pb-20">
+       <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center">
+             <FileBarChart className="text-indigo-600" size={24} />
+          </div>
+          <div>
+            <h3 className="text-lg font-black text-indigo-900 uppercase tracking-tight">HR Consolidated Reports</h3>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Download activity & performance metrics</p>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-4">
+        
+        <div className="flex flex-wrap gap-4 items-center">
+          <div className="flex items-center gap-2">
+             <input 
+               type="date"
+               className="bg-gray-50 border-2 border-indigo-50 rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest outline-none transition-all"
+               value={startDate}
+               onChange={e => setStartDate(e.target.value)}
+             />
+             <span className="text-[10px] font-black text-gray-400">TO</span>
+             <input 
+               type="date"
+               className="bg-gray-50 border-2 border-indigo-50 rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest outline-none transition-all"
+               value={endDate}
+               onChange={e => setEndDate(e.target.value)}
+             />
+          </div>
           <button 
-            onClick={exportToCSV}
-            className="group flex items-center gap-3 px-8 py-3.5 bg-blue-600 text-white text-[11px] font-black uppercase tracking-widest rounded-2xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-900/10 active:scale-95"
+            onClick={generateReport}
+            className="px-8 py-2.5 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all font-mono"
           >
-            <Download size={16} className="group-hover:translate-y-0.5 transition-transform" /> Export CSV
-          </button>
-          <button 
-            onClick={exportToExcel}
-            className="group flex items-center gap-3 px-8 py-3.5 bg-[#1D6F42] text-white text-[11px] font-black uppercase tracking-widest rounded-2xl hover:bg-[#155231] transition-all shadow-xl shadow-green-900/10 active:scale-95"
-          >
-            <Download size={16} className="group-hover:translate-y-0.5 transition-transform" /> Export Master Ledger (.xlsx)
-          </button>
-          <button 
-            onClick={exportToPDF}
-            className="group flex items-center gap-3 px-8 py-3.5 bg-[#E11D48] text-white text-[11px] font-black uppercase tracking-widest rounded-2xl hover:bg-[#BE123C] transition-all shadow-xl shadow-red-900/10 active:scale-95"
-          >
-            <Download size={16} className="group-hover:translate-y-0.5 transition-transform" /> Generate PDF Manifest
-          </button>
-          <button 
-            onClick={() => {
-              const pptx = new pptxgen();
-              const slide = pptx.addSlide();
-            slide.addText("CIBI - CONSOLIDATED REPORT", { x: 0.5, y: 0.5, fontSize: 24, bold: true, color: "059669" });
-            const tableData: any[] = [
-                [{ text: "BORROWER", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } }, 
-                 { text: "TYPE", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } }, 
-                 { text: "CI OFFICER", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } }, 
-                 { text: "STATUS", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } }, 
-                 { text: "AMOUNT", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } }],
-                ...filtered.slice(0, 50).map(a => [
-                    { text: a.borrowerName }, 
-                    { text: a.accountType }, 
-                    { text: a.ciOfficerName }, 
-                    { text: a.status }, 
-                    { text: `₱${a.requestedAmount.toLocaleString()}` }
-                ])
-            ];
-            slide.addTable(
-                tableData,
-                { x: 0.5, y: 1.2, w: 9.0, fontSize: 9, border: { pt: 1, color: "E2E8F0" } }
-            );
-              pptx.writeFile({ fileName: `CIBI_Consolidated_Report_${format(new Date(), 'yyyyMMdd')}.pptx` });
-            }}
-            className="group flex items-center gap-3 px-8 py-3.5 bg-orange-600 text-white text-[11px] font-black uppercase tracking-widest rounded-2xl hover:bg-orange-700 transition-all shadow-xl shadow-orange-900/10 active:scale-95"
-          >
-            <Presentation size={16} className="group-hover:translate-y-0.5 transition-transform" /> Create PPT Deck
+            {isLoading ? "Generating..." : "Generate"}
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 overflow-hidden">
-        <div className="p-8 border-b border-gray-100 bg-gray-50/30 space-y-6">
-          <div className="flex flex-col xl:flex-row gap-6">
-            <div className="flex-1 space-y-2">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Search Identifier</label>
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input 
-                  type="text" 
-                  placeholder="Filter by borrower or CI officer name..."
-                  className="w-full pl-12 pr-6 py-3.5 bg-white border-2 border-gray-50 rounded-2xl text-sm focus:outline-none focus:border-emerald-500/20 font-medium transition-all"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 xl:w-2/3">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Lifecycle Status</label>
-                <select 
-                  className="w-full px-5 py-3.5 bg-white border-2 border-gray-50 rounded-2xl text-sm font-bold appearance-none cursor-pointer focus:border-emerald-500/20 focus:outline-none transition-all"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                >
-                  {statusOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Commencement Date</label>
-                <input 
-                  type="date" 
-                  className="w-full px-5 py-3.5 bg-white border-2 border-gray-50 rounded-2xl text-sm font-bold focus:border-emerald-500/20 focus:outline-none transition-all"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Termination Date</label>
-                <input 
-                  type="date" 
-                  className="w-full px-5 py-3.5 bg-white border-2 border-gray-50 rounded-2xl text-sm font-bold focus:border-emerald-500/20 focus:outline-none transition-all"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-          
-          {(statusFilter !== 'All' || startDate || endDate || search) && (
-            <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-100">
-              <div className="flex gap-2">
-                {statusFilter !== 'All' && <span className="px-3 py-1 bg-emerald-50 text-emerald-800 text-[10px] font-black rounded-lg uppercase tracking-tight">Status: {statusFilter}</span>}
-                {startDate && <span className="px-3 py-1 bg-emerald-50 text-emerald-800 text-[10px] font-black rounded-lg uppercase tracking-tight">From: {startDate}</span>}
-                {endDate && <span className="px-3 py-1 bg-emerald-50 text-emerald-800 text-[10px] font-black rounded-lg uppercase tracking-tight">To: {endDate}</span>}
-              </div>
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden">
+         <div className="p-8 border-b border-gray-50 flex justify-between items-center">
+            <h4 className="text-[10px] font-black text-indigo-800 uppercase tracking-widest">Report Preview</h4>
+            {reportData.length > 0 && (
               <button 
-                onClick={() => {
-                  setSearch('');
-                  setStatusFilter('All');
-                  setStartDate('');
-                  setEndDate('');
-                }}
-                className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline"
+                onClick={exportCSV}
+                className="flex items-center gap-2 text-emerald-600 hover:bg-emerald-50 px-4 py-2 rounded-xl transition-all"
               >
-                Reset System Filters
+                <Download size={16} />
+                <span className="text-[10px] font-black uppercase tracking-widest">Export CSV</span>
               </button>
-            </div>
-          )}
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
-                <th className="px-6 py-4">Borrower Name</th>
-                <th className="px-6 py-4">Account Type</th>
-                <th className="px-6 py-4">CI Officer</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Created Date</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filtered.map((a) => (
-                <tr key={a.id} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-6 py-4 text-xs font-bold text-gray-700 uppercase tracking-tight">{a.borrowerName}</td>
-                  <td className="px-6 py-4">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase px-2 py-1 bg-gray-100 rounded-md">
-                      {a.accountType}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-xs text-gray-600 font-medium italic">{a.ciOfficerName}</td>
-                  <td className="px-6 py-4">
-                    <span className={cn(
-                      "text-[9px] font-black uppercase tracking-tight px-2.5 py-1 rounded-full",
-                      a.status === 'Completed' ? "bg-green-100 text-green-700" :
-                      a.status === 'Approved' ? "bg-blue-100 text-blue-700" :
-                      a.status === 'Denied' ? "bg-red-100 text-red-700" :
-                      "bg-amber-100 text-amber-700"
-                    )}>
-                      {a.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-[10px] font-mono text-gray-400 font-bold">
-                    {format(new Date(a.createdAt), 'MMM d, yyyy | h:mm a')}
-                  </td>
+            )}
+         </div>
+         <div className="overflow-x-auto no-scrollbar">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest text-left">
+                  <th className="p-8">Staff Name</th>
+                  <th className="p-8 text-center">Attendance</th>
+                  <th className="p-8 text-center text-amber-600">Times Late</th>
+                  <th className="p-8 text-center text-indigo-600">Leaves</th>
+                  <th className="p-8 text-center text-emerald-600">Overtime</th>
+                  <th className="p-8 text-center text-blue-600">OB</th>
                 </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center justify-center text-gray-300 space-y-2">
-                      <FileText size={48} strokeWidth={1} />
-                      <p className="text-[10px] font-black uppercase tracking-widest">No matching records found</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {reportData.map((r, i) => (
+                  <tr key={i} className="group hover:bg-indigo-50/20 transition-all duration-300">
+                    <td className="p-8">
+                       <p className="text-sm font-black text-indigo-950 uppercase">{r.name}</p>
+                       <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-1">{r.role}</p>
+                    </td>
+                    <td className="p-8 text-center text-sm font-black text-gray-700">{r.attendance}</td>
+                    <td className="p-8 text-center text-sm font-black text-amber-600">{r.late}</td>
+                    <td className="p-8 text-center text-sm font-black text-indigo-600">{r.leaves}</td>
+                    <td className="p-8 text-center text-sm font-black text-emerald-600">{r.overtime}</td>
+                    <td className="p-8 text-center text-sm font-black text-blue-600">{r.ob}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {reportData.length === 0 && (
+              <div className="py-24 text-center text-gray-300">
+                 <FileBarChart className="mx-auto mb-4 opacity-10 text-indigo-950" size={64} />
+                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Set date range and click generate</p>
+              </div>
+            )}
+         </div>
       </div>
     </div>
   );

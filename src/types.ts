@@ -269,6 +269,61 @@ export interface Assignment {
   };
 }
 
+export interface AttendanceRecord {
+  id: string;
+  userId: string;
+  userName: string;
+  date: string;
+  timeIn: string | null;
+  timeOut: string | null;
+  status: 'ON TIME' | 'LATE' | 'UNDERTIME' | 'OVERTIME';
+  tasks: string;
+  createdAt: string;
+}
+
+export type LeaveType = 'Sick Leave' | 'Vacation Leave' | 'Emergency Leave' | 'Maternity Leave' | 'Paternity Leave';
+export type RequestStatus = 'Pending' | 'Approved' | 'Rejected';
+
+export interface LeaveRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  leaveType: LeaveType;
+  startDate: string;
+  endDate: string;
+  reason: string;
+  status: RequestStatus;
+  remarks?: string;
+  createdAt: string;
+}
+
+export interface OvertimeRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  date: string;
+  hours: number;
+  minutes: number;
+  reason: string;
+  status: RequestStatus;
+  remarks?: string;
+  createdAt: string;
+}
+
+export interface OBRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  startDate: string;
+  endDate: string;
+  hours?: number;
+  minutes?: number;
+  reason: string;
+  status: RequestStatus;
+  remarks?: string;
+  createdAt: string;
+}
+
 export interface AppNotification {
   id: string;
   userId: string;
