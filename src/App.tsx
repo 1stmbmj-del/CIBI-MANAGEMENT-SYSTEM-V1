@@ -3526,15 +3526,34 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                   )}
                   {(isAdmin || user.role === 'coordinator') && (
                     <td className="p-4 text-center">
-                       <button 
-                         onClick={() => {
-                           setEditingRecord(r);
-                           setCoordRemarks(r.coordinatorRemarks || '');
-                         }}
-                         className="p-2 hover:bg-indigo-50 text-indigo-600 rounded-lg transition-colors"
-                       >
-                         <Pencil size={12} />
-                       </button>
+                       <div className="flex justify-center gap-2">
+                        <button 
+                          onClick={() => {
+                            setEditingRecord(r);
+                            setCoordRemarks(r.coordinatorRemarks || '');
+                          }}
+                          className="p-2 hover:bg-indigo-50 text-indigo-600 rounded-lg transition-colors"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        {isAdmin && (
+                          <button 
+                            onClick={async () => {
+                              if (confirm('Are you sure you want to delete this attendance record?')) {
+                                try {
+                                  await deleteDoc(doc(db, 'attendance', r.id));
+                                  toast.success("Attendance record deleted");
+                                } catch (err) {
+                                  handleFirestoreError(err, OperationType.DELETE, `attendance/${r.id}`);
+                                }
+                              }
+                            }}
+                            className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   )}
                 </tr>
