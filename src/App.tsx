@@ -3245,11 +3245,11 @@ function AttendanceModule({ user }: { user: UserProfile }) {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AttendanceRecord[];
       setRecords(data);
-      if (!isAdminOrCoordinator) {
-        const today = format(new Date(), 'yyyy-MM-dd');
-        const todayRec = data.find(r => r.date === today);
-        setTodayRecord(todayRec || null);
-      }
+      
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const todayRec = data.find(r => r.date === today && r.userId === user.id);
+      setTodayRecord(todayRec || null);
+      
       setIsLoading(false);
     }, (err) => {
        handleFirestoreError(err, OperationType.LIST, 'attendance');
