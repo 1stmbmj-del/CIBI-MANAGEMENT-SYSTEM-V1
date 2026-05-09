@@ -8136,7 +8136,7 @@ function AttendanceCalendar({ user }: { user: UserProfile }) {
   const [overtime, setOvertime] = useState<OvertimeRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState<string>(canManage ? '' : user.id);
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [currentMonth, setCurrentMonth] = useState(startOfMonth(new Date()));
 
   // OB from calendar
   const [filingDate, setFilingDate] = useState<Date | null>(null);
@@ -8342,10 +8342,20 @@ function AttendanceCalendar({ user }: { user: UserProfile }) {
             </select>
           )}
           
-          <div className="flex items-center bg-gray-50 rounded-xl p-1 border border-emerald-50">
-             <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 hover:bg-white rounded-lg transition-all text-emerald-800"><ChevronRight className="rotate-180" size={16} /></button>
-             <span className="px-4 text-[10px] font-black uppercase tracking-widest text-emerald-900">{format(currentMonth, 'MMMM yyyy')}</span>
-             <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 hover:bg-white rounded-lg transition-all text-emerald-800"><ChevronRight size={16} /></button>
+          <div className="flex items-center gap-2">
+             <button 
+               onClick={() => setCurrentMonth(startOfMonth(new Date()))}
+               className="px-3 py-2 bg-gray-50 hover:bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase tracking-widest border border-emerald-50 transition-all"
+             >
+               Today
+             </button>
+             <div className="flex items-center bg-gray-50 rounded-xl p-1 border border-emerald-50">
+                <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 hover:bg-white rounded-lg transition-all text-emerald-800"><ChevronRight className="rotate-180" size={16} /></button>
+                <div className="w-32 text-center">
+                  <span className="px-2 text-[10px] font-black uppercase tracking-widest text-emerald-900">{format(currentMonth, 'MMM yyyy')}</span>
+                </div>
+                <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 hover:bg-white rounded-lg transition-all text-emerald-800"><ChevronRight size={16} /></button>
+             </div>
           </div>
         </div>
       </div>
@@ -8358,6 +8368,10 @@ function AttendanceCalendar({ user }: { user: UserProfile }) {
               ))}
            </div>
            <div className="grid grid-cols-7 gap-3">
+              {/* Empty slots for alignment */}
+              {Array.from({ length: startOfMonth(currentMonth).getDay() }).map((_, i) => (
+                <div key={`empty-${i}`} className="aspect-square" />
+              ))}
               {days.map(day => {
                 const dateStr = format(day, 'yyyy-MM-dd');
                 const status = getDayStatus(day);
