@@ -3233,8 +3233,12 @@ function AttendanceModule({ user }: { user: UserProfile }) {
   const [showTaskLog, setShowTaskLog] = useState(false);
   const [taskLog, setTaskLog] = useState('');
   const [isSubmittingTask, setIsSubmittingTask] = useState(false);
+  const [isSubmittingAction, setIsSubmittingAction] = useState(false);
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
   const [coordRemarks, setCoordRemarks] = useState('');
+
+  const now = new Date();
+  const isAfterCutoff = now.getHours() > 18 || (now.getHours() === 18 && now.getMinutes() >= 30);
 
   useEffect(() => {
     const isAdminOrCoordinator = user.role === 'admin' || user.role === 'coordinator';
@@ -3260,6 +3264,7 @@ function AttendanceModule({ user }: { user: UserProfile }) {
   }, [user.id, user.role]);
 
   const handleTimeAction = async (type: 'in' | 'out') => {
+    if (isSubmittingAction) return;
     const now = new Date();
     const today = format(now, 'yyyy-MM-dd');
     const timeStr = format(now, 'HH:mm:ss');
@@ -3270,6 +3275,7 @@ function AttendanceModule({ user }: { user: UserProfile }) {
           toast.error("Already timed in for today");
           return;
         }
+        setIsSubmittingAction(true);
         const hour = now.getHours();
         const minutes = now.getMinutes();
         const isSaturday = now.getDay() === 6;
@@ -3301,6 +3307,8 @@ function AttendanceModule({ user }: { user: UserProfile }) {
           toast.success("Timed in successfully");
         } catch (err) {
           handleFirestoreError(err, OperationType.CREATE, 'attendance');
+        } finally {
+          setIsSubmittingAction(false);
         }
       } else {
         if (!todayRecord) {
@@ -3309,6 +3317,13 @@ function AttendanceModule({ user }: { user: UserProfile }) {
         }
         if (todayRecord.timeOut) {
           toast.error("Already timed out for today");
+          return;
+        }
+        
+        const hour = now.getHours();
+        const minutes = now.getMinutes();
+        if (hour > 18 || (hour === 18 && minutes >= 30)) {
+          toast.error("Time out is disabled after 6:30 PM");
           return;
         }
         
@@ -3418,9 +3433,10 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                 ) : (
                   <button 
                     onClick={() => handleTimeAction('in')}
-                    className="bg-white text-black px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+                    disabled={isSubmittingAction}
+                    className="bg-white text-black px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50"
                   >
-                    Time In Now
+                    {isSubmittingAction ? "Processing..." : "Time In Now"}
                   </button>
                 )}
                 <TrendingUp size={32} className="opacity-20 translate-x-4" />
@@ -3447,10 +3463,10 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                 ) : (
                   <button 
                     onClick={() => handleTimeAction('out')}
-                    disabled={!todayRecord}
+                    disabled={!todayRecord || isAfterCutoff}
                     className="bg-white text-indigo-900 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50"
                   >
-                    Time Out Now
+                    {isAfterCutoff ? "Cutoff Reached" : "Time Out Now"}
                   </button>
                 )}
                 <Clock size={32} className="opacity-20 translate-x-4" />
