@@ -7423,38 +7423,38 @@ function DataStorage({ user }: { user: UserProfile }) {
                       <p className="text-[10px] font-black text-emerald-800 uppercase tracking-tighter">
                         {(() => {
                           try {
-                            const start = parseISO(a.createdAt);
+                            const assignedStep = a.timeline.find(s => s.step === 'Assigned');
+                            const preApprovedStep = a.timeline.find(s => s.step === 'Pre-approved');
+                            
+                            const start = assignedStep ? parseISO(assignedStep.timestamp) : parseISO(a.createdAt);
                             let end = new Date();
                             
-                            const terminalStatuses = ['Completed', 'Denied'];
-                            if (terminalStatuses.includes(a.status)) {
-                              const terminalStep = a.timeline.filter(s => terminalStatuses.includes(s.step)).pop();
-                              if (terminalStep) {
-                                end = parseISO(terminalStep.timestamp);
+                            if (preApprovedStep) {
+                              end = parseISO(preApprovedStep.timestamp);
+                            } else {
+                              // If already beyond pre-approved, use the first step that reached that level
+                              const targetStatuses = ['Pre-approved', 'Approved', 'Denied', 'Completed'];
+                              const completedStep = a.timeline.find(s => targetStatuses.includes(s.step));
+                              if (completedStep) {
+                                end = parseISO(completedStep.timestamp);
                               }
-                            } else if (a.status === 'Approved') {
-                               // For 'Approved', check if it was last updated as approved
-                               const approvedStep = a.timeline.filter(s => s.step === 'Approved').pop();
-                               if (approvedStep) {
-                                 end = parseISO(approvedStep.timestamp);
-                               }
                             }
                             
-                            const diffMs = Math.abs(end.getTime() - start.getTime());
+                            const diffMs = Math.max(0, end.getTime() - start.getTime());
                             const diffMins = Math.floor(diffMs / (1000 * 60));
                             
                             const d = Math.floor(diffMins / (24 * 60));
                             const h = Math.floor((diffMins % (24 * 60)) / 60);
                             const m = diffMins % 60;
                             
-                            return `${d} Day's, ${h} Hours and ${m} minutes`;
-                          } catch (e) {
+                            return `${d}D(Days), ${h}H(Hours), ${m}M(minutes)`;
+                          } catch {
                             return "--";
                           }
                         })()}
                       </p>
-                      {['Completed', 'Denied', 'Approved'].includes(a.status) ? (
-                        <p className="text-[8px] text-emerald-600 font-bold uppercase mt-1">Final TAT</p>
+                      {['Pre-approved', 'Approved', 'Denied', 'Completed'].includes(a.status) ? (
+                        <p className="text-[8px] text-emerald-600 font-bold uppercase mt-1">Final TAT (Pre-app)</p>
                       ) : (
                         <p className="text-[8px] text-amber-500 font-bold uppercase mt-1 animate-pulse">In Progress</p>
                       )}
