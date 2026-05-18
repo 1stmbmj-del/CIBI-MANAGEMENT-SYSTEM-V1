@@ -7356,6 +7356,7 @@ function DataStorage({ user }: { user: UserProfile }) {
                 <th className="px-6 py-5">Geography</th>
                 <th className="px-6 py-5">Field Staff</th>
                 <th className="px-6 py-5">Lifecycle</th>
+                <th className="px-6 py-5">Turn Around Time</th>
                 <th className="px-6 py-5 text-right">Actions</th>
               </tr>
             </thead>
@@ -7416,6 +7417,48 @@ function DataStorage({ user }: { user: UserProfile }) {
                     <p className="text-[8px] text-gray-300 mt-2 font-mono">
                       {format(new Date(a.createdAt), 'MMM d, yyyy')}
                     </p>
+                  </td>
+                  <td className="px-6 py-5">
+                    <div className="flex flex-col">
+                      <p className="text-[10px] font-black text-emerald-800 uppercase tracking-tighter">
+                        {(() => {
+                          try {
+                            const start = parseISO(a.createdAt);
+                            let end = new Date();
+                            
+                            const terminalStatuses = ['Completed', 'Denied'];
+                            if (terminalStatuses.includes(a.status)) {
+                              const terminalStep = a.timeline.filter(s => terminalStatuses.includes(s.step)).pop();
+                              if (terminalStep) {
+                                end = parseISO(terminalStep.timestamp);
+                              }
+                            } else if (a.status === 'Approved') {
+                               // For 'Approved', check if it was last updated as approved
+                               const approvedStep = a.timeline.filter(s => s.step === 'Approved').pop();
+                               if (approvedStep) {
+                                 end = parseISO(approvedStep.timestamp);
+                               }
+                            }
+                            
+                            const diffMs = Math.abs(end.getTime() - start.getTime());
+                            const diffMins = Math.floor(diffMs / (1000 * 60));
+                            
+                            const d = Math.floor(diffMins / (24 * 60));
+                            const h = Math.floor((diffMins % (24 * 60)) / 60);
+                            const m = diffMins % 60;
+                            
+                            return `${d} Day's, ${h} Hours and ${m} minutes`;
+                          } catch (e) {
+                            return "--";
+                          }
+                        })()}
+                      </p>
+                      {['Completed', 'Denied', 'Approved'].includes(a.status) ? (
+                        <p className="text-[8px] text-emerald-600 font-bold uppercase mt-1">Final TAT</p>
+                      ) : (
+                        <p className="text-[8px] text-amber-500 font-bold uppercase mt-1 animate-pulse">In Progress</p>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-5 text-right">
                     <div className="flex justify-end gap-2">
@@ -8628,9 +8671,9 @@ function HRReportsModule({ user }: { user: UserProfile }) {
 
       const [attSnap, leaveSnap, otSnap, obSnap] = await Promise.all([
         getDocs(query(collection(db, 'attendance'), where('date', '>=', startDate), where('date', '<=', endDate))),
-        getDocs(query(collection(db, 'leaves'), where('status', 'in', ['Approved', 'Denied']))),
-        getDocs(query(collection(db, 'overtime'), where('status', 'in', ['Approved', 'Denied']), where('date', '>=', startDate), where('date', '<=', endDate))),
-        getDocs(query(collection(db, 'ob_requests'), where('status', 'in', ['Approved', 'Denied'])))
+        getDocs(query(collection(db, 'leaves'), where('status', 'in', ['Approved', 'Rejected']))),
+        getDocs(query(collection(db, 'overtime'), where('status', 'in', ['Approved', 'Rejected']), where('date', '>=', startDate), where('date', '<=', endDate))),
+        getDocs(query(collection(db, 'ob_requests'), where('status', 'in', ['Approved', 'Rejected'])))
       ]);
 
       const allAttendance = attSnap.docs.map(d => ({ id: d.id, ...d.data() })) as AttendanceRecord[];
@@ -8678,7 +8721,7 @@ function HRReportsModule({ user }: { user: UserProfile }) {
           id: ob.id,
           type: 'OB',
           userName: s.fullName,
-          description: ob.location,
+          description: ob.reason,
           status: ob.status,
           dateRange: `${ob.startDate} to ${ob.endDate}`,
           reason: ob.reason,
@@ -8694,11 +8737,11 @@ function HRReportsModule({ user }: { user: UserProfile }) {
           attendance: totalDays,
           late: totalLate,
           leavesApproved: staffLeaves.filter(l => l.status === 'Approved').length,
-          leavesDenied: staffLeaves.filter(l => l.status === 'Denied').length,
+          leavesDenied: staffLeaves.filter(l => l.status === 'Rejected').length,
           otApproved: staffOT.filter(o => o.status === 'Approved').length,
-          otDenied: staffOT.filter(o => o.status === 'Denied').length,
+          otDenied: staffOT.filter(o => o.status === 'Rejected').length,
           obApproved: staffOB.filter(ob => ob.status === 'Approved').length,
-          obDenied: staffOB.filter(ob => ob.status === 'Denied').length
+          obDenied: staffOB.filter(ob => ob.status === 'Rejected').length
         };
       });
 
