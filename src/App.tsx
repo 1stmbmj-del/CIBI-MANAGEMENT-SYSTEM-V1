@@ -8641,18 +8641,17 @@ function HRReportsModule({ user }: { user: UserProfile }) {
     obApproved: number;
     obDenied: number;
   }[]>([]);
-  const [detailedAttendance, setDetailedAttendance] = useState<AttendanceRecord[]>([]);
-  const [allRequests, setAllRequests] = useState<{
+  const [combinedLogs, setCombinedLogs] = useState<{
     id: string;
-    type: 'LEAVE' | 'OT' | 'OB';
+    type: 'ATTENDANCE' | 'LEAVE' | 'OT' | 'OB';
     userName: string;
-    description: string;
-    status: 'Approved' | 'Denied';
-    dateRange: string;
-    reason: string;
-    createdAt: string;
+    date: string;
+    timeRangeOrDesc: string;
+    status: string;
+    remarksOrReason: string;
+    rawDate: string;
   }[]>([]);
-  const [reportTab, setReportTab] = useState<'SUMMARY' | 'DETAILED' | 'REQUESTS'>('SUMMARY');
+  const [reportTab, setReportTab] = useState<'SUMMARY' | 'DETAILED'>('SUMMARY');
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -8681,8 +8680,33 @@ function HRReportsModule({ user }: { user: UserProfile }) {
       const otData = otSnap.docs.map(d => ({ id: d.id, ...d.data() })) as OvertimeRequest[];
       const obData = obSnap.docs.map(d => ({ id: d.id, ...d.data() })) as OBRequest[];
 
-      const combinedRequests: any[] = [];
+      const tempLogs: {
+        id: string;
+        type: 'ATTENDANCE' | 'LEAVE' | 'OT' | 'OB';
+        userName: string;
+        date: string;
+        timeRangeOrDesc: string;
+        status: string;
+        remarksOrReason: string;
+        rawDate: string;
+      }[] = [];
       
+      // 1. Add all attendance record logs
+      allAttendance.forEach(a => {
+        tempLogs.push({
+          id: a.id,
+          type: 'ATTENDANCE',
+          userName: a.userName,
+          date: a.date,
+          timeRangeOrDesc: `${a.timeIn || 'NA'} - ${a.timeOut || 'NA'}`,
+          status: a.status,
+          remarksOrReason: a.tasks || a.coordinatorRemarks 
+            ? `Tasks: ${a.tasks || '--'} | Coord: ${a.coordinatorRemarks || '--'}`
+            : '--',
+          rawDate: a.date
+        });
+      });
+
       const combined = staff.map(s => {
         const staffAtt = allAttendance.filter(a => a.userId === s.id);
         
@@ -8696,37 +8720,47 @@ function HRReportsModule({ user }: { user: UserProfile }) {
            (parseISO(ob.endDate) >= start && parseISO(ob.endDate) <= end))
         );
 
-        // Map to combined requests for the history tab
-        staffLeaves.forEach(l => combinedRequests.push({
-          id: l.id,
-          type: 'LEAVE',
-          userName: s.fullName,
-          description: l.leaveType,
-          status: l.status,
-          dateRange: `${l.startDate} to ${l.endDate}`,
-          reason: l.reason,
-          createdAt: l.createdAt
-        }));
-        staffOT.forEach(o => combinedRequests.push({
-          id: o.id,
-          type: 'OT',
-          userName: s.fullName,
-          description: `${o.hours}h ${o.minutes}m`,
-          status: o.status,
-          dateRange: o.date,
-          reason: o.reason,
-          createdAt: o.createdAt
-        }));
-        staffOB.forEach(ob => combinedRequests.push({
-          id: ob.id,
-          type: 'OB',
-          userName: s.fullName,
-          description: ob.reason,
-          status: ob.status,
-          dateRange: `${ob.startDate} to ${ob.endDate}`,
-          reason: ob.reason,
-          createdAt: ob.createdAt
-        }));
+        // Add leaves to tempLogs
+        staffLeaves.forEach(l => {
+          tempLogs.push({
+            id: l.id,
+            type: 'LEAVE',
+            userName: s.fullName,
+            date: `${l.startDate} to ${l.endDate}`,
+            timeRangeOrDesc: l.leaveType,
+            status: l.status,
+            remarksOrReason: l.reason,
+            rawDate: l.startDate
+          });
+        });
+
+        // Add OT to tempLogs
+        staffOT.forEach(o => {
+          tempLogs.push({
+            id: o.id,
+            type: 'OT',
+            userName: s.fullName,
+            date: o.date,
+            timeRangeOrDesc: `${o.hours}h ${o.minutes}m`,
+            status: o.status,
+            remarksOrReason: o.reason,
+            rawDate: o.date
+          });
+        });
+
+        // Add OB to tempLogs
+        staffOB.forEach(ob => {
+          tempLogs.push({
+            id: ob.id,
+            type: 'OB',
+            userName: s.fullName,
+            date: `${ob.startDate} to ${ob.endDate}`,
+            timeRangeOrDesc: `OB request`,
+            status: ob.status,
+            remarksOrReason: ob.reason,
+            rawDate: ob.startDate
+          });
+        });
 
         const totalLate = staffAtt.filter(a => a.status === 'LATE').length;
         const totalDays = staffAtt.length;
@@ -8745,9 +8779,11 @@ function HRReportsModule({ user }: { user: UserProfile }) {
         };
       });
 
+      // Sort combined logs by rawDate descending
+      const sortedLogs = tempLogs.sort((a, b) => b.rawDate.localeCompare(a.rawDate));
+
       setReportData(combined);
-      setDetailedAttendance(allAttendance.sort((a, b) => b.date.localeCompare(a.date)));
-      setAllRequests(combinedRequests.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      setCombinedLogs(sortedLogs);
     } catch (err) {
       console.error(err);
       toast.error("Failed to generate report");
@@ -8773,16 +8809,15 @@ function HRReportsModule({ user }: { user: UserProfile }) {
       link.click();
       document.body.removeChild(link);
     } else if (reportTab === 'DETAILED') {
-      if (detailedAttendance.length === 0) return;
-      const headers = ['Date', 'Staff Name', 'Time In', 'Time Out', 'Status', 'User Tasks/Remarks', 'Coordinator Remarks'];
-      const rows = detailedAttendance.map(r => [
-        r.date, 
-        r.userName, 
-        r.timeIn || 'NA', 
-        r.timeOut || 'NA', 
-        r.status, 
-        (r.tasks || '').replace(/,/g, ';'), 
-        (r.coordinatorRemarks || '').replace(/,/g, ';')
+      if (combinedLogs.length === 0) return;
+      const headers = ['Type', 'Staff Name', 'Date/Range', 'Time/Description', 'Status', 'Tasks/Reason/Remarks'];
+      const rows = combinedLogs.map(r => [
+        r.type,
+        r.userName,
+        r.date,
+        r.timeRangeOrDesc.replace(/,/g, ';'),
+        r.status,
+        (r.remarksOrReason || '').replace(/,/g, ';')
       ]);
       const csvContent = "data:text/csv;charset=utf-8," 
         + headers.join(",") + "\n"
@@ -8791,29 +8826,7 @@ function HRReportsModule({ user }: { user: UserProfile }) {
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
       link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `HR_Detailed_Attendance_${startDate}_to_${endDate}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } else if (reportTab === 'REQUESTS') {
-      if (allRequests.length === 0) return;
-      const headers = ['Type', 'Staff Name', 'Description', 'Status', 'Date/Range', 'Reason', 'Submitted At'];
-      const rows = allRequests.map(r => [
-        r.type,
-        r.userName,
-        r.description.replace(/,/g, ';'),
-        r.status,
-        r.dateRange,
-        r.reason.replace(/,/g, ';'),
-        r.createdAt
-      ]);
-      const csvContent = "data:text/csv;charset=utf-8," 
-        + headers.join(",") + "\n"
-        + rows.map(e => e.join(",")).join("\n");
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `HR_RequestsHistory_${startDate}_to_${endDate}.csv`);
+      link.setAttribute("download", `HR_Attendance_And_Requests_${startDate}_to_${endDate}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -8873,29 +8886,20 @@ function HRReportsModule({ user }: { user: UserProfile }) {
                <button 
                  onClick={() => setReportTab('DETAILED')}
                  className={cn(
-                   "flex-1 md:w-40 py-2 px-6 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                   "flex-1 md:w-56 py-2 px-6 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
                    reportTab === 'DETAILED' ? "bg-white text-indigo-600 shadow-sm" : "text-gray-400"
                  )}
                >
-                 Attendance
-               </button>
-               <button 
-                 onClick={() => setReportTab('REQUESTS')}
-                 className={cn(
-                   "flex-1 md:w-40 py-2 px-6 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-                   reportTab === 'REQUESTS' ? "bg-white text-indigo-600 shadow-sm" : "text-gray-400"
-                 )}
-               >
-                 Requests
+                 Attendance & Requests
                </button>
             </div>
-            {((reportTab === 'SUMMARY' && reportData.length > 0) || (reportTab === 'DETAILED' && detailedAttendance.length > 0) || (reportTab === 'REQUESTS' && allRequests.length > 0)) && (
+            {((reportTab === 'SUMMARY' && reportData.length > 0) || (reportTab === 'DETAILED' && combinedLogs.length > 0)) && (
               <button 
                 onClick={exportCSV}
                 className="flex items-center gap-2 text-emerald-600 hover:bg-emerald-50 px-4 py-2 rounded-xl transition-all"
               >
                 <Download size={16} />
-                <span className="text-[10px] font-black uppercase tracking-widest">Export {reportTab} CSV</span>
+                <span className="text-[10px] font-black uppercase tracking-widest">Export {reportTab === 'SUMMARY' ? 'Summary' : 'Logs'} CSV</span>
               </button>
             )}
          </div>
@@ -8941,86 +8945,56 @@ function HRReportsModule({ user }: { user: UserProfile }) {
                   ))}
                 </tbody>
               </table>
-            ) : reportTab === 'DETAILED' ? (
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest text-left">
-                    <th className="p-8">Date</th>
-                    <th className="p-8">Staff Name</th>
-                    <th className="p-8 text-center">Time</th>
-                    <th className="p-8 text-center">Status</th>
-                    <th className="p-8">User Tasks/Remarks</th>
-                    <th className="p-8">Coord Remarks</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {detailedAttendance.map((r, i) => (
-                    <tr key={i} className="group hover:bg-indigo-50/20 transition-all duration-300">
-                      <td className="p-8 text-xs font-bold text-gray-500">{r.date}</td>
-                      <td className="p-8">
-                         <p className="text-xs font-black text-indigo-950 uppercase">{r.userName}</p>
-                      </td>
-                      <td className="p-8 text-center">
-                         <p className="text-[10px] font-mono text-gray-600">{r.timeIn || '--:--'} - {r.timeOut || '--:--'}</p>
-                      </td>
-                      <td className="p-8 text-center text-[10px] font-black uppercase tracking-widest">
-                         <span className={cn(r.status === 'ON TIME' ? 'text-emerald-500' : 'text-amber-500')}>{r.status}</span>
-                      </td>
-                      <td className="p-8 max-w-[200px]">
-                         <p className="text-[10px] text-gray-400 font-medium italic line-clamp-2" title={r.tasks}>{r.tasks || '--'}</p>
-                      </td>
-                      <td className="p-8 max-w-[200px]">
-                         <p className="text-[10px] text-indigo-400 font-medium italic line-clamp-2" title={r.coordinatorRemarks}>{r.coordinatorRemarks || '--'}</p>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             ) : (
               <table className="w-full text-left">
                 <thead>
-                  <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                    <th className="p-8">Type</th>
-                    <th className="p-8">Staff</th>
-                    <th className="p-8">Info</th>
-                    <th className="p-8">Date/Range</th>
+                  <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest text-left">
+                    <th className="p-8">Type/Log</th>
+                    <th className="p-8">Staff Name</th>
+                    <th className="p-8">Date / Range</th>
+                    <th className="p-8">Time / Description</th>
                     <th className="p-8 text-center">Status</th>
-                    <th className="p-8">Reason</th>
+                    <th className="p-8">Tasks / Reasons / Remarks</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {allRequests.map((r, i) => (
+                  {combinedLogs.map((r, i) => (
                     <tr key={i} className="group hover:bg-indigo-50/20 transition-all duration-300">
                       <td className="p-8">
                         <span className={cn(
-                          "px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm",
-                          r.type === 'LEAVE' ? "bg-indigo-100 text-indigo-600" :
-                          r.type === 'OT' ? "bg-emerald-100 text-emerald-600" :
-                          "bg-blue-100 text-blue-600"
+                          "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm border",
+                          r.type === 'ATTENDANCE' ? "bg-teal-50 text-teal-700 border-teal-200/50" :
+                          r.type === 'LEAVE' ? "bg-indigo-50 text-indigo-700 border-indigo-200/50" :
+                          r.type === 'OT' ? "bg-emerald-50 text-emerald-700 border-emerald-200/50" :
+                          "bg-blue-50 text-blue-700 border-blue-200/50"
                         )}>{r.type}</span>
                       </td>
                       <td className="p-8">
                          <p className="text-xs font-black text-indigo-950 uppercase">{r.userName}</p>
                       </td>
-                      <td className="p-8">
-                         <p className="text-xs font-bold text-gray-600 uppercase">{r.description}</p>
+                      <td className="p-8 text-xs font-bold text-gray-500">
+                         {r.date}
                       </td>
-                      <td className="p-8 text-xs font-bold text-gray-500">{r.dateRange}</td>
+                      <td className="p-8 text-xs font-semibold text-gray-700 uppercase">
+                         {r.timeRangeOrDesc}
+                      </td>
                       <td className="p-8 text-center">
                          <span className={cn(
                            "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest",
-                           r.status === 'Approved' ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"
+                           (r.status === 'Approved' || r.status === 'ON TIME') ? "bg-emerald-100 text-emerald-600" :
+                           r.status === 'LATE' ? "bg-amber-100 text-amber-600" :
+                           "bg-red-100 text-red-600"
                          )}>{r.status}</span>
                       </td>
-                      <td className="p-8 max-w-[200px]">
-                         <p className="text-[10px] text-gray-400 font-medium italic line-clamp-1" title={r.reason}>{r.reason || '--'}</p>
+                      <td className="p-8 max-w-[300px]">
+                         <p className="text-[10px] text-gray-400 font-medium italic line-clamp-2" title={r.remarksOrReason}>{r.remarksOrReason || '--'}</p>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
-            {((reportTab === 'SUMMARY' && reportData.length === 0) || (reportTab === 'DETAILED' && detailedAttendance.length === 0) || (reportTab === 'REQUESTS' && allRequests.length === 0)) && (
+            {((reportTab === 'SUMMARY' && reportData.length === 0) || (reportTab === 'DETAILED' && combinedLogs.length === 0)) && (
               <div className="py-24 text-center text-gray-300">
                  <FileBarChart className="mx-auto mb-4 opacity-10 text-indigo-950" size={64} />
                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Set date range and click generate</p>
