@@ -4729,7 +4729,8 @@ function AccountStatus({ user }: { user: UserProfile }) {
   }, []);
 
   const handleNextStep = async (assignment: Assignment) => {
-    if (assignment.status === 'Field CIBI' && !assignment.creditScore) {
+    const isMCL = assignment.loanCategory === 'MCL';
+    if (assignment.status === 'Field CIBI' && ((isMCL && !assignment.mclCreditScore) || (!isMCL && !assignment.creditScore))) {
       alert('Please complete and save the Credit Scoring before proceeding to the next step.');
       return;
     }
@@ -5666,7 +5667,19 @@ function PerformanceGraph({ history }: { history: CashflowReport[] }) {
   );
 }
 
-function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assignment: Assignment, user: UserProfile, isReadOnly?: boolean }) {
+function CashflowModule({ assignment, isReadOnly: forceReadOnly }: { assignment: Assignment, user: UserProfile, isReadOnly?: boolean }) {
+  const safeNum = (val: number | string | null | undefined | unknown): number => {
+    const n = Number(val);
+    return isNaN(n) ? 0 : n;
+  };
+
+  const safeParseTerm = (val: number | string | null | undefined | unknown): number => {
+    if (val === undefined || val === null) return 0;
+    const cleaned = String(val).replace(/[^0-9]/g, '');
+    const parsed = parseInt(cleaned, 10);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
   const [liabilities, setLiabilities] = useState<Liability[]>(assignment.cashflowReport?.liabilities || []);
   const [businessIncome, setBusinessIncome] = useState(assignment.cashflowReport?.businessIncome || {
     gross: 0, expenses: 0, net: 0
@@ -5677,11 +5690,11 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
     loanPayments: 0, vehicle: 0, transportation: 0, internet: 0, education: 0, medical: 0, miscellaneous: 0, total: 0
   });
   const [ciRecommendation, setCiRecommendation] = useState(assignment.cashflowReport?.ciRecommendation || {
-    loanAmount: assignment.requestedAmount, term: Number(assignment.term) || 0, interest: 0, rate: 4,
+    loanAmount: assignment.requestedAmount, term: safeParseTerm(assignment.term) || 0, interest: 0, rate: 4,
     monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: ''
   });
   const [opRecommendation, setOpRecommendation] = useState(assignment.cashflowReport?.operationRecommendation || {
-    loanAmount: assignment.requestedAmount, term: Number(assignment.term) || 0, interest: 0, rate: 4,
+    loanAmount: assignment.requestedAmount, term: safeParseTerm(assignment.term) || 0, interest: 0, rate: 4,
     monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: ''
   });
   const [ndiPercentage, setNdiPercentage] = useState(30);
@@ -5697,11 +5710,11 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
         loanPayments: 0, vehicle: 0, transportation: 0, internet: 0, education: 0, medical: 0, miscellaneous: 0, total: 0
       });
       setCiRecommendation(assignment.cashflowReport.ciRecommendation || {
-        loanAmount: assignment.requestedAmount, term: Number(assignment.term) || 0, interest: 0, rate: 4,
+        loanAmount: assignment.requestedAmount, term: safeParseTerm(assignment.term) || 0, interest: 0, rate: 4,
         monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: ''
       });
       setOpRecommendation(assignment.cashflowReport.operationRecommendation || {
-        loanAmount: assignment.requestedAmount, term: Number(assignment.term) || 0, interest: 0, rate: 4,
+        loanAmount: assignment.requestedAmount, term: safeParseTerm(assignment.term) || 0, interest: 0, rate: 4,
         monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: ''
       });
     } else {
@@ -5713,11 +5726,11 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
         loanPayments: 0, vehicle: 0, transportation: 0, internet: 0, education: 0, medical: 0, miscellaneous: 0, total: 0
       });
       setCiRecommendation({
-        loanAmount: assignment.requestedAmount, term: Number(assignment.term) || 0, interest: 0, rate: 4,
+        loanAmount: assignment.requestedAmount, term: safeParseTerm(assignment.term) || 0, interest: 0, rate: 4,
         monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: ''
       });
       setOpRecommendation({
-        loanAmount: assignment.requestedAmount, term: Number(assignment.term) || 0, interest: 0, rate: 4,
+        loanAmount: assignment.requestedAmount, term: safeParseTerm(assignment.term) || 0, interest: 0, rate: 4,
         monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: ''
       });
     }
@@ -5727,25 +5740,25 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
   useEffect(() => {
     setBusinessIncome(prev => ({
       ...prev,
-      net: Number(prev.gross) - Number(prev.expenses)
+      net: safeNum(prev.gross) - safeNum(prev.expenses)
     }));
   }, [businessIncome.gross, businessIncome.expenses]);
 
   useEffect(() => {
-    const sumLiabilities = liabilities.reduce((acc, curr) => acc + Number(curr.amortization), 0);
-    const baseSum = Number(householdExpenses.food) + 
-                    Number(householdExpenses.rent) + 
-                    Number(householdExpenses.electricity) + 
-                    Number(householdExpenses.water) + 
-                    Number(householdExpenses.insurance) + 
-                    Number(householdExpenses.clothing) + 
-                    Number(householdExpenses.lpg) + 
-                    Number(householdExpenses.association) + 
-                    Number(householdExpenses.vehicle) + 
-                    Number(householdExpenses.transportation) + 
-                    Number(householdExpenses.internet) + 
-                    Number(householdExpenses.education) + 
-                    Number(householdExpenses.medical);
+    const sumLiabilities = liabilities.reduce((acc, curr) => acc + safeNum(curr.amortization), 0);
+    const baseSum = safeNum(householdExpenses.food) + 
+                    safeNum(householdExpenses.rent) + 
+                    safeNum(householdExpenses.electricity) + 
+                    safeNum(householdExpenses.water) + 
+                    safeNum(householdExpenses.insurance) + 
+                    safeNum(householdExpenses.clothing) + 
+                    safeNum(householdExpenses.lpg) + 
+                    safeNum(householdExpenses.association) + 
+                    safeNum(householdExpenses.vehicle) + 
+                    safeNum(householdExpenses.transportation) + 
+                    safeNum(householdExpenses.internet) + 
+                    safeNum(householdExpenses.education) + 
+                    safeNum(householdExpenses.medical);
 
     const loanPayments = sumLiabilities;
     const miscellaneous = (baseSum + loanPayments) * 0.10;
@@ -5766,30 +5779,92 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
   ]);
 
   const analysis = {
-    grossBusinessIncome: businessIncome.gross,
-    businessExpenses: businessIncome.expenses,
-    businessNetIncome: businessIncome.net,
-    additionalIncome: Number(otherIncome),
-    totalHouseholdExpenses: householdExpenses.total,
-    netIncome: Number(businessIncome.net) + Number(otherIncome) - householdExpenses.total,
-    ndiPercentage,
-    monthlyNdi: (Number(businessIncome.net) + Number(otherIncome) - householdExpenses.total) * (ndiPercentage / 100),
-    recommendedLoan: ((Number(businessIncome.net) + Number(otherIncome) - householdExpenses.total) * (ndiPercentage / 100) * Number(ciRecommendation.term)) / (1 + (Number(ciRecommendation.rate) / 100) * Number(ciRecommendation.term)),
-    loanableAmount: 0, // Simplified for now
+    grossBusinessIncome: safeNum(businessIncome.gross),
+    businessExpenses: safeNum(businessIncome.expenses),
+    businessNetIncome: safeNum(businessIncome.net),
+    additionalIncome: safeNum(otherIncome),
+    totalHouseholdExpenses: safeNum(householdExpenses.total),
+    netIncome: safeNum(businessIncome.net) + safeNum(otherIncome) - safeNum(householdExpenses.total),
+    ndiPercentage: safeNum(ndiPercentage),
+    get monthlyNdi() {
+      return this.netIncome * (this.ndiPercentage / 100);
+    },
+    get recommendedLoan() {
+      const termVal = safeNum(ciRecommendation.term);
+      const rateVal = safeNum(ciRecommendation.rate);
+      const denominator = 1 + (rateVal / 100) * termVal;
+      return denominator === 0 ? 0 : (this.monthlyNdi * termVal) / denominator;
+    },
+    loanableAmount: 0,
     difference: 0
   };
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      const sanitizedAnalysis = {
+        grossBusinessIncome: safeNum(analysis.grossBusinessIncome),
+        businessExpenses: safeNum(analysis.businessExpenses),
+        businessNetIncome: safeNum(analysis.businessNetIncome),
+        additionalIncome: safeNum(analysis.additionalIncome),
+        totalHouseholdExpenses: safeNum(analysis.totalHouseholdExpenses),
+        netIncome: safeNum(analysis.netIncome),
+        ndiPercentage: safeNum(analysis.ndiPercentage),
+        monthlyNdi: safeNum(analysis.monthlyNdi),
+        recommendedLoan: safeNum(analysis.recommendedLoan),
+        loanableAmount: 0,
+        difference: 0
+      };
+
       const report: CashflowReport = {
         liabilities,
-        businessIncome,
-        otherIncome: Number(otherIncome),
-        householdExpenses,
-        analysis: { ...analysis, loanableAmount: 0, difference: 0 },
-        ciRecommendation: { ...ciRecommendation, ...calcAmort(ciRecommendation) },
-        operationRecommendation: { ...opRecommendation, ...calcAmort(opRecommendation) }
+        businessIncome: {
+          gross: safeNum(businessIncome.gross),
+          expenses: safeNum(businessIncome.expenses),
+          net: safeNum(businessIncome.net)
+        },
+        otherIncome: safeNum(otherIncome),
+        householdExpenses: {
+          food: safeNum(householdExpenses.food),
+          rent: safeNum(householdExpenses.rent),
+          electricity: safeNum(householdExpenses.electricity),
+          water: safeNum(householdExpenses.water),
+          insurance: safeNum(householdExpenses.insurance),
+          clothing: safeNum(householdExpenses.clothing),
+          lpg: safeNum(householdExpenses.lpg),
+          association: safeNum(householdExpenses.association),
+          loanPayments: safeNum(householdExpenses.loanPayments),
+          vehicle: safeNum(householdExpenses.vehicle),
+          transportation: safeNum(householdExpenses.transportation),
+          internet: safeNum(householdExpenses.internet),
+          education: safeNum(householdExpenses.education),
+          medical: safeNum(householdExpenses.medical),
+          miscellaneous: safeNum(householdExpenses.miscellaneous),
+          total: safeNum(householdExpenses.total)
+        },
+        analysis: sanitizedAnalysis,
+        ciRecommendation: { 
+          loanAmount: safeNum(ciRecommendation.loanAmount),
+          term: safeNum(ciRecommendation.term),
+          rate: safeNum(ciRecommendation.rate),
+          remarks: ciRecommendation.remarks || '',
+          ...calcAmort({
+            loanAmount: safeNum(ciRecommendation.loanAmount),
+            term: safeNum(ciRecommendation.term),
+            rate: safeNum(ciRecommendation.rate)
+          })
+        },
+        operationRecommendation: { 
+          loanAmount: safeNum(opRecommendation.loanAmount),
+          term: safeNum(opRecommendation.term),
+          rate: safeNum(opRecommendation.rate),
+          remarks: opRecommendation.remarks || '',
+          ...calcAmort({
+            loanAmount: safeNum(opRecommendation.loanAmount),
+            term: safeNum(opRecommendation.term),
+            rate: safeNum(opRecommendation.rate)
+          })
+        }
       };
 
       const history = assignment.cashflowHistory || [];

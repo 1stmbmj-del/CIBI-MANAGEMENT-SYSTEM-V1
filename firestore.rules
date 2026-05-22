@@ -78,22 +78,10 @@ service cloud.firestore {
     }
 
     function isValidAssignment(data) {
-      return data.keys().hasAll(['borrowerName', 'mobileNumber', 'accountType', 'location', 'tribe', 'requestedAmount', 'term', 'intRate', 'mop', 'top', 'ciOfficerId', 'ciOfficerName', 'status', 'timeline', 'createdAt']) &&
-             data.borrowerName is string && data.borrowerName.size() > 0 && data.borrowerName.size() <= 500 &&
-             data.mobileNumber is string && data.mobileNumber.size() <= 100 &&
-             data.accountType is string &&
-             data.location is string &&
-             data.tribe is string &&
-             data.requestedAmount is number &&
-             data.term is string &&
-             data.intRate is number &&
-             data.mop is string &&
-             data.top is string &&
-             data.ciOfficerId is string &&
-             data.ciOfficerName is string &&
+      return data.keys().hasAll(['borrowerName', 'mobileNumber', 'ciOfficerId', 'status', 'timeline']) &&
+             data.borrowerName is string &&
              data.status is string &&
-             data.timeline is list &&
-             data.createdAt is string;
+             data.timeline is list;
     }
 
     function isValidNotification(data) {
