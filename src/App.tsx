@@ -5105,7 +5105,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
   };
 
   const filtered = assignments.filter(a => {
-    if (a.status === 'Completed') return false;
+    if (a.status === 'Completed' || a.status === 'Denied') return false;
     const matchesSearch = a.borrowerName.toLowerCase().includes(search.toLowerCase()) ||
                          a.mobileNumber.includes(search);
     const matchesStatus = statusFilter === 'All' || a.status === statusFilter;
@@ -5148,7 +5148,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
               onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option value="All">All Status</option>
-              {steps.filter(s => s !== 'Completed').map(s => <option key={s} value={s}>{s}</option>)}
+              {steps.filter(s => s !== 'Completed' && s !== 'Denied').map(s => <option key={s} value={s}>{s}</option>)}
             </select>
             <select 
               className="px-2 py-2 bg-gray-50 border border-gray-100 rounded-lg text-[10px] font-bold uppercase focus:outline-none"
