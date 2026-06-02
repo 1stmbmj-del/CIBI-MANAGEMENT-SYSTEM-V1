@@ -5105,6 +5105,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
   };
 
   const filtered = assignments.filter(a => {
+    if (a.status === 'Completed') return false;
     const matchesSearch = a.borrowerName.toLowerCase().includes(search.toLowerCase()) ||
                          a.mobileNumber.includes(search);
     const matchesStatus = statusFilter === 'All' || a.status === statusFilter;
@@ -5147,7 +5148,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
               onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option value="All">All Status</option>
-              {steps.map(s => <option key={s} value={s}>{s}</option>)}
+              {steps.filter(s => s !== 'Completed').map(s => <option key={s} value={s}>{s}</option>)}
             </select>
             <select 
               className="px-2 py-2 bg-gray-50 border border-gray-100 rounded-lg text-[10px] font-bold uppercase focus:outline-none"
@@ -6263,6 +6264,88 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
     }
   };
 
+  const handleSaveCiOnly = async () => {
+    setIsSaving(true);
+    try {
+      const sanitizedAnalysis = {
+        grossBusinessIncome: safeNum(analysis.grossBusinessIncome),
+        businessExpenses: safeNum(analysis.businessExpenses),
+        businessNetIncome: safeNum(analysis.businessNetIncome),
+        additionalIncome: safeNum(analysis.additionalIncome),
+        totalHouseholdExpenses: safeNum(analysis.totalHouseholdExpenses),
+        netIncome: safeNum(analysis.netIncome),
+        ndiPercentage: safeNum(analysis.ndiPercentage),
+        monthlyNdi: safeNum(analysis.monthlyNdi),
+        recommendedLoan: safeNum(analysis.recommendedLoan),
+        loanableAmount: 0,
+        difference: 0
+      };
+
+      const report: CashflowReport = {
+        liabilities,
+        businessIncome: {
+          gross: safeNum(businessIncome.gross),
+          expenses: safeNum(businessIncome.expenses),
+          net: safeNum(businessIncome.net)
+        },
+        otherIncome: safeNum(otherIncome),
+        householdExpenses: {
+          food: safeNum(householdExpenses.food),
+          rent: safeNum(householdExpenses.rent),
+          electricity: safeNum(householdExpenses.electricity),
+          water: safeNum(householdExpenses.water),
+          insurance: safeNum(householdExpenses.insurance),
+          clothing: safeNum(householdExpenses.clothing),
+          lpg: safeNum(householdExpenses.lpg),
+          association: safeNum(householdExpenses.association),
+          loanPayments: safeNum(householdExpenses.loanPayments),
+          vehicle: safeNum(householdExpenses.vehicle),
+          transportation: safeNum(householdExpenses.transportation),
+          internet: safeNum(householdExpenses.internet),
+          education: safeNum(householdExpenses.education),
+          medical: safeNum(householdExpenses.medical),
+          miscellaneous: safeNum(householdExpenses.miscellaneous),
+          total: safeNum(householdExpenses.total)
+        },
+        analysis: sanitizedAnalysis,
+        ciRecommendation: { 
+          loanAmount: safeNum(ciRecommendation.loanAmount),
+          term: safeNum(ciRecommendation.term),
+          rate: safeNum(ciRecommendation.rate),
+          remarks: ciRecommendation.remarks || '',
+          ...calcAmort({
+            loanAmount: safeNum(ciRecommendation.loanAmount),
+            term: safeNum(ciRecommendation.term),
+            rate: safeNum(ciRecommendation.rate)
+          })
+        },
+        operationRecommendation: { 
+          loanAmount: safeNum(opRecommendation.loanAmount),
+          term: safeNum(opRecommendation.term),
+          rate: safeNum(opRecommendation.rate),
+          remarks: opRecommendation.remarks || '',
+          ...calcAmort({
+            loanAmount: safeNum(opRecommendation.loanAmount),
+            term: safeNum(opRecommendation.term),
+            rate: safeNum(opRecommendation.rate)
+          })
+        }
+      };
+
+      const updatePayload: any = { 
+        cashflowReport: report
+      };
+
+      await api.patch(`/api/assignments/${assignment.id}`, updatePayload);
+      alert('CI Recommendation Updates Saved Successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save CI Recommendation.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const addLiability = () => {
     setLiabilities([...liabilities, {
       source: '', loanType: '', loanAmount: 0, startDate: '', endDate: '',
@@ -6278,6 +6361,13 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
     user.role !== 'admin' && (
       user.role !== 'user' || (assignment.status !== 'Cashflowing' && assignment.status !== 'Report Submitted')
     )
+  );
+
+  const isCiRecommendationEditable = (
+    user.role === 'admin' ||
+    user.role === 'coordinator' ||
+    assignment.ciOfficerId === user.id ||
+    user.role === 'user'
   );
 
   return (
@@ -6484,22 +6574,22 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-1">
               <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Recommended Amount</label>
-              <input disabled={isReadOnly} type="number" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-black" value={ciRecommendation.loanAmount === 0 ? '' : ciRecommendation.loanAmount} onChange={e => setCiRecommendation({ ...ciRecommendation, loanAmount: Number(e.target.value) })} />
+              <input disabled={!isCiRecommendationEditable} type="number" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-black" value={ciRecommendation.loanAmount === 0 ? '' : ciRecommendation.loanAmount} onChange={e => setCiRecommendation({ ...ciRecommendation, loanAmount: Number(e.target.value) })} />
             </div>
             <div className="space-y-1">
               <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Term (Months)</label>
-              <input disabled={isReadOnly} type="number" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-black" value={ciRecommendation.term === 0 ? '' : ciRecommendation.term} onChange={e => setCiRecommendation({ ...ciRecommendation, term: Number(e.target.value) })} />
+              <input disabled={!isCiRecommendationEditable} type="number" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-black" value={ciRecommendation.term === 0 ? '' : ciRecommendation.term} onChange={e => setCiRecommendation({ ...ciRecommendation, term: Number(e.target.value) })} />
             </div>
             <div className="space-y-1">
               <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Flat Int. Rate (% Monthly)</label>
-              <input disabled={isReadOnly} type="number" step="0.1" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-black" value={ciRecommendation.rate === 0 ? '' : ciRecommendation.rate} onChange={e => setCiRecommendation({ ...ciRecommendation, rate: Number(e.target.value) })} />
+              <input disabled={!isCiRecommendationEditable} type="number" step="0.1" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-black" value={ciRecommendation.rate === 0 ? '' : ciRecommendation.rate} onChange={e => setCiRecommendation({ ...ciRecommendation, rate: Number(e.target.value) })} />
             </div>
           </div>
           
           <div className="space-y-2">
             <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">CI Remarks & Justification</label>
             <textarea 
-              disabled={isReadOnly}
+              disabled={!isCiRecommendationEditable}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm h-24 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
               placeholder="Provide detailed breakdown and justification for this recommendation..."
               value={ciRecommendation.remarks}
@@ -6535,6 +6625,17 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
               className="w-full py-5 bg-emerald-600 text-white text-[11px] font-black uppercase tracking-[0.2em] rounded-2xl hover:bg-emerald-700 hover:-translate-y-1 transition-all active:translate-y-0 shadow-xl shadow-emerald-900/20"
             >
               {isSaving ? 'Calculating...' : 'Commit Financial Diagnostic'}
+            </button>
+          </div>
+        )}
+        {isReadOnly && isCiRecommendationEditable && (
+          <div className="pb-4">
+            <button 
+              onClick={handleSaveCiOnly}
+              disabled={isSaving}
+              className="w-full py-5 bg-emerald-600 text-white text-[11px] font-black uppercase tracking-[0.2em] rounded-2xl hover:bg-emerald-700 hover:-translate-y-1 transition-all active:translate-y-0 shadow-xl shadow-emerald-900/20"
+            >
+              {isSaving ? 'Saving...' : 'Save CI Recommendation'}
             </button>
           </div>
         )}
