@@ -62,7 +62,9 @@ import {
   Briefcase,
   FileBarChart,
   CalendarRange,
-  XCircle
+  XCircle,
+  Plus,
+  Sliders
 } from 'lucide-react';
 import pptxgen from "pptxgenjs";
 import { motion, AnimatePresence } from 'framer-motion';
@@ -222,6 +224,41 @@ const generateAssignmentPPT = (a: Assignment) => {
       ],
       { x: 0.5, y: 1.0, w: 9.0, fontSize: 12, border: { pt: 1, color: "E2E8F0" } }
     );
+
+    // Slide 4.5: Outstanding Liabilities
+    const slideLia = pptx.addSlide();
+    slideLia.addText("CLIENT OUTSTANDING LIABILITIES", { x: 0.5, y: 0.3, w: 9.0, h: 0.5, fontSize: 18, bold: true, color: "065F46" });
+
+    if (a.cashflowReport.liabilities && a.cashflowReport.liabilities.length > 0) {
+      const tableHeader = [
+        [
+          { text: "CREDITOR/SOURCE", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } },
+          { text: "LOAN TYPE", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } },
+          { text: "LOAN AMOUNT", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } },
+          { text: "PERIODICITY", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } },
+          { text: "AMORTIZATION", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } },
+          { text: "BALANCE", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } },
+          { text: "STATUS", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } }
+        ]
+      ];
+
+      const rows = [
+        ...tableHeader,
+        ...a.cashflowReport.liabilities.map((l: Liability) => [
+          { text: l.source || "N/A" },
+          { text: l.loanType || "N/A" },
+          { text: l.loanAmount ? `₱${Number(l.loanAmount).toLocaleString()}` : "₱0" },
+          { text: l.periodicity || "N/A" },
+          { text: l.amortization ? `₱${Number(l.amortization).toLocaleString()}` : "₱0" },
+          { text: l.balance ? `₱${Number(l.balance).toLocaleString()}` : "₱0" },
+          { text: l.status || "N/A" }
+        ])
+      ];
+
+      slideLia.addTable(rows, { x: 0.5, y: 1.0, w: 9.0, fontSize: 10, border: { pt: 1, color: "E2E8F0" } });
+    } else {
+      slideLia.addText("No external liabilities or outstanding loans declared for this borrower.", { x: 0.5, y: 1.5, w: 9.0, h: 0.5, fontSize: 13, italic: true });
+    }
 
     const slide5 = pptx.addSlide();
     slide5.addText("CI RECOMMENDATION & JUSTIFICATION", { x: 0.5, y: 0.3, w: 9.0, h: 0.5, fontSize: 18, bold: true, color: "065F46" });
@@ -2142,9 +2179,20 @@ const DEFAULT_MCL_SCORING_SHEET = {
 
 const DEFAULT_SEAMAN_SCORING_SHEET = { ...DEFAULT_MCL_SCORING_SHEET };
 
+const DEFAULT_CLASSIFICATIONS = [
+  { name: 'Strong Borrower', minScore: 70, recommendation: 'Approved', color: 'text-green-600', bg: 'bg-green-50' },
+  { name: 'Moderate Risk', minScore: 50, recommendation: 'Approved with Conditions', color: 'text-amber-500', bg: 'bg-amber-50' },
+  { name: 'High Risk', minScore: 30, recommendation: 'Denied', color: 'text-orange-500', bg: 'bg-orange-50' },
+  { name: 'Very High Risk', minScore: 0, recommendation: 'Denied', color: 'text-red-500', bg: 'bg-red-50' }
+];
+
 function AdminScoringSettings() {
   const [configType, setConfigType] = useState<'SME' | 'MCL' | 'Seaman'>('SME');
   const [sections, setSections] = useState<any>(null);
+  const [classifications, setClassifications] = useState<any[]>([]);
+  const [sectionWeights, setSectionWeights] = useState<Record<string, number>>({});
+  const [globalAdjustment, setGlobalAdjustment] = useState<number>(0);
+  const [activeConfigTab, setActiveConfigTab] = useState<'QUESTIONS' | 'CLASSIFICATIONS' | 'ADJUSTMENTS'>('QUESTIONS');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -2153,13 +2201,19 @@ function AdminScoringSettings() {
     const q = query(collection(db, 'scoringConfigs'), where('type', '==', configType), limit(1));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
-        setSections(snapshot.docs[0].data().sections);
+        const docData = snapshot.docs[0].data();
+        setSections(docData.sections || {});
+        setClassifications(docData.classifications || DEFAULT_CLASSIFICATIONS);
+        setSectionWeights(docData.sectionWeights || {});
+        setGlobalAdjustment(docData.globalAdjustment || 0);
       } else {
-        setSections(
-          configType === 'SME' ? DEFAULT_SME_SCORING_SHEET : 
-          configType === 'MCL' ? DEFAULT_MCL_SCORING_SHEET : 
-          DEFAULT_SEAMAN_SCORING_SHEET
-        );
+        const defaultSheet = configType === 'SME' ? DEFAULT_SME_SCORING_SHEET : 
+                             configType === 'MCL' ? DEFAULT_MCL_SCORING_SHEET : 
+                             DEFAULT_SEAMAN_SCORING_SHEET;
+        setSections(defaultSheet);
+        setClassifications(DEFAULT_CLASSIFICATIONS);
+        setSectionWeights({});
+        setGlobalAdjustment(0);
       }
       setIsLoading(false);
     }, (err) => {
@@ -2178,6 +2232,9 @@ function AdminScoringSettings() {
       const configData = {
         type: configType,
         sections,
+        classifications,
+        sectionWeights,
+        globalAdjustment,
         updatedAt: new Date().toISOString()
       };
 
@@ -2259,16 +2316,43 @@ function AdminScoringSettings() {
     });
   };
 
+  const addClassification = () => {
+    setClassifications([
+      ...classifications,
+      { name: 'New Tier', minScore: 50, recommendation: 'Approved with Conditions', color: 'text-amber-500', bg: 'bg-amber-50' }
+    ]);
+  };
+
+  const deleteClassification = (idx: number) => {
+    setClassifications(classifications.filter((_, i) => i !== idx));
+  };
+
+  const updateClassificationObj = (idx: number, field: string, value: any) => {
+    const list = [...classifications];
+    list[idx] = { 
+      ...list[idx], 
+      [field]: field === 'minScore' ? parseInt(value, 10) || 0 : value 
+    };
+    setClassifications(list);
+  };
+
+  const updateSectionWeight = (key: string, val: number) => {
+    setSectionWeights({
+      ...sectionWeights,
+      [key]: val
+    });
+  };
+
   if (isLoading) return <div className="p-8 text-center text-xs font-bold uppercase tracking-widest text-gray-400">Loading Configuration...</div>;
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
-      <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+      <div className="flex flex-col md:flex-row justify-between md:items-center bg-white p-6 rounded-2xl border border-gray-100 shadow-sm gap-4">
         <div>
           <h2 className="text-xl font-black text-emerald-900 uppercase tracking-widest">Scoring Configuration</h2>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Adjust points and questions for credit scoring</p>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Adjust points, grading parameters, and risk categories</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200">
             <button 
               onClick={() => setConfigType('SME')}
@@ -2308,91 +2392,300 @@ function AdminScoringSettings() {
         </div>
       </div>
 
-      <div className="space-y-8">
-        {Object.keys(sections).map((sectionKey) => (
-          <div key={sectionKey} className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="p-6 bg-gray-50/50 border-b border-gray-100 flex justify-between items-center">
-              <div>
-                <h3 className="text-sm font-black text-emerald-900 uppercase tracking-widest">{sectionKey.replace(/_/g, ' ')}</h3>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Max Points:</span>
-                  <input 
-                    type="number" 
-                    value={sections[sectionKey].max}
-                    onChange={(e) => updateSectionMax(sectionKey, parseFloat(e.target.value))}
-                    className="w-16 h-6 text-[10px] font-black text-center bg-white border border-gray-200 rounded focus:border-emerald-500 focus:ring-0"
+      <div className="flex bg-gray-100 p-1.5 rounded-2xl border border-gray-200/60 max-w-xl">
+        <button
+          onClick={() => setActiveConfigTab('QUESTIONS')}
+          className={cn(
+            "flex-1 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+            activeConfigTab === 'QUESTIONS' ? "bg-white text-emerald-950 shadow-sm font-black border border-gray-200/40" : "text-gray-400 hover:text-gray-600"
+          )}
+        >
+          📑 Questions
+        </button>
+        <button
+          onClick={() => setActiveConfigTab('CLASSIFICATIONS')}
+          className={cn(
+            "flex-1 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+            activeConfigTab === 'CLASSIFICATIONS' ? "bg-white text-emerald-950 shadow-sm font-black border border-gray-200/40" : "text-gray-400 hover:text-gray-600"
+          )}
+        >
+          🛡️ Classifications
+        </button>
+        <button
+          onClick={() => setActiveConfigTab('ADJUSTMENTS')}
+          className={cn(
+            "flex-1 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+            activeConfigTab === 'ADJUSTMENTS' ? "bg-white text-emerald-950 shadow-sm font-black border border-gray-200/40" : "text-gray-400 hover:text-gray-600"
+          )}
+        >
+          ⚙️ Grading Adjustments
+        </button>
+      </div>
+
+      {activeConfigTab === 'QUESTIONS' && (
+        <div className="space-y-8">
+          {Object.keys(sections || {}).map((sectionKey) => (
+            <div key={sectionKey} className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden animate-fade-in">
+              <div className="p-6 bg-gray-50/50 border-b border-gray-100 flex justify-between items-center">
+                <div>
+                  <h3 className="text-sm font-black text-emerald-900 uppercase tracking-widest">{sectionKey.replace(/_/g, ' ')}</h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Max Points:</span>
+                    <input 
+                      type="number" 
+                      value={sections[sectionKey].max}
+                      onChange={(e) => updateSectionMax(sectionKey, parseFloat(e.target.value))}
+                      className="w-16 h-6 text-[10px] font-black text-center bg-white border border-gray-200 rounded focus:border-emerald-500 focus:ring-0"
+                    />
+                  </div>
+                </div>
+                <button 
+                  onClick={() => addItem(sectionKey)}
+                  className="text-[9px] font-black text-emerald-600 uppercase tracking-widest hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors border border-emerald-100"
+                >
+                  + Add Question
+                </button>
+              </div>
+              <div className="p-6 space-y-6">
+                {sections[sectionKey].items.map((item: any, itemIdx: number) => (
+                  <div key={item.id} className="p-4 bg-gray-50/30 rounded-2xl border border-gray-100 space-y-4 animate-fade-in">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 mr-4">
+                        <input 
+                          type="text" 
+                          value={item.label}
+                          onChange={(e) => updateItemLabel(sectionKey, itemIdx, e.target.value)}
+                          className="w-full text-xs font-bold text-gray-800 bg-transparent border-b border-dashed border-gray-300 focus:border-emerald-500 focus:outline-none pb-1"
+                        />
+                      </div>
+                      <button 
+                        onClick={() => deleteItem(sectionKey, itemIdx)}
+                        className="text-red-400 hover:text-red-600 transition-colors p-1"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {item.options.map((opt: any, optIdx: number) => (
+                        <div key={optIdx} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex items-center gap-3">
+                          <div className="flex-1 space-y-1">
+                            <input 
+                              type="text" 
+                              value={opt.l}
+                              onChange={(e) => updateOption(sectionKey, itemIdx, optIdx, 'l', e.target.value)}
+                              className="w-full text-[10px] font-bold text-gray-600 border-none p-0 focus:ring-0"
+                              placeholder="Option label"
+                            />
+                            <div className="flex items-center gap-1">
+                               <span className="text-[8px] font-black text-gray-400 uppercase">Pts:</span>
+                               <input 
+                                type="number" 
+                                value={opt.p}
+                                step="0.1"
+                                onChange={(e) => updateOption(sectionKey, itemIdx, optIdx, 'p', e.target.value)}
+                                className="w-full text-[10px] font-black text-emerald-600 border-none p-0 focus:ring-0"
+                              />
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => deleteOption(sectionKey, itemIdx, optIdx)}
+                            className="text-gray-300 hover:text-red-500 transition-colors"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                      <button 
+                        onClick={() => addOption(sectionKey, itemIdx)}
+                        className="border-2 border-dashed border-gray-200 rounded-xl p-3 flex items-center justify-center text-[9px] font-black text-gray-400 uppercase tracking-widest hover:border-emerald-200 hover:text-emerald-600 transition-all"
+                      >
+                        + Option
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {activeConfigTab === 'CLASSIFICATIONS' && (
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 space-y-6">
+          <div>
+            <h3 className="text-sm font-black text-emerald-950 uppercase tracking-widest">Risk Classifications & Auto Recommendations</h3>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">
+              Configure borrower grading tiers based on their scoring achievement index (0% - 100%).
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {classifications.map((cls, idx) => (
+              <div key={idx} className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                <div className="md:col-span-3">
+                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">Tier Name</label>
+                  <input
+                    type="text"
+                    value={cls.name}
+                    onChange={(e) => updateClassificationObj(idx, 'name', e.target.value)}
+                    className="w-full text-xs font-bold text-gray-700 bg-white border border-gray-200 rounded-xl px-3 py-2 focus:border-emerald-500 focus:outline-none"
                   />
                 </div>
-              </div>
-              <button 
-                onClick={() => addItem(sectionKey)}
-                className="text-[9px] font-black text-emerald-600 uppercase tracking-widest hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors border border-emerald-100"
-              >
-                + Add Question
-              </button>
-            </div>
-            <div className="p-6 space-y-6">
-              {sections[sectionKey].items.map((item: any, itemIdx: number) => (
-                <div key={item.id} className="p-4 bg-gray-50/30 rounded-2xl border border-gray-100 space-y-4">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1 mr-4">
-                      <input 
-                        type="text" 
-                        value={item.label}
-                        onChange={(e) => updateItemLabel(sectionKey, itemIdx, e.target.value)}
-                        className="w-full text-xs font-bold text-gray-800 bg-transparent border-b border-dashed border-gray-300 focus:border-emerald-500 focus:outline-none pb-1"
-                      />
-                    </div>
-                    <button 
-                      onClick={() => deleteItem(sectionKey, itemIdx)}
-                      className="text-red-400 hover:text-red-600 transition-colors p-1"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {item.options.map((opt: any, optIdx: number) => (
-                      <div key={optIdx} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex items-center gap-3">
-                        <div className="flex-1 space-y-1">
-                          <input 
-                            type="text" 
-                            value={opt.l}
-                            onChange={(e) => updateOption(sectionKey, itemIdx, optIdx, 'l', e.target.value)}
-                            className="w-full text-[10px] font-bold text-gray-600 border-none p-0 focus:ring-0"
-                            placeholder="Option label"
-                          />
-                          <div className="flex items-center gap-1">
-                             <span className="text-[8px] font-black text-gray-400 uppercase">Pts:</span>
-                             <input 
-                              type="number" 
-                              value={opt.p}
-                              step="0.1"
-                              onChange={(e) => updateOption(sectionKey, itemIdx, optIdx, 'p', e.target.value)}
-                              className="w-full text-[10px] font-black text-emerald-600 border-none p-0 focus:ring-0"
-                            />
-                          </div>
-                        </div>
-                        <button 
-                          onClick={() => deleteOption(sectionKey, itemIdx, optIdx)}
-                          className="text-gray-300 hover:text-red-500 transition-colors"
-                        >
-                          <X size={12} />
-                        </button>
-                      </div>
-                    ))}
-                    <button 
-                      onClick={() => addOption(sectionKey, itemIdx)}
-                      className="border-2 border-dashed border-gray-200 rounded-xl p-3 flex items-center justify-center text-[9px] font-black text-gray-400 uppercase tracking-widest hover:border-emerald-200 hover:text-emerald-600 transition-all"
-                    >
-                      + Option
-                    </button>
-                  </div>
+
+                <div className="md:col-span-2">
+                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">Min Score (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={cls.minScore}
+                    onChange={(e) => updateClassificationObj(idx, 'minScore', e.target.value)}
+                    className="w-full text-xs font-black text-emerald-800 bg-white border border-gray-200 rounded-xl px-3 py-2 focus:border-emerald-500 focus:outline-[#059669]"
+                  />
                 </div>
-              ))}
+
+                <div className="md:col-span-3">
+                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">Auto Recommendation</label>
+                  <select
+                    value={cls.recommendation}
+                    onChange={(e) => updateClassificationObj(idx, 'recommendation', e.target.value)}
+                    className="w-full text-xs font-bold text-gray-700 bg-white border border-gray-200 rounded-xl px-3 py-2 focus:border-emerald-500 focus:outline-[#059669] h-[38px]"
+                  >
+                    <option value="Approved">Approved</option>
+                    <option value="Approved with Conditions">Approved with Conditions</option>
+                    <option value="Denied">Denied</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-3">
+                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">Visual Accent Tint</label>
+                  <select
+                    value={cls.color || 'text-emerald-600'}
+                    onChange={(e) => {
+                      const color = e.target.value;
+                      let bg = 'bg-emerald-50';
+                      if (color === 'text-green-600') bg = 'bg-green-50';
+                      else if (color === 'text-amber-500') bg = 'bg-amber-50';
+                      else if (color === 'text-orange-500') bg = 'bg-orange-50';
+                      else if (color === 'text-red-500') bg = 'bg-red-50';
+                      
+                      const list = [...classifications];
+                      list[idx] = { ...list[idx], color, bg };
+                      setClassifications(list);
+                    }}
+                    className="w-full text-xs font-bold text-gray-700 bg-white border border-gray-200 rounded-xl px-3 py-2 focus:border-emerald-500 focus:outline-[#059669] h-[38px]"
+                  >
+                    <option value="text-green-600">Green Banner (Safe / Low Risk)</option>
+                    <option value="text-amber-500">Amber Banner (Moderate Risk)</option>
+                    <option value="text-orange-500">Orange Banner (High Risk)</option>
+                    <option value="text-red-500">Red Banner (Critically High Risk)</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-1 pt-4 md:pt-0 flex justify-end">
+                  <button
+                    onClick={() => deleteClassification(idx)}
+                    className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors rounded-xl border border-transparent hover:border-red-100"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            <button
+              onClick={addClassification}
+              className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-4 flex items-center justify-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest hover:border-emerald-200 hover:text-emerald-700 transition-all opacity-80"
+            >
+              <Plus size={14} /> Add Scoring Tier Class
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeConfigTab === 'ADJUSTMENTS' && (
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 space-y-8 animate-fade-in block">
+          <div>
+            <h3 className="text-sm font-black text-emerald-950 uppercase tracking-widest">Grading & Score Adjustments</h3>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">
+              Apply active point offsets or section weight priorities to fine-tune the final diagnostics output.
+            </p>
+          </div>
+
+          <div className="p-6 bg-emerald-50/40 rounded-3xl border border-emerald-100/50 space-y-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <h4 className="text-xs font-black text-emerald-950 uppercase tracking-wider">Global Score Adjustment Offset</h4>
+                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mt-1">
+                  A flat percentage point adjustment added directly to the final computed risk index score.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 bg-white px-4 py-2 border border-gray-100 rounded-2xl shadow-sm">
+                <span className="text-[10px] font-black text-gray-400 uppercase">OFFSET:</span>
+                <input
+                  type="number"
+                  min="-50"
+                  max="50"
+                  value={globalAdjustment}
+                  onChange={(e) => setGlobalAdjustment(parseFloat(e.target.value) || 0)}
+                  className="w-16 h-8 text-center text-xs font-black text-emerald-700 bg-transparent border-none focus:outline-none p-0 focus:ring-0"
+                />
+                <span className="text-[10px] font-black text-emerald-700">%</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-[9px] font-black text-red-500 uppercase">-50% Penalty</span>
+              <input
+                type="range"
+                min="-50"
+                max="50"
+                value={globalAdjustment}
+                onChange={(e) => setGlobalAdjustment(parseFloat(e.target.value) || 0)}
+                className="flex-1 accent-emerald-600 cursor-pointer h-1.5 bg-gray-200 rounded-lg appearance-none"
+              />
+              <span className="text-[9px] font-black text-green-600 uppercase">+50% Bonus</span>
             </div>
           </div>
-        ))}
-      </div>
+
+          <div className="space-y-6">
+            <div>
+              <h4 className="text-xs font-black text-emerald-950 uppercase tracking-wider">Scoring Sheet Section Weights</h4>
+              <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mt-1">
+                Configure multipliers to prioritize or lower down the impact of specific assessment categories on the total calculation.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {Object.keys(sections || {}).map((sectionKey) => {
+                const currentWeight = sectionWeights[sectionKey] !== undefined ? sectionWeights[sectionKey] : 1.0;
+                return (
+                  <div key={sectionKey} className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black text-emerald-950 uppercase tracking-widest">{sectionKey.replace(/_/g, ' ')}</span>
+                      <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100/50 px-2 py-1 rounded-lg">
+                        {currentWeight.toFixed(1)}x Priority
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[8px] font-black text-gray-300">0.1x</span>
+                      <input
+                        type="range"
+                        min="0.1"
+                        max="3.0"
+                        step="0.1"
+                        value={currentWeight}
+                        onChange={(e) => updateSectionWeight(sectionKey, parseFloat(e.target.value))}
+                        className="flex-1 accent-emerald-600 cursor-pointer h-1 bg-gray-250 rounded-lg appearance-none"
+                      />
+                      <span className="text-[8px] font-black text-gray-300">3.0x</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -4726,7 +5019,38 @@ function AccountStatus({ user }: { user: UserProfile }) {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [user.id, user.role]);
+
+  useEffect(() => {
+    if (selected) {
+      const updated = assignments.find(a => a.id === selected.id);
+      if (updated && (updated.status !== selected.status || JSON.stringify(updated.timeline) !== JSON.stringify(selected.timeline))) {
+        setSelected(updated);
+      }
+    }
+  }, [assignments, selected]);
+
+  const handleDenyReportSubmitted = async (assignment: Assignment) => {
+    if (!confirm(`Are you sure you want to deny ${assignment.borrowerName}?`)) return;
+    const newTimeline = [...assignment.timeline, { step: 'Denied', timestamp: new Date().toISOString() }];
+    try {
+      await api.patch(`/api/assignments/${assignment.id}`, {
+        status: 'Denied',
+        timeline: newTimeline
+      });
+
+      await createNotification(
+        assignment.ciOfficerId,
+        'Account Denied',
+        `The application for ${assignment.borrowerName} has been DENIED by the Admin instead of pre-approval.`,
+        'status_change',
+        assignment.id
+      );
+    } catch (err) {
+      console.error(err);
+      alert('Failed to deny application.');
+    }
+  };
 
   const handleNextStep = async (assignment: Assignment) => {
     const isMCL = assignment.loanCategory === 'MCL';
@@ -4922,12 +5246,20 @@ function AccountStatus({ user }: { user: UserProfile }) {
                 </button>
               )}
               {user.role === 'admin' && selected.status === 'Report Submitted' && (
-                <button 
-                  onClick={() => handleNextStep(selected)}
-                  className="px-6 py-2 bg-green-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-green-600 transition-all shadow-lg shadow-green-500/20"
-                >
-                  Confirm & Pre-approve
-                </button>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => handleDenyReportSubmitted(selected)}
+                    className="px-6 py-2 bg-red-650 bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-red-700 transition-all shadow-lg shadow-red-500/20"
+                  >
+                    Deny Client
+                  </button>
+                  <button 
+                    onClick={() => handleNextStep(selected)}
+                    className="px-6 py-2 bg-green-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-green-600 transition-all shadow-lg shadow-green-500/20"
+                  >
+                    Confirm & Pre-approve
+                  </button>
+                </div>
               )}
               {user.role === 'admin' && (
                 <div className="flex items-center gap-2">
@@ -5169,6 +5501,9 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
   const isMCL = assignment.loanCategory === 'MCL';
   const isSeaman = assignment.loanCategory === 'Seaman';
   const [dynamicSheet, setDynamicSheet] = useState<any>(null);
+  const [classifications, setClassifications] = useState<any[]>(DEFAULT_CLASSIFICATIONS);
+  const [sectionWeights, setSectionWeights] = useState<Record<string, number>>({});
+  const [globalAdjustment, setGlobalAdjustment] = useState<number>(0);
   const [isLoadingSheet, setIsLoadingSheet] = useState(true);
   const [formData, setFormData] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -5181,16 +5516,29 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
     const q = query(collection(db, 'scoringConfigs'), where('type', '==', configType), limit(1));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       let sheet;
+      let classes = DEFAULT_CLASSIFICATIONS;
+      let weights = {};
+      let adjustment = 0;
       if (!snapshot.empty) {
-        sheet = snapshot.docs[0].data().sections;
+        const docData = snapshot.docs[0].data();
+        sheet = docData.sections;
+        classes = docData.classifications || DEFAULT_CLASSIFICATIONS;
+        weights = docData.sectionWeights || {};
+        adjustment = docData.globalAdjustment || 0;
       } else {
         sheet = isSeaman ? DEFAULT_SEAMAN_SCORING_SHEET : (isMCL ? DEFAULT_MCL_SCORING_SHEET : DEFAULT_SME_SCORING_SHEET);
       }
       setDynamicSheet(sheet);
+      setClassifications(classes);
+      setSectionWeights(weights);
+      setGlobalAdjustment(adjustment);
       setIsLoadingSheet(false);
     }, (err) => {
       handleFirestoreError(err, OperationType.GET, 'scoringConfigs');
       setDynamicSheet(isSeaman ? DEFAULT_SEAMAN_SCORING_SHEET : (isMCL ? DEFAULT_MCL_SCORING_SHEET : DEFAULT_SME_SCORING_SHEET));
+      setClassifications(DEFAULT_CLASSIFICATIONS);
+      setSectionWeights({});
+      setGlobalAdjustment(0);
       setIsLoadingSheet(false);
     });
     return () => unsubscribe();
@@ -5256,29 +5604,42 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
         }
       });
 
-      grades[sectionKey] = sectionEarned;
-      activeTotalMax += section.max;
-      activeTotalEarned += sectionEarned;
+      // Apply section weight multiplier
+      const weight = sectionWeights?.[sectionKey] !== undefined ? Number(sectionWeights[sectionKey]) : 1.0;
+      const weightedMax = section.max * weight;
+      const weightedEarned = sectionEarned * weight;
+
+      grades[sectionKey] = sectionEarned; // Store actual unweighted grade
+      activeTotalMax += weightedMax;
+      activeTotalEarned += weightedEarned;
     });
 
-    const riskScore = activeTotalMax > 0 ? (activeTotalEarned / activeTotalMax) * 100 : 0;
+    let riskScore = activeTotalMax > 0 ? (activeTotalEarned / activeTotalMax) * 100 : 0;
     
-    let riskClassification = 'High Risk';
-    if (riskScore >= 70) riskClassification = 'Strong Borrower';
-    else if (riskScore >= 50) riskClassification = 'Moderate Risk';
-    else if (riskScore >= 30) riskClassification = 'High Risk';
-    else riskClassification = 'Very High Risk';
+    // Apply global grading adjustment offset percentage
+    const baseRiskScore = riskScore;
+    riskScore = Math.max(0, Math.min(100, riskScore + Number(globalAdjustment || 0)));
 
-    // Auto-update recommendation based on user request
-    let autoRecommendation = 'Denied';
-    if (riskScore >= 70) autoRecommendation = 'Approved';
-    else if (riskScore >= 50) autoRecommendation = 'Approved with Conditions';
+    // Categorize dynamically using custom classifications sorted by threshold points
+    const sortedClassifications = [...(classifications && classifications.length > 0 ? classifications : DEFAULT_CLASSIFICATIONS)]
+      .sort((a, b) => Number(b.minScore) - Number(a.minScore));
+
+    const classificationObj = sortedClassifications.find(c => riskScore >= Number(c.minScore)) 
+      || sortedClassifications[sortedClassifications.length - 1];
+
+    const riskClassification = classificationObj ? classificationObj.name : 'High Risk';
+    const autoRecommendation = classificationObj ? classificationObj.recommendation : 'Denied';
+    const classificationColor = classificationObj ? (classificationObj.color || 'text-red-600') : 'text-red-500';
+    const classificationBg = classificationObj ? (classificationObj.bg || 'bg-red-50') : 'bg-red-50';
 
     return { 
       sectionGrades: grades, 
       totalGrade: activeTotalEarned, 
+      baseRiskScore,
       riskScore, 
       riskClassification,
+      classificationColor,
+      classificationBg,
       activeTotalMax,
       autoRecommendation
     };
@@ -5358,7 +5719,7 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
 
   if (isLoadingSheet || !formData || !results) return <div className="p-12 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Initializing scoring module...</div>;
 
-  const { riskScore, riskClassification, totalGrade, sectionGrades } = results;
+  const { riskScore, riskClassification, classificationColor, totalGrade, sectionGrades, baseRiskScore } = results;
 
   return (
     <div className="bg-white border-2 border-emerald-100 rounded-3xl p-8 space-y-12">
@@ -5384,16 +5745,16 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
           <div className="flex items-center gap-2 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100">
             <span className="text-[10px] font-black text-emerald-800 uppercase">Business Status</span>
             <button
-              disabled={isReadOnly}
-              onClick={() => {
-                const newValue = !isBusinessEnabled;
-                setIsBusinessEnabled(newValue);
-                setFormData((prev: any) => ({ ...prev, isBusinessEnabled: newValue }));
-              }}
-              className={cn(
-                "relative w-10 h-5 rounded-full transition-all duration-300",
-                isBusinessEnabled ? "bg-emerald-600" : "bg-gray-300"
-              )}
+               disabled={isReadOnly}
+               onClick={() => {
+                 const newValue = !isBusinessEnabled;
+                 setIsBusinessEnabled(newValue);
+                 setFormData((prev: any) => ({ ...prev, isBusinessEnabled: newValue }));
+               }}
+               className={cn(
+                 "relative w-10 h-5 rounded-full transition-all duration-300",
+                 isBusinessEnabled ? "bg-emerald-600" : "bg-gray-300"
+               )}
             >
               <div className={cn(
                 "absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-300 shadow-sm",
@@ -5412,9 +5773,7 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
             <p className="text-[10px] font-black text-gray-400 uppercase">Classification</p>
             <p className={cn(
                "text-lg font-black uppercase tracking-tight",
-               riskClassification === 'Strong Borrower' ? "text-green-600" : 
-               riskClassification === 'Moderate Risk' ? "text-amber-500" : 
-               "text-red-600"
+               classificationColor
             )}>
               {riskClassification}
             </p>
@@ -5546,6 +5905,11 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
             </div>
             <p className="text-[10px] text-gray-400 font-bold uppercase px-2">
               Based on {riskScore.toFixed(1)}% Achievement Index
+              {globalAdjustment !== 0 && (
+                <span className="text-emerald-600 ml-1">
+                  (Base: {baseRiskScore.toFixed(1)}% | Adj: {globalAdjustment > 0 ? `+${globalAdjustment}` : globalAdjustment}%)
+                </span>
+              )}
             </p>
           </div>
 
