@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/health",
+      "destination": "/api/health.ts"
+    },
+    {
+      "source": "/api/gemini/analyze-account",
+      "destination": "/api/gemini/analyze-account.ts"
+    }
+  ]
+}
