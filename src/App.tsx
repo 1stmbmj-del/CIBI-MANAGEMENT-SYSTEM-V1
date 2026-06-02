@@ -6649,6 +6649,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
   const [approvedList, setApprovedList] = useState<Assignment[]>([]);
   const [selected, setSelected] = useState<Assignment | null>(null);
   const [isViewingAccount, setIsViewingAccount] = useState(false);
+  const [modalTab, setModalTab] = useState<'all' | 'scoring' | 'cashflow'>('all');
   const [search, setSearch] = useState('');
   const [processData, setProcessData] = useState({
     amount: '',
@@ -6919,23 +6920,23 @@ function CrecomApproval({ user }: { user: UserProfile }) {
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-0"
           >
             <motion.div 
               initial={{ y: 50, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              className="bg-white w-full max-w-7xl h-auto max-h-[95vh] xl:h-[92vh] rounded-[40px] p-0 shadow-2xl flex flex-col xl:flex-row overflow-y-auto xl:overflow-hidden"
+              className="bg-white w-screen h-screen max-w-none max-h-none rounded-none p-0 shadow-none flex flex-col xl:flex-row overflow-hidden"
             >
-              <div className="flex-1 p-8 lg:p-12 overflow-y-auto border-r border-gray-100 xl:h-full">
-                <div className="flex justify-between items-start mb-8">
+              <div className="flex-1 p-6 lg:p-10 overflow-y-auto border-r border-gray-100 xl:h-full flex flex-col">
+                <div className="flex justify-between items-start mb-6 shrink-0">
                   <div>
-                    <h3 className="text-4xl font-black text-emerald-900 uppercase tracking-tighter leading-none mb-2">{selected.borrowerName}</h3>
-                    <div className="flex items-center gap-4">
+                    <h3 className="text-3xl lg:text-4xl font-black text-emerald-900 uppercase tracking-tighter leading-none mb-2">{selected.borrowerName}</h3>
+                    <div className="flex items-center flex-wrap gap-4">
                       <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase rounded-full tracking-widest">Step: Discrepancy & Final Approval</span>
                       <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">CI Officer: {selected.ciOfficerName}</span>
                       <button 
                         onClick={() => setIsViewingAccount(true)}
-                        className="text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:text-emerald-800 transition-colors flex items-center gap-1 border-l border-emerald-100 pl-4 ml-4"
+                        className="text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:text-emerald-800 transition-colors flex items-center gap-1 border-l border-emerald-100 pl-4"
                       >
                         <FileText size={10} /> View Account Information
                       </button>
@@ -6944,13 +6945,70 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                   <button onClick={() => setSelected(null)} className="w-12 h-12 flex items-center justify-center bg-gray-50 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all"><X /></button>
                 </div>
 
-                <div className="space-y-12">
+                {/* Sub-section tab select to allow perfect side by side or unified screen fit */}
+                <div className="flex items-center gap-4 lg:gap-6 border-b border-gray-200 pb-3 mb-6 shrink-0 flex-wrap">
+                  <button
+                    onClick={() => setModalTab('all')}
+                    className={cn(
+                      "text-[10px] font-black uppercase tracking-[0.15em] pb-2 transition-all border-b-2",
+                      modalTab === 'all' 
+                        ? "border-emerald-600 text-emerald-800" 
+                        : "border-transparent text-gray-400 hover:text-gray-600"
+                    )}
+                  >
+                    All Details (Stacked)
+                  </button>
+                  <button
+                    onClick={() => setModalTab('scoring')}
+                    className={cn(
+                      "text-[10px] font-black uppercase tracking-[0.15em] pb-2 transition-all border-b-2",
+                      modalTab === 'scoring' 
+                        ? "border-emerald-600 text-emerald-800" 
+                        : "border-transparent text-gray-400 hover:text-gray-600"
+                    )}
+                  >
+                    Credit Scorer Diagnostic
+                  </button>
+                  <button
+                    onClick={() => setModalTab('cashflow')}
+                    className={cn(
+                      "text-[10px] font-black uppercase tracking-[0.15em] pb-2 transition-all border-b-2",
+                      modalTab === 'cashflow' 
+                        ? "border-emerald-600 text-emerald-800" 
+                        : "border-transparent text-gray-400 hover:text-gray-600"
+                    )}
+                  >
+                    Financial Cashflow Report
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-12 pr-2">
                   {/* Performance History Section */}
                   {selected.cashflowHistory && selected.cashflowHistory.length > 0 && (
                     <PerformanceGraph history={selected.cashflowHistory} />
                   )}
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                  {modalTab === 'all' && (
+                    <div className="space-y-12">
+                      <section className="space-y-6">
+                        <div className="flex justify-between items-center bg-gray-50 p-4 rounded-2xl">
+                          <h4 className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Credit Scorer Insight</h4>
+                          <span className="text-[10px] font-black text-green-600 bg-white px-3 py-1 rounded-full shadow-sm badge">GRADE: {selected.creditScore?.finalGrade || 'N/A'}</span>
+                        </div>
+                        <CreditScoringModule assignment={selected} user={user} isReadOnly={true} />
+                      </section>
+
+                      <section className="space-y-6">
+                        <div className="flex justify-between items-center bg-gray-50 p-4 rounded-2xl">
+                          <h4 className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Financial Diagnostic Summary</h4>
+                          <span className="text-[10px] font-black text-emerald-600 bg-white px-3 py-1 rounded-full shadow-sm badge">NDI: ₱{selected.cashflowReport?.analysis?.monthlyNdi?.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        </div>
+                        <CashflowModule assignment={selected} user={user} isReadOnly={true} />
+                      </section>
+                    </div>
+                  )}
+
+                  {modalTab === 'scoring' && (
                     <section className="space-y-6">
                       <div className="flex justify-between items-center bg-gray-50 p-4 rounded-2xl">
                         <h4 className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Credit Scorer Insight</h4>
@@ -6958,7 +7016,9 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                       </div>
                       <CreditScoringModule assignment={selected} user={user} isReadOnly={true} />
                     </section>
+                  )}
 
+                  {modalTab === 'cashflow' && (
                     <section className="space-y-6">
                       <div className="flex justify-between items-center bg-gray-50 p-4 rounded-2xl">
                         <h4 className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Financial Diagnostic Summary</h4>
@@ -6966,7 +7026,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                       </div>
                       <CashflowModule assignment={selected} user={user} isReadOnly={true} />
                     </section>
-                  </div>
+                  )}
                 </div>
               </div>
 
