@@ -107,15 +107,59 @@ CI Recommended Loan Amount: ₱${(assignment.cashflowReport.ciRecommendation?.lo
 
 --- END OF RECORD ---`;
 
-      const modelsToTry = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
+      const modelsToTry = [
+        "gemini-2.5-flash",
+        "gemini-3.5-flash",
+        "gemini-3.1-flash-lite",
+        "gemini-flash-latest"
+      ];
       let response = null;
       let lastError: any = null;
-      const maxRetries = 2; // Retry twice on transient errors per model
 
+      // First pass: try each model once with no retries (failover fast!)
       for (const modelToTry of modelsToTry) {
-        for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+        try {
+          console.log(`[AI Copilot] Processing analysis via model: ${modelToTry}`);
+          response = await ai.models.generateContent({
+            model: modelToTry,
+            contents: textPrompt,
+            config: {
+              systemInstruction: `You are an expert Credit Committee (CRECOM) Senior Financial Analyst and AI Credit Scorer.
+Analyze the provided borrower details, scoring criteria, active liabilities, and net disposable cashflow metrics.
+Produce a refined, objective, and highly professional Credit Assessment Report.
+
+Structure your markdown report clearly:
+### 1. Financial Profile & Capacity Assessment
+Summarize monthly Net Disposable Income (NDI) and evaluate if the requested loan (₱${assignment.requestedAmount?.toLocaleString() || 'N/A'}) matches their actual repayment capacity. Note any cashflow anomalies (e.g. expenses too high relative to net income, or too close to recommended caps).
+
+### 2. Credit Scoring & Risk Analysis
+Analyze their risk classification/grade (${assignment.creditScore?.finalGrade || assignment.creditScore?.totalGrade || assignment.mclCreditScore?.riskClassification || 'N/A'}) and highlight specific risk elements in stability, business foot traffic, or household criteria. Critically weigh their outstanding external debts (liabilities) and the impact of existing amortizations on the proposed obligation.
+
+### 3. Credit Recommendation & Mitigating Strategy
+Express if the loan is fully viable, should be resized/restructured (lower amount or longer term for amortization relief), or conditioned. Specify a suggested approved amount, term (months), monthly amortization range, and list 2-3 specific risk-mitigating strategies (e.g. requiring a co-maker, specific post-dated check security, or periodic site inspections).
+
+Be objective, concise, and business-focused (avoid boilerplate sales jargon). Word count limit: 250-400 words. DO NOT output any system logs, port info, or technical database tracking strings. Keep the tone completely professional, humble, and analytical.`,
+              temperature: 0.7,
+            }
+          });
+
+          if (response && response.text) {
+            console.log(`[AI Copilot] Successful generation using ${modelToTry}`);
+            break;
+          }
+        } catch (modelErr: any) {
+          console.warn(`[AI Copilot] Model ${modelToTry} failed on first pass:`, modelErr.message || modelErr);
+          lastError = modelErr;
+        }
+      }
+
+      // Second pass: if all models failed, try a single retry with a short backoff for each model
+      if (!response || !response.text) {
+        console.log("[AI Copilot] All models failed on first pass. Initiating second pass with brief retries...");
+        for (const modelToTry of modelsToTry) {
           try {
-            console.log(`[AI Copilot] Processing analysis via model: ${modelToTry} (Attempt ${attempt}/${maxRetries + 1})`);
+            console.log(`[AI Copilot] Pass 2: Retrying model: ${modelToTry} after brief backoff...`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
             response = await ai.models.generateContent({
               model: modelToTry,
               contents: textPrompt,
@@ -140,33 +184,13 @@ Be objective, concise, and business-focused (avoid boilerplate sales jargon). Wo
             });
 
             if (response && response.text) {
-              console.log(`[AI Copilot] Successful generation using ${modelToTry} on attempt ${attempt}`);
+              console.log(`[AI Copilot] Successful generation using ${modelToTry} on second pass`);
               break;
             }
           } catch (modelErr: any) {
-            const errString = modelErr.message || String(modelErr);
-            console.warn(`[AI Copilot] Model ${modelToTry} attempt ${attempt} encountered error:`, errString);
+            console.warn(`[AI Copilot] Model ${modelToTry} failed on second pass:`, modelErr.message || modelErr);
             lastError = modelErr;
-
-            const isTransient = errString.includes("503") || 
-                                errString.includes("UNAVAILABLE") || 
-                                errString.includes("429") || 
-                                errString.includes("rate limit") ||
-                                errString.includes("Service Unavailable") ||
-                                errString.includes("high demand");
-
-            if (isTransient && attempt <= maxRetries) {
-              const backoffTime = attempt * 1200; // linear/exponential sleep
-              console.log(`[AI Copilot] Transient error encountered. Backing off for ${backoffTime}ms before retrying ${modelToTry}...`);
-              await new Promise(resolve => setTimeout(resolve, backoffTime));
-            } else {
-              break; // break the attempt loop to move on to next model
-            }
           }
-        }
-
-        if (response && response.text) {
-          break; // break the model loop since we got a valid response
         }
       }
 
