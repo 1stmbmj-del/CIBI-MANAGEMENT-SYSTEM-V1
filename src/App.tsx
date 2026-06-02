@@ -5285,7 +5285,11 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
   };
 
   const results = calculateGrades();
-  const isReadOnly = forceReadOnly || assignment.status !== 'Field CIBI' || (user.role !== 'user' && !assignment.creditScore && !assignment.mclCreditScore);
+  const isReadOnly = forceReadOnly || (
+    user.role !== 'admin' && (
+      user.role !== 'user' || assignment.status !== 'Field CIBI'
+    )
+  );
 
   // Automatically update recommendation in formData if it changes based on score
   useEffect(() => {
@@ -5667,7 +5671,7 @@ function PerformanceGraph({ history }: { history: CashflowReport[] }) {
   );
 }
 
-function CashflowModule({ assignment, isReadOnly: forceReadOnly }: { assignment: Assignment, user: UserProfile, isReadOnly?: boolean }) {
+function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assignment: Assignment, user: UserProfile, isReadOnly?: boolean }) {
   const safeNum = (val: number | string | null | undefined | unknown): number => {
     const n = Number(val);
     return isNaN(n) ? 0 : n;
@@ -5906,7 +5910,11 @@ function CashflowModule({ assignment, isReadOnly: forceReadOnly }: { assignment:
     setLiabilities(liabilities.filter((_, i) => i !== idx));
   };
 
-  const isReadOnly = forceReadOnly || (assignment.status !== 'Cashflowing' && assignment.status !== 'Report Submitted');
+  const isReadOnly = forceReadOnly || (
+    user.role !== 'admin' && (
+      user.role !== 'user' || (assignment.status !== 'Cashflowing' && assignment.status !== 'Report Submitted')
+    )
+  );
 
   return (
     <div className="bg-white border-2 border-emerald-500/10 rounded-3xl p-8 space-y-12 shadow-xl shadow-emerald-900/5">
