@@ -24,13 +24,20 @@ async function startServer() {
         return;
       }
 
-      console.log("GEMINI_API_KEY check:", {
-        configured: !!process.env.GEMINI_API_KEY,
-        length: process.env.GEMINI_API_KEY?.length || 0,
-        prefix: process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.substring(0, 8) : "none"
+      const apiKey = (
+        process.env.GEMINI_API_KEY ||
+        process.env.VITE_GEMINI_API_KEY ||
+        process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
+        ""
+      ).trim();
+
+      console.log("Gemini API Key resolution checked:", {
+        configured: !!apiKey,
+        length: apiKey.length,
+        prefix: apiKey ? apiKey.substring(0, 8) : "none"
       });
 
-      if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.trim() === "" || process.env.GEMINI_API_KEY === "MY_GEMINI_API_KEY") {
+      if (!apiKey || apiKey === "" || apiKey === "MY_GEMINI_API_KEY") {
         res.status(500).json({ 
           error: "Gemini API Key is missing or invalid. Please follow these steps to add it:\n1. Click the 'Settings' gear icon or the 'Secrets' tab in the AI Studio editor/sidebar on the top-right.\n2. Add a new secret with the name 'GEMINI_API_KEY'.\n3. Paste your Gemini API key (from https://aistudio.google.com/) as the value, save it, and then retry!" 
         });
@@ -38,7 +45,7 @@ async function startServer() {
       }
 
       const ai = new GoogleGenAI({
-        apiKey: process.env.GEMINI_API_KEY,
+        apiKey: apiKey,
         httpOptions: {
           headers: {
             'User-Agent': 'aistudio-build',

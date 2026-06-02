@@ -27,10 +27,21 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const apiKey = process.env.GEMINI_API_KEY || "";
-    if (!apiKey || apiKey.trim() === "" || apiKey === "MY_GEMINI_API_KEY") {
+    const apiKey = (
+      process.env.GEMINI_API_KEY ||
+      process.env.VITE_GEMINI_API_KEY ||
+      process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
+      ""
+    ).trim();
+
+    if (!apiKey || apiKey === "" || apiKey === "MY_GEMINI_API_KEY") {
       res.status(500).json({ 
-        error: "Gemini API Key is missing or invalid in Vercel environment variables. Please add 'GEMINI_API_KEY' under your Vercel project settings (Settings > Environment Variables) and then re-deploy!" 
+        error: "Gemini API Key is missing or invalid in Vercel environment variables.\n\n" +
+               "Please follow these exact steps to resolve this:\n" +
+               "1. Go to your Vercel Dashboard (https://vercel.com/) and open your project.\n" +
+               "2. Go to 'Settings' > 'Environment Variables'.\n" +
+               "3. Add a new variable with Key: GEMINI_API_KEY and Value: (your actual API key starting with AIzaSy... from Google AI Studio).\n" +
+               "4. ⚠️ IMPORTANT: In Vercel, serverless containers do not automatically load new environment variables. You MUST trigger a redeploy of your project! Go to the 'Deployments' tab, click the three dots (...) on your latest deployment, select 'Redeploy', and click the Redeploy button."
       });
       return;
     }
