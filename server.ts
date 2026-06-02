@@ -107,11 +107,20 @@ CI Recommended Loan Amount: ₱${(assignment.cashflowReport.ciRecommendation?.lo
 
 --- END OF RECORD ---`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: textPrompt,
-        config: {
-          systemInstruction: `You are an expert Credit Committee (CRECOM) Senior Financial Analyst and AI Credit Scorer.
+      const modelsToTry = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
+      let response = null;
+      let lastError: any = null;
+      const maxRetries = 2; // Retry twice on transient errors per model
+
+      for (const modelToTry of modelsToTry) {
+        for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+          try {
+            console.log(`[AI Copilot] Processing analysis via model: ${modelToTry} (Attempt ${attempt}/${maxRetries + 1})`);
+            response = await ai.models.generateContent({
+              model: modelToTry,
+              contents: textPrompt,
+              config: {
+                systemInstruction: `You are an expert Credit Committee (CRECOM) Senior Financial Analyst and AI Credit Scorer.
 Analyze the provided borrower details, scoring criteria, active liabilities, and net disposable cashflow metrics.
 Produce a refined, objective, and highly professional Credit Assessment Report.
 
@@ -126,9 +135,44 @@ Analyze their risk classification/grade (${assignment.creditScore?.finalGrade ||
 Express if the loan is fully viable, should be resized/restructured (lower amount or longer term for amortization relief), or conditioned. Specify a suggested approved amount, term (months), monthly amortization range, and list 2-3 specific risk-mitigating strategies (e.g. requiring a co-maker, specific post-dated check security, or periodic site inspections).
 
 Be objective, concise, and business-focused (avoid boilerplate sales jargon). Word count limit: 250-400 words. DO NOT output any system logs, port info, or technical database tracking strings. Keep the tone completely professional, humble, and analytical.`,
-          temperature: 0.7,
+                temperature: 0.7,
+              }
+            });
+
+            if (response && response.text) {
+              console.log(`[AI Copilot] Successful generation using ${modelToTry} on attempt ${attempt}`);
+              break;
+            }
+          } catch (modelErr: any) {
+            const errString = modelErr.message || String(modelErr);
+            console.warn(`[AI Copilot] Model ${modelToTry} attempt ${attempt} encountered error:`, errString);
+            lastError = modelErr;
+
+            const isTransient = errString.includes("503") || 
+                                errString.includes("UNAVAILABLE") || 
+                                errString.includes("429") || 
+                                errString.includes("rate limit") ||
+                                errString.includes("Service Unavailable") ||
+                                errString.includes("high demand");
+
+            if (isTransient && attempt <= maxRetries) {
+              const backoffTime = attempt * 1200; // linear/exponential sleep
+              console.log(`[AI Copilot] Transient error encountered. Backing off for ${backoffTime}ms before retrying ${modelToTry}...`);
+              await new Promise(resolve => setTimeout(resolve, backoffTime));
+            } else {
+              break; // break the attempt loop to move on to next model
+            }
+          }
         }
-      });
+
+        if (response && response.text) {
+          break; // break the model loop since we got a valid response
+        }
+      }
+
+      if (!response || !response.text) {
+        throw new Error(lastError ? lastError.message : "All available Gemini models are currently experiencing high demand. Please try again in a few moments.");
+      }
 
       res.json({ analysis: response.text });
     } catch (err: any) {
