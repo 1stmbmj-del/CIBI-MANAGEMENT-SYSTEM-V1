@@ -254,6 +254,7 @@ export interface Assignment {
   cashflowReport?: CashflowReport;
   deniedComments?: string;
   isMCLReferral?: boolean;
+  aiAnalysis?: string;
   createdAt: string;
   cashflowHistory?: CashflowReport[];
   survey?: {

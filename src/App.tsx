@@ -280,6 +280,34 @@ const generateAssignmentPPT = (a: Assignment) => {
     slide5.addText(recommended.remarks || "No remarks provided.", { x: 0.7, y: 5.1, w: 8.6, h: 1.1, fontSize: 10, italic: true });
   }
 
+  // Slide 6: Automated AI Assessment comments (if present)
+  if (a.aiAnalysis) {
+    const slideAI = pptx.addSlide();
+    slideAI.addText("AUTOMATED RISK & CAPACITY ASSESSMENT", { x: 0.5, y: 0.3, w: 9.0, h: 0.5, fontSize: 18, bold: true, color: "065F46" });
+    slideAI.addText("GEMINI CORE INTEGRATION REPORT SUMMARY", { x: 0.5, y: 0.8, w: 9.0, h: 0.3, fontSize: 10, bold: true, color: "10B981" });
+
+    slideAI.addShape(pptx.ShapeType.rect, { x: 0.5, y: 1.2, w: 9.0, h: 5.2, fill: { color: "F9FAFB" }, line: { color: "10B981" } });
+    
+    // Strip rough markdown formatting marks
+    const formattedAiText = a.aiAnalysis
+      .replace(/###\s*(.*)/g, '$1\n')
+      .replace(/\*\*/g, '')
+      .replace(/-\s+/g, '• ')
+      .trim();
+
+    slideAI.addText(formattedAiText, { 
+      x: 0.7, 
+      y: 1.4, 
+      w: 8.6, 
+      h: 4.8, 
+      fontSize: 9, 
+      fontFace: "Arial", 
+      color: "064E3B",
+      align: "left",
+      valign: "top"
+    });
+  }
+
   pptx.writeFile({ fileName: `CIBI_Report_${a.borrowerName.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pptx` });
 };
 
@@ -5383,6 +5411,226 @@ function AccountStatus({ user }: { user: UserProfile }) {
   );
 }
 
+// Custom parser to translate AI analysis markdown to beautiful styled React elements
+function MarkdownViewer({ content }: { content: string }) {
+  if (!content) return null;
+  
+  const parseBoldText = (text: string) => {
+    const parts = text.split(/\*\*(.*?)\*\*/g);
+    return parts.map((part, i) => {
+      if (i % 2 === 1) {
+        return <strong key={i} className="font-extrabold text-emerald-950">{part}</strong>;
+      }
+      return part;
+    });
+  };
+
+  // Split into sections (paragraphs, headers, or lists)
+  const sections = content.split('\n\n');
+  
+  return (
+    <div className="space-y-5 text-xs text-gray-700 leading-relaxed font-sans select-text">
+      {sections.map((section, idx) => {
+        const trimmed = section.trim();
+        if (!trimmed) return null;
+        
+        // Headers (e.g. ### 1. Financial Profile)
+        if (trimmed.startsWith('###')) {
+          const headerText = trimmed.replace(/^###\s*/, '');
+          return (
+            <h4 key={idx} className="text-sm font-black text-emerald-900 uppercase tracking-widest mt-8 first:mt-0 border-b border-emerald-100 pb-2">
+              {headerText}
+            </h4>
+          );
+        }
+        
+        // Bullet points
+        if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
+          const lines = trimmed.split('\n');
+          return (
+            <ul key={idx} className="space-y-2.5 pl-1 my-3 bg-gray-50/30 p-4 rounded-xl border border-gray-100">
+              {lines.map((line, lIdx) => {
+                const bulletText = line.replace(/^[-*]\s*/, '');
+                return (
+                  <li key={lIdx} className="flex items-start gap-2.5 text-gray-600">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0 mt-2" />
+                    <span className="text-[11px] leading-relaxed font-medium">{parseBoldText(bulletText)}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          );
+        }
+        
+        // Regular Paragraphs
+        return (
+          <p key={idx} className="text-gray-600 leading-relaxed text-[11px] font-medium text-justify">
+            {parseBoldText(trimmed)}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+// UI Copilot analysis Component using the server-side proxy
+function AiAccountAnalysis({ assignment }: { assignment: Assignment }) {
+  const [loading, setLoading] = useState(false);
+  const [analysis, setAnalysis] = useState<string | null>(assignment.aiAnalysis || null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Sync dynamic changes
+  useEffect(() => {
+    if (assignment.aiAnalysis) {
+      setAnalysis(assignment.aiAnalysis);
+    } else {
+      setAnalysis(null);
+    }
+  }, [assignment.id, assignment.aiAnalysis]);
+
+  const handleRunAnalysis = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/gemini/analyze-account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ assignment }),
+      });
+      
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to complete AI report generation.');
+      }
+      
+      setAnalysis(data.analysis);
+      
+      // Sells back dynamically to Firestore using standard client SDK helpers
+      await api.patch(`/api/assignments/${assignment.id}`, { aiAnalysis: data.analysis });
+      toast.success('AI Credit investigation successfully compiled and saved!');
+    } catch (err: unknown) {
+      console.error(err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      setError(errMsg || 'An unexpected error occurred during processing.');
+      toast.error('Unable to finalize AI generation.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const hasScoring = !!assignment.creditScore || !!assignment.mclCreditScore;
+  const hasCashflow = !!assignment.cashflowReport;
+  const isReady = hasScoring && hasCashflow;
+
+  return (
+    <div className="bg-emerald-50/20 rounded-[2rem] p-6 lg:p-8 border border-emerald-100/50 shadow-xs relative overflow-hidden select-text text-left">
+      <div className="absolute top-0 right-0 w-64 h-64 bg-linear-to-bl from-emerald-100/20 to-transparent rounded-full pointer-events-none" />
+      
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 relative z-10 border-b border-emerald-100/80 pb-5">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <TrendingUp size={14} className="text-emerald-700 animate-pulse" />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-800">
+              AI Credit Copilot
+            </span>
+            <span className="px-2 py-0.5 bg-emerald-600 text-[8px] font-black text-white uppercase rounded-md tracking-wider">
+              Gemini Active
+            </span>
+          </div>
+          <h4 className="text-lg font-black text-emerald-950 uppercase tracking-tight">
+            Automated Risk & Capacity Review
+          </h4>
+          <div className="flex flex-wrap gap-2 text-[8px] font-black uppercase tracking-wider mt-1">
+            <span className={hasScoring ? 'text-emerald-700' : 'text-amber-700'}>
+              • Credit Score: {hasScoring ? 'Complete' : 'Missing'}
+            </span>
+            <span className={hasCashflow ? 'text-emerald-700' : 'text-amber-700'}>
+              • Financial Cashflow: {hasCashflow ? 'Complete' : 'Missing'}
+            </span>
+          </div>
+        </div>
+
+        {!loading && (
+          <button
+            onClick={handleRunAnalysis}
+            className="px-5 py-2.5 h-10 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center gap-2 shadow-xs whitespace-nowrap active:scale-95 bg-emerald-800 text-white hover:bg-emerald-950 cursor-pointer"
+          >
+            <TrendingUp size={11} />
+            {analysis ? 'Re-Run AI Intelligence' : 'Begin AI Assessment'}
+          </button>
+        )}
+      </div>
+
+      <div className="relative z-10 transition-all">
+        {loading ? (
+          <div className="py-12 flex flex-col items-center justify-center space-y-4">
+            <div className="relative w-12 h-12">
+              <div className="absolute inset-0 rounded-full border-4 border-emerald-100 animate-ping opacity-75" />
+              <div className="absolute inset-0 rounded-full border-4 border-t-emerald-700 border-r-transparent border-l-transparent animate-spin" />
+            </div>
+            <div className="text-center space-y-1">
+              <p className="text-[10px] font-black uppercase tracking-widest text-emerald-900 animate-pulse">
+                Compiling Portfolio Metrics...
+              </p>
+              <p className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">
+                Synthesizing risk grades, assets relative weight, and household disposable funds
+              </p>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-start gap-3">
+            <AlertCircle size={16} className="text-red-600 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <h5 className="text-[10px] font-black text-red-950 uppercase tracking-wide">
+                Process Interrupted
+               </h5>
+               <p className="text-[10px] text-red-700">{error}</p>
+               <button 
+                 onClick={handleRunAnalysis}
+                 className="text-[9px] font-black text-red-900 underline uppercase tracking-wider block mt-2 hover:text-red-950"
+               >
+                 Retry Analysis
+               </button>
+             </div>
+           </div>
+         ) : analysis ? (
+           <div className="bg-white rounded-2xl p-6 border border-emerald-100 shadow-xs/30 animate-fadeIn">
+             <MarkdownViewer content={analysis} />
+           </div>
+         ) : (
+           <div className="bg-gray-50/50 rounded-2xl p-8 border border-dashed border-gray-200 text-center space-y-4">
+             <div className="max-w-md mx-auto space-y-2">
+               <p className="text-xs font-bold text-gray-700 uppercase tracking-tight">
+                 AI Advisor Unlocked
+               </p>
+               <p className="text-[10px] text-gray-400 font-semibold tracking-wider">
+                 Synthesize details of liabilities, customer character scores, and net incomes to run a premium credit assessment report.
+               </p>
+             </div>
+
+             {!isReady && (
+               <div className="p-3 bg-amber-50/50 border border-amber-100/50 rounded-xl max-w-sm mx-auto text-[9px] font-bold text-amber-800 flex items-center gap-2 justify-center">
+                 <AlertCircle size={10} className="shrink-0" />
+                 <span>Note: This account is missing some scoring or cashflow reports. You can still run the AI diagnostic, but results might be limited.</span>
+               </div>
+             )}
+
+             <button
+               onClick={handleRunAnalysis}
+               className="mt-2 px-6 py-2.5 bg-emerald-800 hover:bg-emerald-950 text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-all shadow-xs active:scale-95 inline-flex items-center gap-2 cursor-pointer"
+             >
+               <TrendingUp size={11} />
+               Compile AI Credit Analysis
+             </button>
+           </div>
+         )}
+       </div>
+     </div>
+   );
+ }
+
 function AccountDossierModal({ assignment, onClose }: { assignment: Assignment, onClose: () => void }) {
   return (
     <div className="fixed inset-0 bg-emerald-950/40 backdrop-blur-md z-[100] flex items-center justify-center p-4">
@@ -5476,6 +5724,11 @@ function AccountDossierModal({ assignment, onClose }: { assignment: Assignment, 
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* AI Assessment Segment directly inside primary dossier repository view */}
+          <div className="mt-8 border-t border-gray-100 pt-8">
+            <AiAccountAnalysis assignment={assignment} />
           </div>
         </div>
 
@@ -6068,6 +6321,9 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
   });
   const [ndiPercentage, setNdiPercentage] = useState(30);
   const [isSaving, setIsSaving] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiReportText, setAiReportText] = useState<string | null>(assignment.aiAnalysis || null);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   useEffect(() => {
     if (assignment.cashflowReport) {
@@ -6103,7 +6359,8 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
         monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: ''
       });
     }
-  }, [assignment.id, assignment.cashflowReport]);
+    setAiReportText(assignment.aiAnalysis || null);
+  }, [assignment.id, assignment.cashflowReport, assignment.aiAnalysis]);
 
   // Auto-calculations
   useEffect(() => {
@@ -6166,6 +6423,87 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
     },
     loanableAmount: 0,
     difference: 0
+  };
+
+  const handleAiAnalysis = async () => {
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      // Create temporary assignment structure representing the current unsaved state
+      const unsavedAssignment = {
+        ...assignment,
+        cashflowReport: {
+          liabilities,
+          businessIncome: {
+            gross: safeNum(businessIncome.gross),
+            expenses: safeNum(businessIncome.expenses),
+            net: safeNum(businessIncome.net)
+          },
+          otherIncome: safeNum(otherIncome),
+          householdExpenses: {
+            food: safeNum(householdExpenses.food),
+            rent: safeNum(householdExpenses.rent),
+            electricity: safeNum(householdExpenses.electricity),
+            water: safeNum(householdExpenses.water),
+            insurance: safeNum(householdExpenses.insurance),
+            clothing: safeNum(householdExpenses.clothing),
+            lpg: safeNum(householdExpenses.lpg),
+            association: safeNum(householdExpenses.association),
+            loanPayments: safeNum(householdExpenses.loanPayments),
+            vehicle: safeNum(householdExpenses.vehicle),
+            transportation: safeNum(householdExpenses.transportation),
+            internet: safeNum(householdExpenses.internet),
+            education: safeNum(householdExpenses.education),
+            medical: safeNum(householdExpenses.medical),
+            miscellaneous: safeNum(householdExpenses.miscellaneous),
+            total: safeNum(householdExpenses.total)
+          },
+          analysis: {
+            grossBusinessIncome: safeNum(analysis.grossBusinessIncome),
+            businessExpenses: safeNum(analysis.businessExpenses),
+            businessNetIncome: safeNum(analysis.businessNetIncome),
+            additionalIncome: safeNum(analysis.additionalIncome),
+            totalHouseholdExpenses: safeNum(analysis.totalHouseholdExpenses),
+            netIncome: safeNum(analysis.netIncome),
+            ndiPercentage: safeNum(analysis.ndiPercentage),
+            monthlyNdi: safeNum(analysis.monthlyNdi),
+            recommendedLoan: safeNum(analysis.recommendedLoan)
+          },
+          ciRecommendation: {
+            loanAmount: safeNum(ciRecommendation.loanAmount),
+            term: safeNum(ciRecommendation.term),
+            rate: safeNum(ciRecommendation.rate),
+            remarks: ciRecommendation.remarks || ''
+          }
+        }
+      };
+
+      const response = await fetch('/api/gemini/analyze-account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ assignment: unsavedAssignment }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to complete AI report generation.');
+      }
+
+      setAiReportText(data.analysis);
+      
+      // Update dynamically to the assignment so details are synchronizing and included in print reports
+      await api.patch(`/api/assignments/${assignment.id}`, { aiAnalysis: data.analysis });
+      toast.success('AI risk assessment has been successfully generated!');
+    } catch (err: unknown) {
+      console.error(err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      setAiError(errMsg);
+      toast.error('AI Assessment failed.');
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const handleSave = async () => {
@@ -6617,6 +6955,66 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
           </div>
         </div>
 
+        {/* AI Copilot comments box before committing */}
+        <div className="relative border-t border-dashed border-emerald-500/20 pt-8 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-800">✨ AI Credit Diagnostic Comments</span>
+                <span className="px-2 py-0.5 bg-emerald-600 text-[8px] font-black text-white uppercase rounded-md tracking-wider">Gemini Active</span>
+              </div>
+              <h5 className="text-[12px] font-black text-emerald-950 uppercase tracking-tight">Evaluate Scoring, Liabilities & Cashflow Metrics</h5>
+            </div>
+            <button
+              type="button"
+              onClick={handleAiAnalysis}
+              disabled={aiLoading}
+              className="px-5 py-2.5 h-10 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center gap-2 shadow-xs whitespace-nowrap active:scale-95 bg-emerald-800 text-white hover:bg-emerald-950 cursor-pointer disabled:opacity-50"
+            >
+              {aiLoading ? (
+                <>
+                  <span className="w-3.5 h-3.5 rounded-full border-2 border-t-transparent border-white animate-spin shrink-0" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <span>✨</span> {aiReportText ? 'Re-Analyze with Gemini AI' : 'Run AI Account Analysis'}
+                </>
+              )}
+            </button>
+          </div>
+
+          {aiError && (
+            <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-[10px] text-red-700 font-bold">
+              Failed to compile analysis: {aiError}
+            </div>
+          )}
+
+          {aiReportText && (
+            <div className="space-y-4">
+              <div className="bg-emerald-50/10 rounded-2xl p-5 border border-emerald-100/50">
+                <MarkdownViewer content={aiReportText} />
+              </div>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cleanText = aiReportText
+                      .replace(/###\s+/g, '')
+                      .replace(/\*\*/g, '')
+                      .trim();
+                    setCiRecommendation(prev => ({ ...prev, remarks: cleanText }));
+                    toast.success('AI Comments applied to CI Remarks!');
+                  }}
+                  className="px-3 py-1.5 bg-emerald-100 font-black text-emerald-800 rounded-lg text-[9px] uppercase tracking-wide hover:bg-emerald-200 transition-all active:scale-95 flex items-center gap-1 cursor-pointer"
+                >
+                  📝 Copy to CI Justification Remarks
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {!isReadOnly && (
           <div className="pb-4">
             <button 
@@ -6649,7 +7047,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
   const [approvedList, setApprovedList] = useState<Assignment[]>([]);
   const [selected, setSelected] = useState<Assignment | null>(null);
   const [isViewingAccount, setIsViewingAccount] = useState(false);
-  const [modalTab, setModalTab] = useState<'all' | 'scoring' | 'cashflow'>('all');
+  const [modalTab, setModalTab] = useState<'all' | 'scoring' | 'cashflow' | 'ai'>('all');
   const [search, setSearch] = useState('');
   const [processData, setProcessData] = useState({
     amount: '',
@@ -6980,6 +7378,17 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                   >
                     Financial Cashflow Report
                   </button>
+                  <button
+                    onClick={() => setModalTab('ai')}
+                    className={cn(
+                      "text-[10px] font-black uppercase tracking-[0.15em] pb-2 transition-all border-b-2 flex items-center gap-1.5",
+                      modalTab === 'ai' 
+                        ? "border-emerald-600 text-emerald-800" 
+                        : "border-transparent text-gray-400 hover:text-gray-600"
+                    )}
+                  >
+                    ✨ AI Risk Report
+                  </button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto space-y-12 pr-2">
@@ -6990,6 +7399,11 @@ function CrecomApproval({ user }: { user: UserProfile }) {
 
                   {modalTab === 'all' && (
                     <div className="space-y-12">
+                      {/* AI Assessment segment placed at top of Crecom all stacks */}
+                      <section className="space-y-6">
+                        <AiAccountAnalysis assignment={selected} />
+                      </section>
+
                       <section className="space-y-6">
                         <div className="flex justify-between items-center bg-gray-50 p-4 rounded-2xl">
                           <h4 className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Credit Scorer Insight</h4>
@@ -7025,6 +7439,12 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                         <span className="text-[10px] font-black text-emerald-600 bg-white px-3 py-1 rounded-full shadow-sm badge">NDI: ₱{selected.cashflowReport?.analysis?.monthlyNdi?.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                       </div>
                       <CashflowModule assignment={selected} user={user} isReadOnly={true} />
+                    </section>
+                  )}
+
+                  {modalTab === 'ai' && (
+                    <section className="space-y-6">
+                      <AiAccountAnalysis assignment={selected} />
                     </section>
                   )}
                 </div>
