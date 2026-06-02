@@ -6924,9 +6924,9 @@ function CrecomApproval({ user }: { user: UserProfile }) {
             <motion.div 
               initial={{ y: 50, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              className="bg-white w-full max-w-7xl max-h-[95vh] overflow-y-auto rounded-[40px] p-0 shadow-2xl flex flex-col xl:flex-row"
+              className="bg-white w-full max-w-7xl h-auto max-h-[95vh] xl:h-[92vh] rounded-[40px] p-0 shadow-2xl flex flex-col xl:flex-row overflow-y-auto xl:overflow-hidden"
             >
-              <div className="flex-1 p-8 lg:p-12 overflow-y-auto border-r border-gray-100">
+              <div className="flex-1 p-8 lg:p-12 overflow-y-auto border-r border-gray-100 xl:h-full">
                 <div className="flex justify-between items-start mb-8">
                   <div>
                     <h3 className="text-4xl font-black text-emerald-900 uppercase tracking-tighter leading-none mb-2">{selected.borrowerName}</h3>
@@ -6970,7 +6970,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                 </div>
               </div>
 
-              <div className="w-full xl:w-[400px] bg-gray-50 p-8 lg:p-12 border-l border-gray-100 flex flex-col">
+              <div className="w-full xl:w-[400px] bg-gray-50 p-8 lg:p-12 border-l border-gray-100 flex flex-col xl:overflow-y-auto xl:h-full">
                 <div className="flex-1 space-y-8">
                   <div className="pb-6 border-b border-gray-200">
                     <h4 className="text-[11px] font-black text-emerald-800 uppercase tracking-[0.2em]">Final Determination Payload</h4>
