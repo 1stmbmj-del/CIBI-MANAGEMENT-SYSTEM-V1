@@ -438,12 +438,110 @@ async function testConnection() {
 }
 testConnection();
 
+interface SmartphoneMockupProps {
+  children: React.ReactNode;
+  viewportMode: 'desktop' | 'tablet' | 'mobile';
+  setViewportMode: (mode: 'desktop' | 'tablet' | 'mobile') => void;
+  isPhysicalMobile: boolean;
+}
+
+function SmartphoneMockup({ children, viewportMode, setViewportMode, isPhysicalMobile }: SmartphoneMockupProps) {
+  const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  if (isPhysicalMobile || viewportMode !== 'mobile') {
+    return <>{children}</>;
+  }
+
+  const displayHourMin = format(time, 'h:mm');
+  const displayAmPm = format(time, 'a');
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 md:p-8 relative select-none antialiased">
+      <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/20 via-slate-950 to-slate-950 z-0 pointer-events-none" />
+      <div className="absolute top-10 left-10 w-96 h-96 bg-emerald-500/5 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute bottom-10 right-10 w-96 h-96 bg-blue-500/5 rounded-full blur-[140px] pointer-events-none" />
+
+      <div className="relative z-20 mb-4 bg-slate-900/80 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 flex items-center gap-3 shadow-[0_4px_30px_rgba(0,0,0,0.4)]">
+        <span className="text-[10px] font-black tracking-widest text-emerald-400 uppercase">MOBILE PHONE FRAME</span>
+        <div className="h-3 w-[1px] bg-white/15" />
+        <button 
+          onClick={() => setViewportMode('desktop')} 
+          className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase text-slate-300 hover:text-white hover:bg-white/5 transition-all flex items-center gap-1 cursor-pointer"
+        >
+          <Monitor size={11} /> DESKTOP VERSION
+        </button>
+      </div>
+
+      <div className="relative z-10 w-full max-w-[390px] h-[844px] bg-slate-900 rounded-[54px] p-2.5 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8),_0_0_0_1px_rgba(255,255,255,0.06),_inset_0_2px_4px_rgba(255,255,255,0.15)] flex flex-col overflow-hidden">
+        <div className="absolute inset-2.5 rounded-[44px] border border-slate-950/40 pointer-events-none z-40" />
+
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 w-28 h-6.5 bg-slate-950 rounded-full z-50 flex items-center justify-between px-3.5 shadow-md">
+          <div className="w-3.5 h-3.5 bg-slate-900 rounded-full border border-slate-800/60 flex items-center justify-center relative">
+            <div className="absolute w-1.5 h-1.5 bg-blue-600/20 rounded-full blur-[0.5px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+          </div>
+          <div className="w-1.5 h-1.5 bg-slate-900 rounded-full opacity-60" />
+          <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse" />
+        </div>
+
+        <div className="h-11 bg-white text-slate-800 px-6 pt-2.5 flex items-center justify-between text-[11px] font-black tracking-tight select-none z-40 relative flex-shrink-0">
+          <div className="flex items-center gap-1 mt-0.5">
+            <span>{displayHourMin}</span>
+            <span className="text-[8px] opacity-70 tracking-tighter uppercase">{displayAmPm}</span>
+          </div>
+
+          <div className="w-24 h-4" />
+
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <div className="flex items-end gap-[1.5px] h-2.5">
+              <div className="w-[2.5px] h-1.5 bg-slate-800 rounded-[0.5px]" />
+              <div className="w-[2.5px] h-2 bg-slate-800 rounded-[0.5px]" />
+              <div className="w-[2.5px] h-2.5 bg-slate-800 rounded-[0.5px]" />
+              <div className="w-[2.5px] h-3 bg-slate-800 rounded-[0.5px]" />
+            </div>
+            <svg className="w-3.5 h-3.5 text-slate-800 fill-current" viewBox="0 0 24 24">
+              <path d="M12 21l-12-11.6c6.6-6.4 17.4-6.4 24 0z"/>
+            </svg>
+            <div className="flex items-center gap-0.5 border border-slate-800/60 rounded-xs p-[1px] h-3 w-5.5 relative">
+              <div className="bg-emerald-500 h-full w-[80%] rounded-2xs" />
+              <div className="w-0.5 h-1 bg-slate-800/60 rounded-r-xs absolute -right-0.5" />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-hidden relative flex flex-col bg-gray-50 rounded-[34px] z-20">
+          <div className="flex-1 overflow-y-auto no-scrollbar relative flex flex-col h-full bg-gray-50 select-text">
+            {children}
+          </div>
+        </div>
+
+        <div className="h-5 bg-white z-40 relative flex items-center justify-center select-none pb-1 pointer-events-none flex-shrink-0">
+          <div className="w-32 h-1 bg-slate-900/15 rounded-full" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentView, setCurrentView] = useState<'login' | 'register' | 'dashboard' | 'verify'>('login');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('DASHBOARD');
+  const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'mobile'>('mobile');
+  const [isPhysicalMobile, setIsPhysicalMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsPhysicalMobile(window.innerWidth < 645);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   useEffect(() => {
     // Connectivity test as required by instructions
@@ -529,40 +627,48 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
-      <AnimatePresence mode="wait">
-        {currentView === 'login' && (
-          <Login 
-            onSwitch={() => setCurrentView('register')} 
-          />
-        )}
-        {currentView === 'register' && (
-          <Register 
-            onSwitch={() => setCurrentView('login')} 
-          />
-        )}
-        {currentView === 'dashboard' && user && (
-          <Dashboard 
-            user={user} 
-            setUser={setUser}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            sidebarOpen={sidebarOpen}
-            setSidebarOpen={setSidebarOpen}
-            handleLogout={handleLogout}
-          />
-        )}
-        {currentView === 'verify' && user && (
-          <AdminKeyVerification 
-            user={user} 
-            setUser={setUser} 
-            onSuccess={() => setCurrentView('dashboard')}
-            onLogout={handleLogout}
-          />
-        )}
-      </AnimatePresence>
-      <ToastContainer position="bottom-right" theme="dark" aria-label="Notifications" />
-    </div>
+    <SmartphoneMockup 
+      viewportMode={viewportMode} 
+      setViewportMode={setViewportMode} 
+      isPhysicalMobile={isPhysicalMobile}
+    >
+      <div className="min-h-screen bg-gray-50 font-sans text-gray-900 flex flex-col">
+        <AnimatePresence mode="wait">
+          {currentView === 'login' && (
+            <Login 
+              onSwitch={() => setCurrentView('register')} 
+            />
+          )}
+          {currentView === 'register' && (
+            <Register 
+              onSwitch={() => setCurrentView('login')} 
+            />
+          )}
+          {currentView === 'dashboard' && user && (
+            <Dashboard 
+              user={user} 
+              setUser={setUser}
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              sidebarOpen={sidebarOpen}
+              setSidebarOpen={setSidebarOpen}
+              handleLogout={handleLogout}
+              viewportMode={viewportMode}
+              setViewportMode={setViewportMode}
+            />
+          )}
+          {currentView === 'verify' && user && (
+            <AdminKeyVerification 
+              user={user} 
+              setUser={setUser} 
+              onSuccess={() => setCurrentView('dashboard')}
+              onLogout={handleLogout}
+            />
+          )}
+        </AnimatePresence>
+        <ToastContainer position="bottom-right" theme="dark" aria-label="Notifications" />
+      </div>
+    </SmartphoneMockup>
   );
 }
 
@@ -1049,7 +1155,9 @@ function Dashboard({
   setActiveTab,
   sidebarOpen,
   setSidebarOpen,
-  handleLogout
+  handleLogout,
+  viewportMode,
+  setViewportMode
 }: { 
   user: UserProfile;
   setUser: (u: UserProfile) => void;
@@ -1058,6 +1166,8 @@ function Dashboard({
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   handleLogout: () => void;
+  viewportMode: 'desktop' | 'tablet' | 'mobile';
+  setViewportMode: (mode: 'desktop' | 'tablet' | 'mobile') => void;
 }) {
   const isAdmin = user.role === 'admin';
   const isCoordinator = user.role === 'coordinator';
@@ -1065,14 +1175,35 @@ function Dashboard({
   const [showNotifications, setShowNotifications] = useState(false);
   const [paddingRequestsActive, setPendingRequestsActive] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['HR']);
-  const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const isMobile = viewportMode === 'mobile' || windowWidth < 1024;
+
+  const bottomTabs = useMemo(() => {
+    if (isAdmin || isCoordinator) {
+      return [
+        { id: 'DASHBOARD', label: 'Home', icon: LayoutDashboard },
+        { id: 'ATTENDANCE CALENDAR', label: 'Calendar', icon: CalendarDays },
+        { id: 'ACCOUNT STATUS', label: 'Accounts', icon: ClipboardList },
+        { id: 'CRECOM APPROVAL', label: 'Approvals', icon: CheckCircle2 },
+        { id: 'PROFILE', label: 'Profile', icon: User }
+      ];
+    } else {
+      return [
+        { id: 'DASHBOARD', label: 'Home', icon: LayoutDashboard },
+        { id: 'ATTENDANCE', label: 'Punch-In', icon: Fingerprint },
+        { id: 'ACCOUNT STATUS', label: 'Accounts', icon: ClipboardList },
+        { id: 'LEAVES', label: 'Leaves', icon: CalendarDays },
+        { id: 'PROFILE', label: 'Profile', icon: User }
+      ];
+    }
+  }, [isAdmin, isCoordinator]);
 
   useEffect(() => {
     if (isMobile) setSidebarOpen(false);
@@ -1508,15 +1639,10 @@ function Dashboard({
           </div>
         </header>
 
-        <div className={cn(
-          "flex-1 overflow-x-hidden overflow-y-auto transition-all duration-500 ease-in-out mx-auto",
-          viewportMode === 'desktop' && "w-full",
-          viewportMode === 'tablet' && "max-w-[768px] w-full border-x-8 border-gray-200/50 bg-gray-50/50",
-          viewportMode === 'mobile' && "max-w-[375px] w-full border-x-8 border-gray-200/50 bg-gray-50/50"
-        )}>
+        <div className="flex-1 overflow-x-hidden overflow-y-auto w-full">
           <div className={cn(
-            "p-8 min-h-full",
-            viewportMode !== 'desktop' && "bg-white shadow-2xl"
+            "p-4 md:p-8 min-h-full",
+            isMobile ? "pb-24 bg-white" : "bg-gray-50/50"
           )}>
             <AnimatePresence mode="wait">
               {activeTab === 'DASHBOARD' && ((isAdmin || isCoordinator) ? <DashboardOverview user={user} /> : <CIDashboard user={user} />)}
@@ -1541,6 +1667,40 @@ function Dashboard({
             </AnimatePresence>
           </div>
         </div>
+
+        {isMobile && (
+          <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-gray-100/80 px-4 py-2.5 flex items-center justify-around z-40 shadow-[0_-8px_30px_rgba(0,0,0,0.06)] flex-shrink-0 animate-fade-in">
+            {bottomTabs.map((tab) => {
+              const TabIcon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setSidebarOpen(false); // Auto-close sidebar panel on active selection
+                  }}
+                  className="flex flex-col items-center justify-center gap-1.5 py-1 px-3 relative select-none group focus:outline-none cursor-pointer"
+                >
+                  <div className={cn(
+                    "p-2.5 rounded-2xl transition-all duration-300 relative overflow-hidden",
+                    isActive 
+                      ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 scale-115" 
+                      : "text-gray-400 hover:text-emerald-700 hover:bg-emerald-50/50"
+                  )}>
+                    <TabIcon size={16} className="transition-transform duration-200 group-hover:scale-105" />
+                  </div>
+                  <span className={cn(
+                    "text-[8px] font-black uppercase tracking-widest transition-all duration-200 select-none",
+                    isActive ? "text-emerald-800 scale-100" : "text-gray-400 scale-95"
+                  )}>
+                    {tab.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </main>
     </div>
   );
@@ -5153,95 +5313,108 @@ function AccountStatus({ user }: { user: UserProfile }) {
     }
   };
 
+  const isMobileView = window.innerWidth < 1024;
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[calc(100vh-160px)]">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-[500px] lg:h-[calc(100vh-160px)]">
       {/* List */}
-      <div className="lg:col-span-1 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
-        <div className="p-6 border-b border-gray-100 space-y-4">
-          <h3 className="text-xs font-black text-emerald-800 uppercase tracking-[0.2em]">Assigned Clients</h3>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input 
-              type="text" 
-              placeholder="Search borrower or mobile..."
-              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+      {(!selected || !isMobileView) && (
+        <div className="lg:col-span-1 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+          <div className="p-6 border-b border-gray-100 space-y-4">
+            <h3 className="text-xs font-black text-emerald-800 uppercase tracking-[0.2em]">Assigned Clients</h3>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <input 
+                type="text" 
+                placeholder="Search borrower or mobile..."
+                className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <select 
+                className="px-2 py-2 bg-gray-50 border border-gray-100 rounded-lg text-[10px] font-bold uppercase focus:outline-none"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="All">All Status</option>
+                {steps.filter(s => s !== 'Completed' && s !== 'Denied').map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <select 
+                className="px-2 py-2 bg-gray-50 border border-gray-100 rounded-lg text-[10px] font-bold uppercase focus:outline-none"
+                value={accountTypeFilter}
+                onChange={(e) => setAccountTypeFilter(e.target.value)}
+              >
+                <option value="All">All Types</option>
+                <option value="New">New</option>
+                <option value="Renewal">Renewal</option>
+                <option value="Restructure">Restructure</option>
+                <option value="Additional">Additional</option>
+              </select>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <select 
-              className="px-2 py-2 bg-gray-50 border border-gray-100 rounded-lg text-[10px] font-bold uppercase focus:outline-none"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="All">All Status</option>
-              {steps.filter(s => s !== 'Completed' && s !== 'Denied').map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <select 
-              className="px-2 py-2 bg-gray-50 border border-gray-100 rounded-lg text-[10px] font-bold uppercase focus:outline-none"
-              value={accountTypeFilter}
-              onChange={(e) => setAccountTypeFilter(e.target.value)}
-            >
-              <option value="All">All Types</option>
-              <option value="New">New</option>
-              <option value="Renewal">Renewal</option>
-              <option value="Restructure">Restructure</option>
-              <option value="Additional">Additional</option>
-            </select>
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {filtered.map((a) => (
-            <div
-              key={a.id}
-              onClick={() => setSelected(a)}
-              className={cn(
-                "w-full p-6 text-left border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer",
-                selected?.id === a.id && "bg-emerald-50 border-l-4 border-l-emerald-600"
-              )}
-            >
-              <h4 className="font-bold text-sm uppercase">{a.borrowerName}</h4>
-              <p className="text-[10px] text-gray-500 font-bold mb-1 flex items-center gap-1">
-                <Phone size={10} /> {a.mobileNumber}
-              </p>
-              <div className="flex justify-between items-start mb-1">
-                <div className="flex items-center gap-2">
-                  <span className={cn(
-                    "text-[8px] font-black uppercase px-2 py-1 rounded-full",
-                    a.status === 'Completed' ? "bg-green-100 text-green-600" : "bg-amber-100 text-amber-600"
-                  )}>
-                    {a.status}
-                  </span>
-                  {user.role === 'admin' && (
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(a.id);
-                      }}
-                      className="p-1 text-gray-300 hover:text-red-500 transition-colors"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  )}
+          <div className="flex-1 overflow-y-auto">
+            {filtered.map((a) => (
+              <div
+                key={a.id}
+                onClick={() => setSelected(a)}
+                className={cn(
+                  "w-full p-6 text-left border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer",
+                  selected?.id === a.id && "bg-emerald-50 border-l-4 border-l-emerald-600"
+                )}
+              >
+                <h4 className="font-bold text-sm uppercase">{a.borrowerName}</h4>
+                <p className="text-[10px] text-gray-500 font-bold mb-1 flex items-center gap-1">
+                  <Phone size={10} /> {a.mobileNumber}
+                </p>
+                <div className="flex justify-between items-start mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "text-[8px] font-black uppercase px-2 py-1 rounded-full",
+                      a.status === 'Completed' ? "bg-green-100 text-green-600" : "bg-amber-100 text-amber-600"
+                    )}>
+                      {a.status}
+                    </span>
+                    {user.role === 'admin' && (
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(a.id);
+                        }}
+                        className="p-1 text-gray-300 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </div>
                 </div>
+                <p className="text-[10px] text-gray-400 uppercase tracking-widest">{a.accountType} • {a.ciOfficerName}</p>
               </div>
-              <p className="text-[10px] text-gray-400 uppercase tracking-widest">{a.accountType} • {a.ciOfficerName}</p>
-            </div>
-          ))}
-          {filtered.length === 0 && !loading && (
-            <div className="p-12 text-center text-gray-300">
-              <AlertCircle className="mx-auto mb-2" size={32} />
-              <p className="text-[10px] font-bold uppercase tracking-widest">No assignments found</p>
-            </div>
-          )}
+            ))}
+            {filtered.length === 0 && !loading && (
+              <div className="p-12 text-center text-gray-300">
+                <AlertCircle className="mx-auto mb-2" size={32} />
+                <p className="text-[10px] font-bold uppercase tracking-widest">No assignments found</p>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Details */}
-      <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-8 overflow-y-auto">
-        {selected ? (
-          <div className="space-y-12">
+      {(selected || !isMobileView) && (
+        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-8 overflow-y-auto">
+          {selected ? (
+            <div className="space-y-12">
+              {isMobileView && (
+                <button 
+                  onClick={() => setSelected(null)} 
+                  className="flex items-center gap-2 mb-6 text-emerald-805 text-emerald-800 font-black uppercase text-[10px] bg-emerald-50 hover:bg-emerald-100 px-3.5 py-2 rounded-xl border border-emerald-100/50 cursor-pointer"
+                >
+                  <ChevronRight className="rotate-180" size={14} /> Back to clients list
+                </button>
+              )}
             <div className="flex justify-between items-start">
               <div>
                 <h2 className="text-2xl font-black uppercase tracking-tight text-emerald-800">{selected.borrowerName}</h2>
@@ -5391,6 +5564,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
           </div>
         )}
       </div>
+      )}
 
       <AnimatePresence>
         {isEditing && selected && (
@@ -8048,6 +8222,8 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
     a.ciOfficerName.toLowerCase().includes(search.toLowerCase())
   );
 
+  const isMobileView = window.innerWidth < 1024;
+
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
       <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -8074,52 +8250,63 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        <div className="lg:col-span-1 space-y-4">
-          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest px-4">Submitted Responses</h3>
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden divide-y divide-gray-50">
-            {filtered.map(a => (
-              <button
-                key={a.id}
-                onClick={() => setSelected(a)}
-                className={cn(
-                  "w-full p-6 text-left hover:bg-gray-50 transition-all group border-l-4",
-                  selected?.id === a.id ? "bg-gray-50 border-l-emerald-600 shadow-sm" : "border-l-transparent"
-                )}
-              >
-                <h4 className="font-black text-xs uppercase text-gray-700 group-hover:text-emerald-700">{a.borrowerName}</h4>
-                <div className="flex items-center gap-2 mt-2">
-                  <div className="flex">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Star 
-                        key={star} 
-                        size={10} 
-                        className={star <= (a.survey?.satisfaction || 0) ? "text-amber-400 fill-amber-400" : "text-gray-200"} 
-                      />
-                    ))}
+        {(!selected || !isMobileView) && (
+          <div className="lg:col-span-1 space-y-4 font-sans">
+            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest px-4">Submitted Responses</h3>
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden divide-y divide-gray-50">
+              {filtered.map(a => (
+                <button
+                  key={a.id}
+                  onClick={() => setSelected(a)}
+                  className={cn(
+                    "w-full p-6 text-left hover:bg-gray-50 transition-all group border-l-4 cursor-pointer",
+                    selected?.id === a.id ? "bg-gray-50 border-l-emerald-600 shadow-sm" : "border-l-transparent"
+                  )}
+                >
+                  <h4 className="font-black text-xs uppercase text-gray-700 group-hover:text-emerald-700">{a.borrowerName}</h4>
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="flex">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star 
+                          key={star} 
+                          size={10} 
+                          className={star <= (a.survey?.satisfaction || 0) ? "text-amber-400 fill-amber-400" : "text-gray-200"} 
+                        />
+                      ))}
+                    </div>
+                    <span className="text-[8px] text-gray-400 font-bold uppercase">{format(new Date(a.survey?.createdAt || ''), 'MMM d')}</span>
                   </div>
-                  <span className="text-[8px] text-gray-400 font-bold uppercase">{format(new Date(a.survey?.createdAt || ''), 'MMM d')}</span>
+                </button>
+              ))}
+              {assignments.length === 0 && (
+                <div className="p-12 text-center opacity-40">
+                  <ClipboardList className="mx-auto mb-2" size={32} />
+                  <p className="text-[10px] font-black uppercase tracking-widest">No surveys yet</p>
                 </div>
-              </button>
-            ))}
-            {assignments.length === 0 && (
-              <div className="p-12 text-center opacity-40">
-                <ClipboardList className="mx-auto mb-2" size={32} />
-                <p className="text-[10px] font-black uppercase tracking-widest">No surveys yet</p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="lg:col-span-3">
-          <AnimatePresence mode="wait">
-            {selected ? (
-              <motion.div
-                key={selected.id}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="bg-white rounded-3xl border border-gray-100 shadow-xl p-10 space-y-12"
-              >
+        {(selected || !isMobileView) && (
+          <div className="lg:col-span-3">
+            <AnimatePresence mode="wait">
+              {selected ? (
+                <motion.div
+                  key={selected.id}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="bg-white rounded-3xl border border-gray-100 shadow-xl p-6 md:p-10 space-y-12"
+                >
+                  {isMobileView && (
+                    <button 
+                      onClick={() => setSelected(null)} 
+                      className="flex items-center gap-2 mb-6 text-emerald-800 font-black uppercase text-[10px] bg-emerald-50 hover:bg-emerald-100 px-3.5 py-2 rounded-xl border border-emerald-100/50 cursor-pointer w-fit"
+                    >
+                      <ChevronRight className="rotate-180" size={14} /> Back to responses
+                    </button>
+                  )}
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="text-3xl font-black text-emerald-800 uppercase tracking-tight">{selected.borrowerName}</h3>
@@ -8245,7 +8432,8 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
             />
           )}
         </div>
-      </div>
+      )}
+    </div>
     </div>
   );
 }
