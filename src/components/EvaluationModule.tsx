@@ -73,6 +73,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
+import AkkunLogo from './AkkunLogo';
 
 export interface EvaluationRecord {
   id?: string;
@@ -99,6 +100,16 @@ export interface EvaluationRecord {
   disciplinaryActions: string;
   typeOfViolation: string;
   createdAt: string;
+
+  // Custom signatures
+  preparedByName?: string;
+  preparedByTitle?: string;
+  reviewedByName?: string;
+  reviewedByTitle?: string;
+  approvedByName?: string;
+  approvedByTitle?: string;
+  checkedByName?: string;
+  checkedByTitle?: string;
 }
 
 interface Criterion {
@@ -229,6 +240,16 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
   const [undertime, setUndertime] = useState('None');
   const [disciplinaryActions, setDisciplinaryActions] = useState('None');
   const [typeOfViolation, setTypeOfViolation] = useState('None');
+
+  // Custom report signatures states
+  const [preparedByName, setPreparedByName] = useState('Harvey John T. Parjan');
+  const [preparedByTitle, setPreparedByTitle] = useState('HR Specialist');
+  const [reviewedByName, setReviewedByName] = useState('Erly Rose M. Tabanera');
+  const [reviewedByTitle, setReviewedByTitle] = useState('HR Supervisor');
+  const [approvedByName, setApprovedByName] = useState('Raymond A. Talavera');
+  const [approvedByTitle, setApprovedByTitle] = useState('VP Operations');
+  const [checkedByName, setCheckedByName] = useState('Atty. Gerry E. Valdez');
+  const [checkedByTitle, setCheckedByTitle] = useState('Legal & Chairman');
   
   // Modal states
   const [isEditingHR, setIsEditingHR] = useState(false);
@@ -264,6 +285,16 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
       setUndertime('None');
       setDisciplinaryActions('None');
       setTypeOfViolation('None');
+
+      // Set default signatures
+      setPreparedByName('Harvey John T. Parjan');
+      setPreparedByTitle('HR Specialist');
+      setReviewedByName('Erly Rose M. Tabanera');
+      setReviewedByTitle('HR Supervisor');
+      setApprovedByName('Raymond A. Talavera');
+      setApprovedByTitle('VP Operations');
+      setCheckedByName('Atty. Gerry E. Valdez');
+      setCheckedByTitle('Legal & Chairman');
     }
   }, [currentTab, user]);
 
@@ -338,6 +369,16 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
     setUndertime('None');
     setDisciplinaryActions('None');
     setTypeOfViolation('None');
+
+    // Reset signatures
+    setPreparedByName('Harvey John T. Parjan');
+    setPreparedByTitle('HR Specialist');
+    setReviewedByName('Erly Rose M. Tabanera');
+    setReviewedByTitle('HR Supervisor');
+    setApprovedByName('Raymond A. Talavera');
+    setApprovedByTitle('VP Operations');
+    setCheckedByName('Atty. Gerry E. Valdez');
+    setCheckedByTitle('Legal & Chairman');
   };
 
   // Check which criteria are active based on classification
@@ -430,6 +471,14 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
         undertime: isAdmin ? undertime : 'To be filled by HR',
         disciplinaryActions: isAdmin ? disciplinaryActions : 'To be filled by HR',
         typeOfViolation: isAdmin ? typeOfViolation : 'To be filled by HR',
+        preparedByName,
+        preparedByTitle,
+        reviewedByName,
+        reviewedByTitle,
+        approvedByName,
+        approvedByTitle,
+        checkedByName,
+        checkedByTitle,
         createdAt: new Date().toISOString()
       };
 
@@ -479,6 +528,17 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
     setUndertime(evalRec.undertime || 'None');
     setDisciplinaryActions(evalRec.disciplinaryActions || 'None');
     setTypeOfViolation(evalRec.typeOfViolation || 'None');
+    
+    // Load signatures or defaults
+    setPreparedByName(evalRec.preparedByName || 'Harvey John T. Parjan');
+    setPreparedByTitle(evalRec.preparedByTitle || 'HR Specialist');
+    setReviewedByName(evalRec.reviewedByName || 'Erly Rose M. Tabanera');
+    setReviewedByTitle(evalRec.reviewedByTitle || 'HR Supervisor');
+    setApprovedByName(evalRec.approvedByName || 'Raymond A. Talavera');
+    setApprovedByTitle(evalRec.approvedByTitle || 'VP Operations');
+    setCheckedByName(evalRec.checkedByName || 'Atty. Gerry E. Valdez');
+    setCheckedByTitle(evalRec.checkedByTitle || 'Legal & Chairman');
+    
     setIsEditingHR(true);
   };
 
@@ -491,9 +551,17 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
         tardiness,
         undertime,
         disciplinaryActions,
-        typeOfViolation
+        typeOfViolation,
+        preparedByName,
+        preparedByTitle,
+        reviewedByName,
+        reviewedByTitle,
+        approvedByName,
+        approvedByTitle,
+        checkedByName,
+        checkedByTitle
       });
-      toast.success("HR metrics successfully updated!");
+      toast.success("HR metrics and report signatures updated!");
       setIsEditingHR(false);
       setHrEditId(null);
       
@@ -505,7 +573,15 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
           tardiness,
           undertime,
           disciplinaryActions,
-          typeOfViolation
+          typeOfViolation,
+          preparedByName,
+          preparedByTitle,
+          reviewedByName,
+          reviewedByTitle,
+          approvedByName,
+          approvedByTitle,
+          checkedByName,
+          checkedByTitle
         } : null);
       }
     } catch (err) {
@@ -600,40 +676,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
                 {/* Center logo block */}
                 <td className="border border-black p-1 w-[32%] text-center align-middle" style={{ width: '32%' }}>
                   <div className="flex items-center justify-center">
-                    <img 
-                      src="/image.png" 
-                      alt="AKKUN Lending Corporation Logo" 
-                      className="h-[38px] w-auto block object-contain"
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        // If logo is not found, fallback gracefully to our beautiful built-in SVG logo
-                        e.currentTarget.style.display = 'none';
-                        const fallbackSvg = e.currentTarget.nextElementSibling;
-                        if (fallbackSvg instanceof HTMLElement) {
-                          fallbackSvg.style.display = 'block';
-                        }
-                      }}
-                    />
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 48" className="h-[38px] w-auto hidden">
-                      <g transform="translate(4, 4)">
-                        {/* Cube 1 (Left and bottom) */}
-                        <path d="M 12 20 L 20 16 L 28 20 L 20 24 Z" fill="#86efac" stroke="#15803d" strokeWidth="0.5" />
-                        <path d="M 12 20 L 20 24 L 20 32 L 12 28 Z" fill="#15803d" stroke="#15803d" strokeWidth="0.5" />
-                        <path d="M 20 24 L 28 20 L 28 28 L 20 32 Z" fill="#166534" stroke="#15803d" strokeWidth="0.5" />
-                        
-                        {/* Cube 2 (Right and bottom) */}
-                        <path d="M 28 20 L 36 16 L 44 20 L 36 24 Z" fill="#86efac" stroke="#15803d" strokeWidth="0.5" />
-                        <path d="M 28 20 L 36 24 L 36 32 L 28 28 Z" fill="#15803d" stroke="#15803d" strokeWidth="0.5" />
-                        <path d="M 36 24 L 44 20 L 44 28 L 36 32 Z" fill="#166534" stroke="#15803d" strokeWidth="0.5" />
-
-                        {/* Cube 3 (Center top) */}
-                        <path d="M 20 12 L 28 8 L 36 12 L 28 16 Z" fill="#4ade80" stroke="#15803d" strokeWidth="0.5" />
-                        <path d="M 20 12 L 28 16 L 28 24 L 20 20 Z" fill="#16a34a" stroke="#15803d" strokeWidth="0.5" />
-                        <path d="M 28 16 L 36 12 L 36 20 L 28 24 Z" fill="#15803d" stroke="#15803d" strokeWidth="0.5" />
-                      </g>
-                      <text x="50" y="22" fontFamily="Arial, Helvetica, sans-serif" fontSize="16" fontWeight="900" fill="#166534" letterSpacing="-0.8">AKKUN</text>
-                      <text x="50" y="32" fontFamily="Arial, Helvetica, sans-serif" fontSize="6.2" fontWeight="900" fill="#334155" letterSpacing="0.4">LENDING CORPORATION</text>
-                    </svg>
+                    <AkkunLogo className="h-[38px] w-auto block object-contain" />
                   </div>
                 </td>
                 
@@ -921,20 +964,20 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
                   <div className="text-[6px] text-slate-400 tracking-tighter mt-0.5">SUBMISSION VERIFIED</div>
                 </td>
                 <td className="border-r border-black p-1 valign-bottom align-bottom">
-                  <div className="font-bold text-[8px]">Harvey John T. Parjan</div>
-                  <div className="text-[6px] text-slate-400 font-mono">HR Specialist</div>
+                  <div className="font-bold text-[8px]">{selectedEval.preparedByName || 'Harvey John T. Parjan'}</div>
+                  <div className="text-[6px] text-slate-400 font-mono">{selectedEval.preparedByTitle || 'HR Specialist'}</div>
                 </td>
                 <td className="border-r border-black p-1 valign-bottom align-bottom">
-                  <div className="font-bold text-[8px]">Erly Rose M. Tabanera</div>
-                  <div className="text-[6px] text-slate-400 font-mono">HR Supervisor</div>
+                  <div className="font-bold text-[8px]">{selectedEval.reviewedByName || 'Erly Rose M. Tabanera'}</div>
+                  <div className="text-[6px] text-slate-400 font-mono">{selectedEval.reviewedByTitle || 'HR Supervisor'}</div>
                 </td>
                 <td className="border-r border-black p-1 valign-bottom align-bottom">
-                  <div className="font-bold text-[8px]">Raymond A. Talavera</div>
-                  <div className="text-[6px] text-slate-400 font-mono">VP Operations</div>
+                  <div className="font-bold text-[8px]">{selectedEval.approvedByName || 'Raymond A. Talavera'}</div>
+                  <div className="text-[6px] text-slate-400 font-mono">{selectedEval.approvedByTitle || 'VP Operations'}</div>
                 </td>
                 <td className="border-r border-black p-1 valign-bottom align-bottom">
-                  <div className="font-bold text-[8px]">Atty. Gerry E. Valdez</div>
-                  <div className="text-[6px] text-slate-400 font-mono">Legal & Chairman</div>
+                  <div className="font-bold text-[8px]">{selectedEval.checkedByName || 'Atty. Gerry E. Valdez'}</div>
+                  <div className="text-[6px] text-slate-400 font-mono">{selectedEval.checkedByTitle || 'Legal & Chairman'}</div>
                 </td>
                 <td className="p-1 valign-bottom align-bottom">
                   <div className="font-bold text-[8px] uppercase">{selectedEval.employeeName}</div>
@@ -1065,40 +1108,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
                       {/* Center logo block */}
                       <td className="border border-slate-900 p-2 w-[32%] text-center align-middle" style={{ width: '32%' }}>
                         <div className="flex items-center justify-center">
-                          <img 
-                            src="/image.png" 
-                            alt="AKKUN Lending Corporation Logo" 
-                            className="h-[44px] w-auto block object-contain"
-                            referrerPolicy="no-referrer"
-                            onError={(e) => {
-                              // If logo is not found, fallback gracefully to our beautiful built-in SVG logo
-                              e.currentTarget.style.display = 'none';
-                              const fallbackSvg = e.currentTarget.nextElementSibling;
-                              if (fallbackSvg instanceof HTMLElement) {
-                                fallbackSvg.style.display = 'block';
-                              }
-                            }}
-                          />
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 48" className="h-[44px] w-auto hidden">
-                            <g transform="translate(4, 4)">
-                              {/* Cube 1 (Left and bottom) */}
-                              <path d="M 12 20 L 20 16 L 28 20 L 20 24 Z" fill="#86efac" stroke="#15803d" strokeWidth="0.5" />
-                              <path d="M 12 20 L 20 24 L 20 32 L 12 28 Z" fill="#15803d" stroke="#15803d" strokeWidth="0.5" />
-                              <path d="M 20 24 L 28 20 L 28 28 L 20 32 Z" fill="#166534" stroke="#15803d" strokeWidth="0.5" />
-                              
-                              {/* Cube 2 (Right and bottom) */}
-                              <path d="M 28 20 L 36 16 L 44 20 L 36 24 Z" fill="#86efac" stroke="#15803d" strokeWidth="0.5" />
-                              <path d="M 28 20 L 36 24 L 36 32 L 28 28 Z" fill="#15803d" stroke="#15803d" strokeWidth="0.5" />
-                              <path d="M 36 24 L 44 20 L 44 28 L 36 32 Z" fill="#166534" stroke="#15803d" strokeWidth="0.5" />
-
-                              {/* Cube 3 (Center top) */}
-                              <path d="M 20 12 L 28 8 L 36 12 L 28 16 Z" fill="#4ade80" stroke="#15803d" strokeWidth="0.5" />
-                              <path d="M 20 12 L 28 16 L 28 24 L 20 20 Z" fill="#16a34a" stroke="#15803d" strokeWidth="0.5" />
-                              <path d="M 28 16 L 36 12 L 36 20 L 28 24 Z" fill="#15803d" stroke="#15803d" strokeWidth="0.5" />
-                            </g>
-                            <text x="50" y="22" fontFamily="Arial, Helvetica, sans-serif" fontSize="16" fontWeight="900" fill="#166534" letterSpacing="-0.8">AKKUN</text>
-                            <text x="50" y="32" fontFamily="Arial, Helvetica, sans-serif" fontSize="6.2" fontWeight="900" fill="#334155" letterSpacing="0.4">LENDING CORPORATION</text>
-                          </svg>
+                          <AkkunLogo className="h-[44px] w-auto block object-contain" />
                         </div>
                       </td>
                       
@@ -1386,20 +1396,20 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
                         <div className="text-[8px] text-emerald-600 font-black tracking-tighter mt-1">✓ SUBMISSION VERIFIED</div>
                       </td>
                       <td className="border-r border-slate-900 p-2 valign-bottom align-bottom bg-slate-50/10">
-                        <div className="font-extrabold text-[11px] text-slate-800">Harvey John T. Parjan</div>
-                        <div className="text-[8px] text-slate-400 font-mono">HR Specialist</div>
+                        <div className="font-extrabold text-[11px] text-slate-800">{selectedEval.preparedByName || 'Harvey John T. Parjan'}</div>
+                        <div className="text-[8px] text-slate-400 font-mono">{selectedEval.preparedByTitle || 'HR Specialist'}</div>
                       </td>
                       <td className="border-r border-slate-900 p-2 valign-bottom align-bottom bg-slate-50/10">
-                        <div className="font-extrabold text-[11px] text-slate-800">Erly Rose M. Tabanera</div>
-                        <div className="text-[8px] text-slate-400 font-mono">HR Supervisor</div>
+                        <div className="font-extrabold text-[11px] text-slate-800">{selectedEval.reviewedByName || 'Erly Rose M. Tabanera'}</div>
+                        <div className="text-[8px] text-slate-400 font-mono">{selectedEval.reviewedByTitle || 'HR Supervisor'}</div>
                       </td>
                       <td className="border-r border-slate-900 p-2 valign-bottom align-bottom bg-slate-50/10">
-                        <div className="font-extrabold text-[11px] text-slate-800">Raymond A. Talavera</div>
-                        <div className="text-[8px] text-slate-400 font-mono">VP Operations</div>
+                        <div className="font-extrabold text-[11px] text-slate-800">{selectedEval.approvedByName || 'Raymond A. Talavera'}</div>
+                        <div className="text-[8px] text-slate-400 font-mono">{selectedEval.approvedByTitle || 'VP Operations'}</div>
                       </td>
                       <td className="border-r border-slate-900 p-2 valign-bottom align-bottom bg-slate-50/10">
-                        <div className="font-extrabold text-[11px] text-slate-800">Atty. Gerry E. Valdez</div>
-                        <div className="text-[8px] text-slate-400 font-mono">Legal & Chairman</div>
+                        <div className="font-extrabold text-[11px] text-slate-800">{selectedEval.checkedByName || 'Atty. Gerry E. Valdez'}</div>
+                        <div className="text-[8px] text-slate-400 font-mono">{selectedEval.checkedByTitle || 'Legal & Chairman'}</div>
                       </td>
                       <td className="p-2 valign-bottom align-bottom">
                         <div className="font-extrabold text-[11px] uppercase text-slate-800">{selectedEval.employeeName}</div>
@@ -1900,6 +1910,98 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
               </div>
             )}
 
+            {/* Step 4: Report Signatures (Customizable Portion) */}
+            <div className="space-y-4 pt-4 border-t border-gray-100">
+              <h3 className="text-xs font-black uppercase text-gray-500 tracking-wider">
+                4. Report Signatures (Editable Portions)
+              </h3>
+              <p className="text-[10px] text-gray-400 font-medium">
+                Configure the signee names and professional designations that will print on the official evaluation report.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-slate-50 p-3 rounded-xl border border-gray-100 space-y-2">
+                  <div className="text-[9px] font-black uppercase text-emerald-800">Prepared By (HR)</div>
+                  <div className="space-y-1.5">
+                    <input 
+                      type="text"
+                      placeholder="Name"
+                      value={preparedByName}
+                      onChange={(e) => setPreparedByName(e.target.value)}
+                      className="w-full text-xs font-semibold bg-white border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <input 
+                      type="text"
+                      placeholder="Job Title"
+                      value={preparedByTitle}
+                      onChange={(e) => setPreparedByTitle(e.target.value)}
+                      className="w-full text-[10px] font-mono bg-white border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-gray-100 space-y-2">
+                  <div className="text-[9px] font-black uppercase text-emerald-800">Reviewed By (Supervisor)</div>
+                  <div className="space-y-1.5">
+                    <input 
+                      type="text"
+                      placeholder="Name"
+                      value={reviewedByName}
+                      onChange={(e) => setReviewedByName(e.target.value)}
+                      className="w-full text-xs font-semibold bg-white border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <input 
+                      type="text"
+                      placeholder="Job Title"
+                      value={reviewedByTitle}
+                      onChange={(e) => setReviewedByTitle(e.target.value)}
+                      className="w-full text-[10px] font-mono bg-white border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-gray-100 space-y-2">
+                  <div className="text-[9px] font-black uppercase text-emerald-800">Approved By (Operations)</div>
+                  <div className="space-y-1.5">
+                    <input 
+                      type="text"
+                      placeholder="Name"
+                      value={approvedByName}
+                      onChange={(e) => setApprovedByName(e.target.value)}
+                      className="w-full text-xs font-semibold bg-white border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <input 
+                      type="text"
+                      placeholder="Job Title"
+                      value={approvedByTitle}
+                      onChange={(e) => setApprovedByTitle(e.target.value)}
+                      className="w-full text-[10px] font-mono bg-white border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-gray-100 space-y-2">
+                  <div className="text-[9px] font-black uppercase text-emerald-800">Checked By (Legal/Chair)</div>
+                  <div className="space-y-1.5">
+                    <input 
+                      type="text"
+                      placeholder="Name"
+                      value={checkedByName}
+                      onChange={(e) => setCheckedByName(e.target.value)}
+                      className="w-full text-xs font-semibold bg-white border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <input 
+                      type="text"
+                      placeholder="Job Title"
+                      value={checkedByTitle}
+                      onChange={(e) => setCheckedByTitle(e.target.value)}
+                      className="w-full text-[10px] font-mono bg-white border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Control buttons */}
             <div className="flex border-t border-gray-100 pt-6 gap-3">
               <button
@@ -1923,7 +2025,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
       {/* HR Info Edit Popup Modal */}
       {isEditingHR && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden border border-gray-100 shadow-2xl animate-scale-up text-xs font-sans text-gray-800">
+          <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden border border-gray-100 shadow-2xl animate-scale-up text-xs font-sans text-gray-800">
             <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
               <h3 className="font-black uppercase tracking-wider text-[11px] text-emerald-400">
                 Update Staff HR Attendance & Records
@@ -1936,7 +2038,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="font-bold text-[10px] text-gray-400 uppercase block mb-1">Absences</label>
@@ -1985,6 +2087,86 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
                     onChange={(e) => setTypeOfViolation(e.target.value)}
                     className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold focus:outline-none"
                   />
+                </div>
+              </div>
+
+              {/* Customizable Signatures */}
+              <div className="pt-3 border-t border-slate-200 space-y-3">
+                <div className="font-black uppercase tracking-wider text-[10px] text-emerald-800">
+                  Report Signatures (Customizable Portion)
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-gray-100 space-y-2">
+                    <div className="text-[9px] font-bold text-gray-500 uppercase">Prepared By</div>
+                    <input 
+                      type="text" 
+                      placeholder="Name" 
+                      value={preparedByName}
+                      onChange={(e) => setPreparedByName(e.target.value)}
+                      className="w-full text-xs font-semibold bg-white border border-gray-200 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <input 
+                      type="text" 
+                      placeholder="Title" 
+                      value={preparedByTitle}
+                      onChange={(e) => setPreparedByTitle(e.target.value)}
+                      className="w-full text-[10px] font-mono bg-white border border-gray-200 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-gray-100 space-y-2">
+                    <div className="text-[9px] font-bold text-gray-500 uppercase">Reviewed By</div>
+                    <input 
+                      type="text" 
+                      placeholder="Name" 
+                      value={reviewedByName}
+                      onChange={(e) => setReviewedByName(e.target.value)}
+                      className="w-full text-xs font-semibold bg-white border border-gray-200 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <input 
+                      type="text" 
+                      placeholder="Title" 
+                      value={reviewedByTitle}
+                      onChange={(e) => setReviewedByTitle(e.target.value)}
+                      className="w-full text-[10px] font-mono bg-white border border-gray-200 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-gray-100 space-y-2">
+                    <div className="text-[9px] font-bold text-gray-500 uppercase">Approved By</div>
+                    <input 
+                      type="text" 
+                      placeholder="Name" 
+                      value={approvedByName}
+                      onChange={(e) => setApprovedByName(e.target.value)}
+                      className="w-full text-xs font-semibold bg-white border border-gray-200 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <input 
+                      type="text" 
+                      placeholder="Title" 
+                      value={approvedByTitle}
+                      onChange={(e) => setApprovedByTitle(e.target.value)}
+                      className="w-full text-[10px] font-mono bg-white border border-gray-200 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-gray-100 space-y-2">
+                    <div className="text-[9px] font-bold text-gray-500 uppercase">Checked By</div>
+                    <input 
+                      type="text" 
+                      placeholder="Name" 
+                      value={checkedByName}
+                      onChange={(e) => setCheckedByName(e.target.value)}
+                      className="w-full text-xs font-semibold bg-white border border-gray-200 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <input 
+                      type="text" 
+                      placeholder="Title" 
+                      value={checkedByTitle}
+                      onChange={(e) => setCheckedByTitle(e.target.value)}
+                      className="w-full text-[10px] font-mono bg-white border border-gray-200 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
