@@ -218,6 +218,8 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
   const [selectedEval, setSelectedEval] = useState<EvaluationRecord | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'self' | 'superior'>('all');
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   
   // Evaluation formulation state
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
@@ -600,18 +602,58 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
     }
   };
 
-  // Filter evaluations list
+  // Dynamically compute unique months with evaluations
+  const availableMonths = useMemo(() => {
+    const monthsSet = new Set<string>();
+    evaluations.forEach(e => {
+      if (e.createdAt) {
+        try {
+          const date = new Date(e.createdAt);
+          if (!isNaN(date.getTime())) {
+            const yyyymm = format(date, 'yyyy-MM');
+            monthsSet.add(yyyymm);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    });
+    return Array.from(monthsSet).sort((a, b) => b.localeCompare(a)); // Newest month first originally
+  }, [evaluations]);
+
+  // Filter and sort evaluations list by month and date
   const filteredEvaluations = useMemo(() => {
-    return evaluations.filter(e => {
+    const filtered = evaluations.filter(e => {
       const matchesSearch = e.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                             e.position.toLowerCase().includes(searchQuery.toLowerCase()) ||
                             e.department.toLowerCase().includes(searchQuery.toLowerCase()) ||
                             e.evaluatorName.toLowerCase().includes(searchQuery.toLowerCase());
       
       const matchesType = typeFilter === 'all' ? true : e.type === typeFilter;
-      return matchesSearch && matchesType;
+      
+      let matchesMonth = true;
+      if (selectedMonth !== 'all') {
+        if (e.createdAt) {
+          try {
+            const d = new Date(e.createdAt);
+            matchesMonth = !isNaN(d.getTime()) && format(d, 'yyyy-MM') === selectedMonth;
+          } catch {
+            matchesMonth = false;
+          }
+        } else {
+          matchesMonth = false;
+        }
+      }
+
+      return matchesSearch && matchesType && matchesMonth;
     });
-  }, [evaluations, searchQuery, typeFilter]);
+
+    return [...filtered].sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+    });
+  }, [evaluations, searchQuery, typeFilter, selectedMonth, sortOrder]);
 
   // Process printing / Native browser print to PDF
   const handlePrint = () => {
@@ -1583,11 +1625,45 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
                 />
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Month Filter Selector */}
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className={`px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs font-black shadow-inner uppercase tracking-wider ${isAdmin ? 'text-indigo-600 border-indigo-150 bg-indigo-50/20' : 'text-slate-700'}`}
+                >
+                  <option value="all">{isAdmin ? "📅 Admin: All Months" : "📅 All Months"}</option>
+                  {availableMonths.map((m) => {
+                    let label = m;
+                    try {
+                      const [year, month] = m.split('-');
+                      const d = new Date(parseInt(year), parseInt(month) - 1, 1);
+                      label = format(d, 'MMMM yyyy');
+                    } catch {
+                      // ignore
+                    }
+                    return (
+                      <option key={m} value={m}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+
+                {/* Sort Order Selector */}
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value as 'desc' | 'asc')}
+                  className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs font-black shadow-inner uppercase tracking-wider text-slate-700"
+                >
+                  <option value="desc">⬇️ Newest First</option>
+                  <option value="asc">⬆️ Oldest First</option>
+                </select>
+
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value as 'all' | 'self' | 'superior')}
-                  className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs font-black shadow-inner uppercase tracking-wider"
+                  className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs font-black shadow-inner uppercase tracking-wider text-slate-700"
                 >
                   <option value="all">All Types</option>
                   <option value="self">Self Evaluation</option>
