@@ -11,7 +11,9 @@ import {
   orderBy, 
   doc, 
   updateDoc, 
-  deleteDoc 
+  deleteDoc,
+  getDoc,
+  setDoc
 } from 'firebase/firestore';
 
 enum OperationType {
@@ -255,6 +257,95 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
   // Custom logo state
   const [logoUrl, setLogoUrl] = useState('');
   
+  // Custom system defaults from Firestore
+  const [defaults, setDefaults] = useState({
+    preparedByName: 'Harvey John T. Parjan',
+    preparedByTitle: 'HR Specialist',
+    reviewedByName: 'Erly Rose M. Tabanera',
+    reviewedByTitle: 'HR Supervisor',
+    approvedByName: 'Raymond A. Talavera',
+    approvedByTitle: 'VP Operations',
+    checkedByName: 'Atty. Gerry E. Valdez',
+    checkedByTitle: 'Legal & Chairman',
+    logoUrl: ''
+  });
+
+  // Fetch customizable defaults on mount
+  useEffect(() => {
+    const docRef = doc(db, 'scoringConfigs', 'evaluation_defaults');
+    const loadDefaults = async () => {
+      try {
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          const loaded = {
+            preparedByName: data.preparedByName || 'Harvey John T. Parjan',
+            preparedByTitle: data.preparedByTitle || 'HR Specialist',
+            reviewedByName: data.reviewedByName || 'Erly Rose M. Tabanera',
+            reviewedByTitle: data.reviewedByTitle || 'HR Supervisor',
+            approvedByName: data.approvedByName || 'Raymond A. Talavera',
+            approvedByTitle: data.approvedByTitle || 'VP Operations',
+            checkedByName: data.checkedByName || 'Atty. Gerry E. Valdez',
+            checkedByTitle: data.checkedByTitle || 'Legal & Chairman',
+            logoUrl: data.logoUrl || ''
+          };
+          setDefaults(loaded);
+          
+          // Apply loaded defaults to active local form states on mount
+          setPreparedByName(loaded.preparedByName);
+          setPreparedByTitle(loaded.preparedByTitle);
+          setReviewedByName(loaded.reviewedByName);
+          setReviewedByTitle(loaded.reviewedByTitle);
+          setApprovedByName(loaded.approvedByName);
+          setApprovedByTitle(loaded.approvedByTitle);
+          setCheckedByName(loaded.checkedByName);
+          setCheckedByTitle(loaded.checkedByTitle);
+          setLogoUrl(loaded.logoUrl);
+        }
+      } catch (err) {
+        console.error("Failed to load evaluation defaults from Firestore:", err);
+      }
+    };
+    loadDefaults();
+  }, []);
+
+  // Admin function to persist current form signature/logo values as system-wide defaults for all future forms
+  const saveAsGlobalDefaults = async () => {
+    if (!isAdmin) {
+      toast.error("Access denied. Only administrators can save template configurations as defaults.");
+      return;
+    }
+    try {
+      const docRef = doc(db, 'scoringConfigs', 'evaluation_defaults');
+      await setDoc(docRef, {
+        preparedByName,
+        preparedByTitle,
+        reviewedByName,
+        reviewedByTitle,
+        approvedByName,
+        approvedByTitle,
+        checkedByName,
+        checkedByTitle,
+        logoUrl,
+        updatedAt: new Date().toISOString()
+      });
+      setDefaults({
+        preparedByName,
+        preparedByTitle,
+        reviewedByName,
+        reviewedByTitle,
+        approvedByName,
+        approvedByTitle,
+        checkedByName,
+        checkedByTitle,
+        logoUrl
+      });
+      toast.success("Active logo & report signatures successfully saved as template defaults!");
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'scoringConfigs/evaluation_defaults');
+    }
+  };
+  
   // Modal states
   const [isEditingHR, setIsEditingHR] = useState(false);
   const [hrEditId, setHrEditId] = useState<string | null>(null);
@@ -291,16 +382,17 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
       setTypeOfViolation('None');
 
       // Set default signatures
-      setPreparedByName('Harvey John T. Parjan');
-      setPreparedByTitle('HR Specialist');
-      setReviewedByName('Erly Rose M. Tabanera');
-      setReviewedByTitle('HR Supervisor');
-      setApprovedByName('Raymond A. Talavera');
-      setApprovedByTitle('VP Operations');
-      setCheckedByName('Atty. Gerry E. Valdez');
-      setCheckedByTitle('Legal & Chairman');
+      setPreparedByName(defaults.preparedByName);
+      setPreparedByTitle(defaults.preparedByTitle);
+      setReviewedByName(defaults.reviewedByName);
+      setReviewedByTitle(defaults.reviewedByTitle);
+      setApprovedByName(defaults.approvedByName);
+      setApprovedByTitle(defaults.approvedByTitle);
+      setCheckedByName(defaults.checkedByName);
+      setCheckedByTitle(defaults.checkedByTitle);
+      setLogoUrl(defaults.logoUrl);
     }
-  }, [currentTab, user]);
+  }, [currentTab, user, defaults]);
 
   // Load real data from Firestore
   useEffect(() => {
@@ -375,14 +467,15 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
     setTypeOfViolation('None');
 
     // Reset signatures
-    setPreparedByName('Harvey John T. Parjan');
-    setPreparedByTitle('HR Specialist');
-    setReviewedByName('Erly Rose M. Tabanera');
-    setReviewedByTitle('HR Supervisor');
-    setApprovedByName('Raymond A. Talavera');
-    setApprovedByTitle('VP Operations');
-    setCheckedByName('Atty. Gerry E. Valdez');
-    setCheckedByTitle('Legal & Chairman');
+    setPreparedByName(defaults.preparedByName);
+    setPreparedByTitle(defaults.preparedByTitle);
+    setReviewedByName(defaults.reviewedByName);
+    setReviewedByTitle(defaults.reviewedByTitle);
+    setApprovedByName(defaults.approvedByName);
+    setApprovedByTitle(defaults.approvedByTitle);
+    setCheckedByName(defaults.checkedByName);
+    setCheckedByTitle(defaults.checkedByTitle);
+    setLogoUrl(defaults.logoUrl);
   };
 
   // Check which criteria are active based on classification
@@ -483,6 +576,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
         approvedByTitle,
         checkedByName,
         checkedByTitle,
+        logoUrl,
         createdAt: new Date().toISOString()
       };
 
@@ -684,7 +778,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
                 <td className="border border-black p-1 w-[32%] text-center align-middle" style={{ width: '32%' }}>
                   <div className="flex items-center justify-center py-0.5">
                     <img 
-                      src={selectedEval?.logoUrl || "/logo.jpg"} 
+                      src={selectedEval?.logoUrl || defaults.logoUrl || "/logo.jpg"} 
                       alt="AKKUN Lending Corporation Logo" 
                       className="h-[42px] max-w-full w-auto block object-contain mx-auto"
                       referrerPolicy="no-referrer"
@@ -1131,7 +1225,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
                       <td className="border border-slate-900 p-2 w-[32%] text-center align-middle" style={{ width: '32%' }}>
                         <div className="flex items-center justify-center py-1">
                           <img 
-                            src={selectedEval?.logoUrl || "/logo.jpg"} 
+                            src={selectedEval?.logoUrl || defaults.logoUrl || "/logo.jpg"} 
                             alt="AKKUN Lending Corporation Logo" 
                             className="h-[50px] max-w-full w-auto block object-contain mx-auto"
                             referrerPolicy="no-referrer"
@@ -1949,12 +2043,25 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
 
             {/* Step 4: Report Signatures (Customizable Portion) */}
             <div className="space-y-4 pt-4 border-t border-gray-100">
-              <h3 className="text-xs font-black uppercase text-gray-500 tracking-wider">
-                4. Report Signatures (Editable Portions)
-              </h3>
-              <p className="text-[10px] text-gray-400 font-medium">
-                Configure the signee names and professional designations that will print on the official evaluation report.
-              </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-xs font-black uppercase text-gray-500 tracking-wider">
+                    4. Report Signatures (Editable Portions)
+                  </h3>
+                  <p className="text-[10px] text-gray-400 font-medium">
+                    Configure the signee names and professional designations that will print on the official evaluation report.
+                  </p>
+                </div>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={saveAsGlobalDefaults}
+                    className="px-3 py-1.5 text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg shrink-0 transition-all cursor-pointer shadow-sm hover:shadow active:scale-95"
+                  >
+                    Save as App Default
+                  </button>
+                )}
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-slate-50 p-3 rounded-xl border border-gray-100 space-y-2">
@@ -2204,8 +2311,24 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
 
               {/* Customizable Signatures */}
               <div className="pt-3 border-t border-slate-200 space-y-3">
-                <div className="font-black uppercase tracking-wider text-[10px] text-emerald-800">
-                  Report Signatures (Customizable Portion)
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <div className="font-black uppercase tracking-wider text-[10px] text-emerald-800">
+                      Report Signatures (Customizable Portion)
+                    </div>
+                    <p className="text-[10px] text-gray-400 font-medium">
+                      Configure report signatures. Admin can set these values as the permanent defaults for all future forms.
+                    </p>
+                  </div>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={saveAsGlobalDefaults}
+                      className="px-3 py-1.5 text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg shrink-0 transition-all cursor-pointer shadow-sm hover:shadow active:scale-95"
+                    >
+                      Save as App Default
+                    </button>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div className="bg-slate-50 p-2.5 rounded-xl border border-gray-100 space-y-2">
