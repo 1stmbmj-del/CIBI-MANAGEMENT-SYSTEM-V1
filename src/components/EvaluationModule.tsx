@@ -586,7 +586,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
           ` }} />
 
           {/* Akkun Header Layout precisely matches image */}
-          <table className="w-full border-collapse border border-black text-[8px] leading-tight mb-1">
+          <table className="w-full border-collapse border border-black text-[8px] leading-tight">
             <tbody>
               <tr>
                 {/* Left block for status tracking metadata */}
@@ -652,7 +652,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
           </table>
 
           {/* Metadata Grid */}
-          <table className="w-full border-collapse border border-black text-[8.5px] leading-tight mb-1">
+          <table className="w-full border-collapse border-b border-l border-r border-black border-t-0 text-[8.5px] leading-tight">
             <tbody>
               <tr>
                 <td className="border border-black p-1 px-2 font-bold bg-neutral-100 w-[12%]" style={{ width: '12%' }}>Name</td>
@@ -676,7 +676,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
           </table>
 
           {/* Classification Options Checkbox Row */}
-          <table className="w-full border-collapse border border-black text-[8.5px] leading-tight mb-1">
+          <table className="w-full border-collapse border-b border-l border-r border-black border-t-0 text-[8.5px] leading-tight">
             <tbody>
               <tr>
                 <td className="border border-black p-2 font-bold bg-neutral-100 w-[18%] text-center align-middle uppercase" style={{ width: '18%' }}>
@@ -737,7 +737,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
           </table>
 
           {/* Criteria & Ratings Section Table */}
-          <table className="w-full border-collapse border border-black text-[8px] leading-tight mb-1">
+          <table className="w-full border-collapse border-b border-l border-r border-black border-t-0 text-[8px] leading-tight">
             <thead>
               <tr className="bg-neutral-100 border-b border-black font-extrabold uppercase text-[8px]">
                 <th className="border-r border-black p-1 text-center w-[88%]" style={{ width: '88%' }}>CRITERIA</th>
@@ -829,12 +829,12 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
           </table>
 
           {/* Rating Note Row */}
-          <div className="border border-black p-1 bg-neutral-100 font-bold text-[7.5px] italic mb-1 text-center uppercase tracking-tight">
+          <div className="border-b border-l border-r border-black p-1.5 bg-neutral-100 font-bold text-[7.5px] italic text-center uppercase tracking-tight">
             Note: Rating from 3 and below - priority to attend training for improvement; rating 4 and above less priority to attend training
           </div>
 
           {/* Strong/Weak / Training Recommendation */}
-          <table className="w-full border-collapse border border-black text-[8px] leading-tight mb-1">
+          <table className="w-full border-collapse border-b border-l border-r border-black border-t-0 text-[8px] leading-tight">
             <tbody>
               <tr className="border-b border-black">
                 <td className="border-r border-black p-1.5 px-2 font-bold bg-neutral-100 w-[18%] text-[7.5px] uppercase align-middle" style={{ width: '18%' }}>Strong Points</td>
@@ -852,7 +852,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
           </table>
 
           {/* To be filled out by HR Column */}
-          <table className="w-full border-collapse border border-black text-[7.5px] leading-tight mb-1">
+          <table className="w-full border-collapse border-b border-l border-r border-black border-t-0 text-[7.5px] leading-tight">
             <tbody>
               {/* HR use only header */}
               <tr className="bg-neutral-100 border-b border-black font-extrabold text-center uppercase text-[8px]">
@@ -902,7 +902,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
           </table>
 
           {/* Signatures Section at bottom */}
-          <table className="w-full border-collapse border border-black text-[7px] text-center mt-3 mb-1">
+          <table className="w-full border-collapse border-b border-l border-r border-black border-t-0 text-[7px] text-center">
             <thead>
               <tr className="bg-neutral-100 font-extrabold uppercase border-b border-black text-[7.5px]">
                 <th className="border-r border-black p-1.5 w-[20%]" style={{ width: '20%' }}>Evaluated By/Date</th>
@@ -1047,193 +1047,380 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
             </div>
 
             {/* Design replica of Akkun's form */}
-            <div className="border border-gray-200 rounded-2xl overflow-hidden p-6 md:p-8 bg-gray-50/20 max-w-4xl mx-auto space-y-6 shadow-sm">
-              <div className="flex flex-col md:flex-row justify-between items-center gap-4 pb-6 border-b border-gray-200">
-                <div className="flex items-center gap-2 select-none">
-                  <div className="grid grid-cols-2 gap-0.5 w-8 h-8">
-                    <div className="w-3.5 h-3.5 bg-emerald-700 rounded-xs" />
-                    <div className="w-3.5 h-3.5 bg-emerald-400 rounded-xs" />
-                    <div className="w-3.5 h-3.5 bg-emerald-500 rounded-xs" />
-                    <div className="w-3.5 h-3.5 bg-slate-800 rounded-xs" />
-                  </div>
-                  <div className="text-left font-black leading-none text-emerald-850 tracking-tighter">
-                    <span className="text-sm block">AKKUN</span>
-                    <span className="text-[7px] text-gray-500 uppercase block font-black">Lending Corporation</span>
-                  </div>
-                </div>
-
-                <div className="text-center">
-                  <h2 className="text-lg font-black uppercase tracking-tight text-slate-800">Performance Evaluation Sheet</h2>
-                  <span className="text-[9px] bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider block mt-1 w-fit mx-auto">
-                    {selectedEval.type === 'self' ? 'Self-Evaluation' : 'Superior Evaluation'}
-                  </span>
-                </div>
-
-                <div className="text-right text-[9px] text-gray-400 uppercase font-bold">
-                  <div>Form Control: FO-HRM-10 rev.01</div>
-                  <div>Released: 12.05.2021</div>
-                </div>
-              </div>
-
-              {/* Form Metadata Fields */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                <div className="space-y-2 bg-white p-4 rounded-xl border border-gray-100">
-                  <div className="flex justify-between py-1 border-b border-gray-50">
-                    <span className="font-bold text-gray-400 uppercase tracking-widest text-[10px]">Name</span>
-                    <span className="font-black text-slate-800 uppercase">{selectedEval.employeeName}</span>
-                  </div>
-                  <div className="flex justify-between py-1 border-b border-gray-50">
-                    <span className="font-bold text-gray-400 uppercase tracking-widest text-[10px]">Position</span>
-                    <span className="font-black text-slate-800 uppercase">{selectedEval.position}</span>
-                  </div>
-                  <div className="flex justify-between py-1">
-                    <span className="font-bold text-gray-400 uppercase tracking-widest text-[10px]">Department</span>
-                    <span className="font-black text-slate-800 uppercase">{selectedEval.department}</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2 bg-white p-4 rounded-xl border border-gray-100">
-                  <div className="flex justify-between py-1 border-b border-gray-50">
-                    <span className="font-bold text-gray-400 uppercase tracking-widest text-[10px]">Date Hired</span>
-                    <span className="font-semibold text-slate-700">{selectedEval.dateHired || 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between py-1 border-b border-gray-50">
-                    <span className="font-bold text-gray-400 uppercase tracking-widest text-[10px]">Status</span>
-                    <span className="font-semibold text-slate-700">{selectedEval.status || 'Regular'}</span>
-                  </div>
-                  <div className="flex justify-between py-1">
-                    <span className="font-bold text-gray-400 uppercase tracking-widest text-[10px]">Rating Period</span>
-                    <span className="font-semibold text-slate-700">{selectedEval.ratingPeriod}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white p-4 rounded-xl border border-gray-100 text-xs flex flex-wrap gap-4 items-center justify-between uppercase">
-                <span className="font-bold text-gray-400 tracking-wider text-[10px]">Employee Classification:</span>
-                <span className="font-black text-emerald-800 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-100">
-                  {selectedEval.classification}
-                </span>
-              </div>
-
-              {/* Scores List Container */}
-              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                <div className="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center text-xs font-black uppercase text-gray-500">
-                  <span>Rating Criteria & Scores</span>
-                  <span className="text-emerald-700">Evaluated Points</span>
-                </div>
+            <div className="bg-slate-100/85 p-4 md:p-8 rounded-3xl border border-slate-200 shadow-inner max-w-4xl mx-auto">
+              <div className="overflow-x-auto bg-white border border-slate-900 rounded-lg shadow-xl p-4 md:p-6 text-slate-900">
                 
-                <div className="divide-y divide-gray-50 max-h-[400px] overflow-y-auto">
-                  {CRITERIA.map((crit) => {
-                    const isMgr = ['Manager', 'Leader', 'Supervisor / Head'].includes(selectedEval.classification);
-                    if (crit.isManagerOnly && !isMgr) return null;
-                    
-                    const score = selectedEval.ratings[crit.id.toString()] || 0;
-                    
-                    return (
-                      <div key={crit.id} className="p-4 flex items-start justify-between gap-4 text-xs">
-                        <div className="space-y-1">
-                          <h4 className="font-extrabold text-slate-800">
-                            {crit.id}. {crit.title}
-                          </h4>
-                          <p className="text-[11px] text-gray-500 italic font-medium">{crit.description}</p>
+                {/* Akkun Header Layout precisely matches image */}
+                <table className="w-full border-collapse border border-slate-900 text-[10px] leading-tight">
+                  <tbody>
+                    <tr>
+                      {/* Left block for status tracking metadata */}
+                      <td className="border border-slate-900 p-2 w-[18%] font-mono text-[8px]" style={{ width: '18%' }}>
+                        <div className="flex justify-between"><span>Initial Release</span><span className="font-semibold">: 12.05.2021</span></div>
+                        <div className="flex justify-between"><span>Approved date</span><span className="font-semibold">: 12.05.2021</span></div>
+                        <div className="flex justify-between"><span>Registration date</span><span className="font-semibold">: 12.05.2021</span></div>
+                        <div className="flex justify-between"><span>Uploaded</span><span className="font-semibold">: </span></div>
+                      </td>
+                      
+                      {/* Center logo block */}
+                      <td className="border border-slate-900 p-2 w-[32%] text-center align-middle" style={{ width: '32%' }}>
+                        <div className="flex items-center justify-center">
+                          <img 
+                            src="/image.png" 
+                            alt="AKKUN Lending Corporation Logo" 
+                            className="h-[44px] w-auto block object-contain"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              // If logo is not found, fallback gracefully to our beautiful built-in SVG logo
+                              e.currentTarget.style.display = 'none';
+                              const fallbackSvg = e.currentTarget.nextElementSibling;
+                              if (fallbackSvg instanceof HTMLElement) {
+                                fallbackSvg.style.display = 'block';
+                              }
+                            }}
+                          />
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 48" className="h-[44px] w-auto hidden">
+                            <g transform="translate(4, 4)">
+                              {/* Cube 1 (Left and bottom) */}
+                              <path d="M 12 20 L 20 16 L 28 20 L 20 24 Z" fill="#86efac" stroke="#15803d" strokeWidth="0.5" />
+                              <path d="M 12 20 L 20 24 L 20 32 L 12 28 Z" fill="#15803d" stroke="#15803d" strokeWidth="0.5" />
+                              <path d="M 20 24 L 28 20 L 28 28 L 20 32 Z" fill="#166534" stroke="#15803d" strokeWidth="0.5" />
+                              
+                              {/* Cube 2 (Right and bottom) */}
+                              <path d="M 28 20 L 36 16 L 44 20 L 36 24 Z" fill="#86efac" stroke="#15803d" strokeWidth="0.5" />
+                              <path d="M 28 20 L 36 24 L 36 32 L 28 28 Z" fill="#15803d" stroke="#15803d" strokeWidth="0.5" />
+                              <path d="M 36 24 L 44 20 L 44 28 L 36 32 Z" fill="#166534" stroke="#15803d" strokeWidth="0.5" />
+
+                              {/* Cube 3 (Center top) */}
+                              <path d="M 20 12 L 28 8 L 36 12 L 28 16 Z" fill="#4ade80" stroke="#15803d" strokeWidth="0.5" />
+                              <path d="M 20 12 L 28 16 L 28 24 L 20 20 Z" fill="#16a34a" stroke="#15803d" strokeWidth="0.5" />
+                              <path d="M 28 16 L 36 12 L 36 20 L 28 24 Z" fill="#15803d" stroke="#15803d" strokeWidth="0.5" />
+                            </g>
+                            <text x="50" y="22" fontFamily="Arial, Helvetica, sans-serif" fontSize="16" fontWeight="900" fill="#166534" letterSpacing="-0.8">AKKUN</text>
+                            <text x="50" y="32" fontFamily="Arial, Helvetica, sans-serif" fontSize="6.2" fontWeight="900" fill="#334155" letterSpacing="0.4">LENDING CORPORATION</text>
+                          </svg>
                         </div>
-                        <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-emerald-50 text-emerald-700 font-extrabold text-sm border border-emerald-100 shadow-sm">
-                          {score}
+                      </td>
+                      
+                      {/* Centered Document Title */}
+                      <td className="border border-slate-900 p-2 w-[35%] text-center align-middle font-bold text-base uppercase tracking-wide" style={{ width: '35%' }}>
+                        Performance Evaluation
+                      </td>
+                      
+                      {/* Form Code details */}
+                      <td className="border border-slate-900 p-2 w-[15%] text-[9px] text-center align-middle" style={{ width: '15%' }}>
+                        <div className="font-semibold">Form Control No. / Rev.#</div>
+                        <div className="font-extrabold text-[10px] mt-1 text-emerald-800">FO-HRM-10 rev.01</div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                {/* Metadata Grid */}
+                <table className="w-full border-collapse border-b border-l border-r border-slate-900 border-t-0 text-xs leading-tight">
+                  <tbody>
+                    <tr>
+                      <td className="border border-slate-900 p-2 font-black bg-slate-50 w-[12%]" style={{ width: '12%' }}>Name</td>
+                      <td className="border border-slate-900 p-2 uppercase font-extrabold text-slate-800 w-[38%]" style={{ width: '38%' }}>{selectedEval.employeeName}</td>
+                      <td className="border border-slate-900 p-2 font-black bg-slate-50 w-[12%]" style={{ width: '12%' }}>Date Hired</td>
+                      <td className="border border-slate-900 p-2 font-bold text-slate-800 w-[38%]" style={{ width: '38%' }}>{selectedEval.dateHired || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-900 p-2 font-black bg-slate-50">Position</td>
+                      <td className="border border-slate-900 p-2 uppercase font-extrabold text-slate-800">{selectedEval.position}</td>
+                      <td className="border border-slate-900 p-2 font-black bg-slate-50">Status</td>
+                      <td className="border border-slate-900 p-2 font-bold text-slate-800">{selectedEval.status || 'Regular'}</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-900 p-2 font-black bg-slate-50">Department</td>
+                      <td className="border border-slate-900 p-2 uppercase font-extrabold text-slate-800">{selectedEval.department}</td>
+                      <td className="border border-slate-900 p-2 font-black bg-slate-50">Rating Period</td>
+                      <td className="border border-slate-900 p-2 font-bold text-slate-800">{selectedEval.ratingPeriod}</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                {/* Classification Options Checkbox Row */}
+                <table className="w-full border-collapse border-b border-l border-r border-slate-900 border-t-0 text-xs leading-tight">
+                  <tbody>
+                    <tr>
+                      <td className="border border-slate-900 p-3 font-black bg-slate-50 w-[18%] text-center align-middle uppercase" style={{ width: '18%' }}>
+                        Classification
+                      </td>
+                      <td className="border border-slate-900 p-2 px-4 align-middle" colSpan={3}>
+                        <div className="grid grid-cols-12 gap-2 items-center">
+                          {/* Columns representing Manager and Supervisor checkboxes */}
+                          <div className="col-span-4 space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center justify-center w-4 h-4 border border-slate-900 bg-white text-xs font-black">
+                                {selectedEval.classification === 'Manager' ? '✓' : ''}
+                              </span>
+                              <span className="font-extrabold text-slate-800">Manager</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center justify-center w-4 h-4 border border-slate-900 bg-white text-xs font-black">
+                                {selectedEval.classification === 'Supervisor / Head' ? '✓' : ''}
+                              </span>
+                              <span className="font-extrabold text-slate-800">Supervisor / Head</span>
+                            </div>
+                          </div>
+
+                          {/* Columns representing Leader and Staff checkboxes */}
+                          <div className="col-span-4 space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center justify-center w-4 h-4 border border-slate-900 bg-white text-xs font-black">
+                                {selectedEval.classification === 'Leader' ? '✓' : ''}
+                              </span>
+                              <span className="font-extrabold text-slate-800">Leader</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center justify-center w-4 h-4 border border-slate-900 bg-white text-xs font-black">
+                                {selectedEval.classification === 'Office Staff' ? '✓' : ''}
+                              </span>
+                              <span className="font-extrabold text-slate-800">Office Staff</span>
+                            </div>
+                          </div>
+
+                          {/* Specifying others */}
+                          <div className="col-span-4 flex flex-col justify-start">
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center justify-center w-4 h-4 border border-slate-900 bg-white text-xs font-black">
+                                {selectedEval.classification === 'Others' || selectedEval.classification === 'CIBI Officer' || ['Manager', 'Leader', 'Supervisor / Head', 'Office Staff'].indexOf(selectedEval.classification) === -1 ? '✓' : ''}
+                              </span>
+                              <span className="font-extrabold text-slate-800">Others;Please specify:</span>
+                            </div>
+                            <div className="border-b border-slate-900 text-center text-xs uppercase font-extrabold text-slate-900 mt-1 min-h-[16px]">
+                              {['Manager', 'Leader', 'Supervisor / Head', 'Office Staff'].includes(selectedEval.classification)
+                                ? '' 
+                                : selectedEval.classification || selectedEval.otherClassification}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                {/* Criteria & Ratings Section Table */}
+                <table className="w-full border-collapse border-b border-l border-r border-slate-900 border-t-0 text-xs leading-tight">
+                  <thead>
+                    <tr className="bg-slate-800 text-white border-b border-slate-900 font-black uppercase text-xs">
+                      <th className="border-r border-slate-900 p-2 text-center w-[88%]" style={{ width: '88%' }}>CRITERIA</th>
+                      <th className="p-2 text-center w-[12%]" style={{ width: '12%' }}>POINTS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Row: * For all employees header */}
+                    <tr className="bg-slate-50 border-b border-slate-900">
+                      <td className="p-2 px-3 font-black text-xs italic text-slate-800" colSpan={2}>
+                        * For all employees
+                      </td>
+                    </tr>
+
+                    {/* Loop for items 1-10 */}
+                    {CRITERIA.slice(0, 10).map((crit) => {
+                      const score = selectedEval.ratings[crit.id.toString()];
+                      return (
+                        <tr key={crit.id} className="border-b border-slate-900 sm:hover:bg-slate-50/55 transition-colors">
+                          <td className="border-r border-slate-900 p-2.5 px-3 text-left">
+                            <div className="font-extrabold text-slate-800 text-xs uppercase">{crit.id}. {crit.title}</div>
+                            <div className="text-[11px] text-slate-600 mt-1 font-normal leading-relaxed italic">{crit.description}</div>
+                          </td>
+                          <td className="p-2.5 text-center font-black text-lg text-emerald-800 bg-emerald-50/10 align-middle">
+                            {score || ''}
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {/* Row: * Additional for managers */}
+                    <tr className="bg-slate-50 border-b border-slate-900">
+                      <td className="p-2 px-3 font-black text-xs italic text-slate-800" colSpan={2}>
+                        * Additional for managers, supervisors / heads and leaders only
+                      </td>
+                    </tr>
+
+                    {/* Loop for items 11-15 */}
+                    {CRITERIA.slice(10, 15).map((crit) => {
+                      const isEvalMgr = ['Manager', 'Leader', 'Supervisor / Head'].includes(selectedEval.classification);
+                      const score = isEvalMgr ? selectedEval.ratings[crit.id.toString()] : null;
+                      return (
+                        <tr key={crit.id} className="border-b border-slate-900 sm:hover:bg-slate-50/55 transition-colors">
+                          <td className="border-r border-slate-900 p-2.5 px-3 text-left">
+                            <div className="font-extrabold text-slate-800 text-xs uppercase">{crit.id}. {crit.title}</div>
+                            <div className="text-[11px] text-slate-600 mt-1 font-normal leading-relaxed italic">{crit.description}</div>
+                          </td>
+                          <td className="p-2.5 text-center font-black text-lg text-emerald-800 bg-emerald-50/10 align-middle">
+                            {isEvalMgr && score ? score : ''}
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {/* Rating Legend Header / Details & Total Rating Column */}
+                    <tr className="border-b border-slate-900">
+                      <td className="border-r border-slate-900 p-2.5 w-[88%]" style={{ width: '88%' }}>
+                        <div className="grid grid-cols-12 gap-1 align-top">
+                          <div className="col-span-12">
+                            {/* Flex layout for rating points */}
+                            <div className="flex flex-wrap justify-between font-black text-[10px] border-b border-slate-200 pb-1 mb-1 text-slate-700">
+                              <span>5 = Excellent</span>
+                              <span>4 = Very Satisfactory</span>
+                              <span>3 = Satisfactory</span>
+                              <span>2 = Fair</span>
+                              <span>1 = Poor</span>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 text-[10px] leading-relaxed italic text-slate-600 font-medium pt-1">
+                              <div><b>Excellent</b> — Consistently far exceeds expectations.</div>
+                              <div><b>Very Satisfactory</b> — Consistently meets and frequently exceeds expectations.</div>
+                              <div><b>Satisfactory</b> — Consistently meets and occasionally exceeds expectations.</div>
+                              <div><b>Fair</b> — Occasionally fails to meet expectations.</div>
+                              <div className="col-span-1 md:col-span-2"><b>Poor</b> — Frequently fails to meet expectations.</div>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-2.5 text-center align-middle bg-slate-50" style={{ width: '12%' }}>
+                        <div className="font-black text-[9px] text-slate-500 uppercase leading-none mb-1">TOTAL RATING</div>
+                        <div className="text-2xl font-black tracking-tight text-emerald-800 my-1 font-mono">
+                          {getRecordScoreStats(selectedEval).average || '-'}
+                        </div>
+                        <div className="text-[9px] font-extrabold uppercase text-slate-700 leading-none">
+                          {getRecordScoreStats(selectedEval).descriptive.split(' (')[0]}
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                {/* Rating Note Row */}
+                <div className="border-b border-l border-r border-slate-900 p-2.5 bg-slate-50 font-black text-[10px] italic text-center uppercase tracking-normal">
+                  Note: Rating from 3 and below - priority to attend training for improvement; rating 4 and above less priority to attend training
                 </div>
 
-                {/* Score Calc Banner */}
-                <div className="bg-emerald-50 border-t border-emerald-100 p-6 flex flex-col md:flex-row justify-between items-center gap-4 text-xs font-black uppercase">
-                  <div className="text-center md:text-left">
-                    <span className="text-[10px] text-emerald-800 font-bold block mb-1">SCORE METRIC</span>
-                    <span className="text-lg text-emerald-950 font-black tracking-tight uppercase">
-                      {getRecordScoreStats(selectedEval).descriptive}
-                    </span>
-                  </div>
+                {/* Strong/Weak / Training Recommendation */}
+                <table className="w-full border-collapse border-b border-l border-r border-slate-900 border-t-0 text-xs leading-tight">
+                  <tbody>
+                    <tr className="border-b border-slate-900">
+                      <td className="border-r border-slate-900 p-2.5 px-3 font-black bg-slate-50 w-[18%] uppercase align-middle" style={{ width: '18%' }}>Strong Points</td>
+                      <td className="p-2.5 px-3 text-xs align-middle font-bold text-slate-800 italic">{selectedEval.strongPoints || 'None'}</td>
+                    </tr>
+                    <tr className="border-b border-slate-900">
+                      <td className="border-r border-slate-900 p-2.5 px-3 font-black bg-slate-50 uppercase align-middle">Weak Points</td>
+                      <td className="p-2.5 px-3 text-xs align-middle font-bold text-slate-800 italic">{selectedEval.weakPoints || 'None'}</td>
+                    </tr>
+                    <tr>
+                      <td className="border-r border-slate-900 p-2.5 px-3 font-black bg-slate-50 uppercase align-middle">Training Recommendation</td>
+                      <td className="p-2.5 px-3 text-xs align-middle font-bold text-slate-800 italic">{selectedEval.trainingRecommendation || 'None'}</td>
+                    </tr>
+                  </tbody>
+                </table>
 
-                  <div className="bg-white border border-emerald-100 rounded-xl px-5 py-3 text-center shadow-sm flex items-center gap-3">
-                    <div>
-                      <span className="text-[8px] text-gray-400 block font-bold leading-none mb-1">AVERAGE</span>
-                      <span className="text-xl font-black text-emerald-700 font-mono">
-                        {getRecordScoreStats(selectedEval).average}
-                      </span>
-                    </div>
-                    <div className="h-6 w-[1px] bg-gray-200" />
-                    <div>
-                      <span className="text-[8px] text-gray-400 block font-bold leading-none mb-1">RATED ITEMS</span>
-                      <span className="text-lg font-black text-slate-700 font-mono">
-                        {getRecordScoreStats(selectedEval).count} / 15
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                {/* To be filled out by HR Column */}
+                <table className="w-full border-collapse border-b border-l border-r border-slate-900 border-t-0 text-xs leading-tight">
+                  <tbody>
+                    {/* HR use only header */}
+                    <tr className="bg-slate-100 border-b border-slate-900 font-extrabold text-center uppercase text-xs">
+                      <td colSpan={6} className="p-2">
+                        To be filled out by HR
+                      </td>
+                    </tr>
+                    {/* Attendance subtitle */}
+                    <tr className="bg-slate-50 border-b border-slate-900 text-center font-bold uppercase text-[10px]">
+                      <td colSpan={6} className="p-1">
+                        Attendance Record
+                      </td>
+                    </tr>
+                    {/* Attendance metrics */}
+                    <tr className="border-b border-slate-900 text-center">
+                      <td className="p-2 font-black bg-white w-[16%]" style={{ width: '16%' }}>No. of Absences</td>
+                      <td className="p-2 border-l border-r border-dashed border-slate-300 text-slate-800 uppercase font-black w-[17%] bg-slate-50/20" style={{ width: '17%' }}>
+                        {selectedEval.absences || 'None'}
+                      </td>
+                      <td className="p-2 font-black bg-white w-[16%]" style={{ width: '16%' }}>No. of Tardiness</td>
+                      <td className="p-2 border-l border-r border-dashed border-slate-300 text-slate-800 uppercase font-black w-[17%] bg-slate-50/20" style={{ width: '17%' }}>
+                        {selectedEval.tardiness || 'None'}
+                      </td>
+                      <td className="p-2 font-black bg-white w-[17%]" style={{ width: '17%' }}>No. of Undertime</td>
+                      <td className="p-2 text-slate-800 uppercase font-black w-[17%] bg-slate-50/20" style={{ width: '17%' }}>
+                        {selectedEval.undertime || 'None'}
+                      </td>
+                    </tr>
+                    {/* Disciplinary subtitle */}
+                    <tr className="bg-slate-50 border-y border-slate-900 text-center font-bold uppercase text-[10px]">
+                      <td colSpan={6} className="p-1">
+                        Disciplinary Action Record
+                      </td>
+                    </tr>
+                    {/* Disciplinary metrics */}
+                    <tr className="text-center">
+                      <td colSpan={2} className="p-2 font-black bg-white w-[33%]" style={{ width: '33%' }}>No. of Disciplinary Action/s Received</td>
+                      <td colSpan={1} className="p-2 border-r border-dashed border-slate-300 text-slate-800 uppercase font-black w-[17%] bg-slate-50/20" style={{ width: '17%' }}>
+                        {selectedEval.disciplinaryActions || 'None'}
+                      </td>
+                      <td colSpan={2} className="p-2 font-black bg-white w-[33%]" style={{ width: '33%' }}>Type of Violation/s</td>
+                      <td colSpan={1} className="p-2 text-slate-800 uppercase font-black w-[17%] bg-slate-50/20" style={{ width: '17%' }}>
+                        {selectedEval.typeOfViolation || 'None'}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
 
-              {/* Qualitatives Box */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                <div className="bg-white p-5 rounded-2xl border border-gray-100 space-y-1 shadow-sm">
-                  <h4 className="font-extrabold text-slate-700 tracking-tight text-[11px] uppercase border-b border-gray-100 pb-1.5 mb-2">
-                    Strong Points
-                  </h4>
-                  <p className="text-gray-600 font-medium leading-relaxed italic">{selectedEval.strongPoints || 'None specified.'}</p>
-                </div>
-                <div className="bg-white p-5 rounded-2xl border border-gray-100 space-y-1 shadow-sm">
-                  <h4 className="font-extrabold text-slate-700 tracking-tight text-[11px] uppercase border-b border-gray-100 pb-1.5 mb-2">
-                    Weak Points
-                  </h4>
-                  <p className="text-gray-600 font-medium leading-relaxed italic">{selectedEval.weakPoints || 'None specified.'}</p>
-                </div>
-                <div className="bg-white p-5 rounded-2xl border border-gray-100 space-y-1 shadow-sm">
-                  <h4 className="font-extrabold text-slate-700 tracking-tight text-[11px] uppercase border-b border-gray-100 pb-1.5 mb-2">
-                    Training Recommendation
-                  </h4>
-                  <p className="text-gray-600 font-medium leading-relaxed italic">{selectedEval.trainingRecommendation || 'None specified.'}</p>
-                </div>
-              </div>
-
-              {/* HR filled metrics section */}
-              <div className="bg-slate-900 text-white rounded-2xl p-5 md:p-6 space-y-4 shadow-xl">
-                <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                  <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-400">
-                    Staff HR Metrics Verification
-                  </h4>
-                  <span className="text-[8px] bg-white/10 text-white/80 font-black tracking-widest px-2.5 py-1 rounded-full uppercase">
-                    HR Use Only
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
-                  <div>
-                    <span className="text-[9px] text-white/50 block font-bold uppercase tracking-wider mb-1">Absences Record</span>
-                    <span className="font-extrabold uppercase text-emerald-300">{selectedEval.absences || 'None'}</span>
-                  </div>
-                  <div>
-                    <span className="text-[9px] text-white/50 block font-bold uppercase tracking-wider mb-1">Tardiness Record</span>
-                    <span className="font-extrabold uppercase text-emerald-300">{selectedEval.tardiness || 'None'}</span>
-                  </div>
-                  <div>
-                    <span className="text-[9px] text-white/50 block font-bold uppercase tracking-wider mb-1">Undertime Record</span>
-                    <span className="font-extrabold uppercase text-emerald-300">{selectedEval.undertime || 'None'}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-white/10 text-xs">
-                  <div>
-                    <span className="text-[9px] text-white/50 block font-bold uppercase tracking-wider mb-1">Disciplinary Actions received</span>
-                    <span className="font-extrabold uppercase text-red-300">{selectedEval.disciplinaryActions || 'None'}</span>
-                  </div>
-                  <div>
-                    <span className="text-[9px] text-white/50 block font-bold uppercase tracking-wider mb-1">Type of Violation/s</span>
-                    <span className="font-extrabold uppercase text-red-300">{selectedEval.typeOfViolation || 'None'}</span>
-                  </div>
-                </div>
+                {/* Signatures Section at bottom */}
+                <table className="w-full border-collapse border-b border-l border-r border-slate-900 border-t-0 text-xs text-center">
+                  <thead>
+                    <tr className="bg-slate-100 font-extrabold uppercase border-b border-slate-900 text-[10px]">
+                      <th className="border-r border-slate-900 p-2 w-[20%]" style={{ width: '20%' }}>Evaluated By/Date</th>
+                      <th className="border-r border-slate-900 p-2 w-[16%]" style={{ width: '16%' }}>Prepared By</th>
+                      <th className="border-r border-slate-900 p-2 w-[16%]" style={{ width: '16%' }}>Reviewed By</th>
+                      <th className="border-r border-slate-900 p-2 w-[16%]" style={{ width: '16%' }}>Approved By</th>
+                      <th className="border-r border-slate-900 p-2 w-[16%]" style={{ width: '16%' }}>Checked By</th>
+                      <th className="p-2 w-[16%]" style={{ width: '16%' }}>Conforme</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Signature lines row */}
+                    <tr className="border-b border-slate-900 h-16">
+                      <td className="border-r border-slate-900 p-2 valign-bottom align-bottom">
+                        <div className="font-extrabold text-[11px] uppercase text-slate-800">{selectedEval.evaluatorName}</div>
+                        <div className="text-[8px] text-emerald-600 font-black tracking-tighter mt-1">✓ SUBMISSION VERIFIED</div>
+                      </td>
+                      <td className="border-r border-slate-900 p-2 valign-bottom align-bottom bg-slate-50/10">
+                        <div className="font-extrabold text-[11px] text-slate-800">Harvey John T. Parjan</div>
+                        <div className="text-[8px] text-slate-400 font-mono">HR Specialist</div>
+                      </td>
+                      <td className="border-r border-slate-900 p-2 valign-bottom align-bottom bg-slate-50/10">
+                        <div className="font-extrabold text-[11px] text-slate-800">Erly Rose M. Tabanera</div>
+                        <div className="text-[8px] text-slate-400 font-mono">HR Supervisor</div>
+                      </td>
+                      <td className="border-r border-slate-900 p-2 valign-bottom align-bottom bg-slate-50/10">
+                        <div className="font-extrabold text-[11px] text-slate-800">Raymond A. Talavera</div>
+                        <div className="text-[8px] text-slate-400 font-mono">VP Operations</div>
+                      </td>
+                      <td className="border-r border-slate-900 p-2 valign-bottom align-bottom bg-slate-50/10">
+                        <div className="font-extrabold text-[11px] text-slate-800">Atty. Gerry E. Valdez</div>
+                        <div className="text-[8px] text-slate-400 font-mono">Legal & Chairman</div>
+                      </td>
+                      <td className="p-2 valign-bottom align-bottom">
+                        <div className="font-extrabold text-[11px] uppercase text-slate-800">{selectedEval.employeeName}</div>
+                        <div className="text-[8px] text-emerald-600 font-black tracking-tighter mt-1">✓ DIGITAL CONFORME</div>
+                      </td>
+                    </tr>
+                    {/* Bottom labels row */}
+                    <tr className="uppercase bg-slate-50 font-black text-[9px] leading-tight">
+                      <td className="border-r border-slate-900 p-2">Employee's Superior</td>
+                      <td className="border-r border-slate-900 p-2">Human Resources Assistant</td>
+                      <td className="border-r border-slate-900 p-2">Human Resources Head</td>
+                      <td className="border-r border-slate-900 p-2">Vice-President</td>
+                      <td className="border-r border-slate-900 p-2">Chairman & President</td>
+                      <td className="p-2">Employee</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
 
               {/* Evaluation verification audit trails */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-gray-100 rounded-xl text-[10px] text-gray-500 font-bold uppercase">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-gray-150 rounded-xl text-[10px] text-gray-500 font-bold uppercase mt-4">
                 <div>Evaluated By: <span className="text-slate-800 font-black">{selectedEval.evaluatorName}</span> ({selectedEval.evaluatorRole})</div>
                 <div className="md:text-right">Submitted: <span className="text-slate-800 font-black">{format(new Date(selectedEval.createdAt), 'MMM d, yyyy h:mm a')}</span></div>
               </div>
