@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { UserProfile } from '../types';
 import { db, auth } from '../firebase';
 import { 
@@ -541,11 +542,22 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
   return (
     <div className="space-y-6">
       {/* Printable Area - Hidden during standard web view */}
-      {selectedEval && (
+      {selectedEval && createPortal(
         <div className="hidden print:block font-sans text-black bg-white p-2 w-full max-w-[800px] mx-auto text-[8.5px] print-container" style={{ contentVisibility: 'auto' }}>
           {/* Custom print styling to override default margin and backgrounds */}
           <style dangerouslySetInnerHTML={{ __html: `
             @media print {
+              /* Hide all elements under body during print except the portalled print container */
+              body > *:not(.print-container) {
+                display: none !important;
+              }
+              
+              /* Ensure the print container itself is block and visible */
+              body > div.print-container {
+                display: block !important;
+                visibility: visible !important;
+              }
+
               html, body {
                 margin: 0 !important;
                 padding: 0 !important;
@@ -558,9 +570,6 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
               @page {
                 size: legal portrait;
                 margin: 6mm 10mm 6mm 10mm;
-              }
-              footer, #root > .print\\:hidden {
-                display: none !important;
               }
               .print-container {
                 width: 100% !important;
@@ -943,7 +952,8 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
               </tr>
             </tbody>
           </table>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Screen Interface - Hidden during browser printable view */}
