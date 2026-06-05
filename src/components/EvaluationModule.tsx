@@ -675,11 +675,11 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
                 
                 {/* Center logo block */}
                 <td className="border border-black p-1 w-[32%] text-center align-middle" style={{ width: '32%' }}>
-                  <div className="flex items-center justify-center">
+                  <div className="flex items-center justify-center py-0.5">
                     <img 
                       src="/logo.jpg" 
                       alt="AKKUN Lending Corporation Logo" 
-                      className="h-[38px] w-auto block object-contain"
+                      className="h-[42px] max-w-full w-auto block object-contain mx-auto"
                       referrerPolicy="no-referrer"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none';
@@ -690,13 +690,13 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
                       }}
                     />
                     <div className="hidden">
-                      <AkkunLogo className="h-[38px] w-auto" />
+                      <AkkunLogo className="h-[38px] w-auto mx-auto" />
                     </div>
                   </div>
                 </td>
                 
                 {/* Centered Document Title */}
-                <td className="border border-black p-1 w-[35%] text-center align-middle font-bold text-[13px] uppercase tracking-wide" style={{ width: '35%' }}>
+                <td className="border border-black p-1 w-[35%] text-center align-middle font-black text-[14px] text-slate-900 tracking-tight" style={{ width: '35%' }}>
                   Performance Evaluation
                 </td>
                 
@@ -1122,11 +1122,11 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
                       
                       {/* Center logo block */}
                       <td className="border border-slate-900 p-2 w-[32%] text-center align-middle" style={{ width: '32%' }}>
-                        <div className="flex items-center justify-center">
+                        <div className="flex items-center justify-center py-1">
                           <img 
                             src="/logo.jpg" 
                             alt="AKKUN Lending Corporation Logo" 
-                            className="h-[44px] w-auto block object-contain"
+                            className="h-[50px] max-w-full w-auto block object-contain mx-auto"
                             referrerPolicy="no-referrer"
                             onError={(e) => {
                               e.currentTarget.style.display = 'none';
@@ -1137,13 +1137,13 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
                             }}
                           />
                           <div className="hidden">
-                            <AkkunLogo className="h-[44px] w-auto" />
+                            <AkkunLogo className="h-[44px] w-auto mx-auto" />
                           </div>
                         </div>
                       </td>
                       
                       {/* Centered Document Title */}
-                      <td className="border border-slate-900 p-2 w-[35%] text-center align-middle font-bold text-base uppercase tracking-wide" style={{ width: '35%' }}>
+                      <td className="border border-slate-900 p-2 w-[35%] text-center align-middle font-black text-xl text-slate-900 tracking-tight" style={{ width: '35%' }}>
                         Performance Evaluation
                       </td>
                       
