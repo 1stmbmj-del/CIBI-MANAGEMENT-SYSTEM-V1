@@ -74,6 +74,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { auth, db } from './firebase';
+import EvaluationModule from './components/EvaluationModule';
 import { 
   onAuthStateChanged, 
   signInWithEmailAndPassword, 
@@ -1293,6 +1294,7 @@ function Dashboard({
         { id: 'ATTENDANCE CALENDAR', icon: CalendarRange },
         { id: 'REVIEW REQUESTS', icon: ClipboardCheck },
         { id: 'HR REPORTS', icon: FileBarChart },
+        { id: 'EVALUATION', icon: Star },
       ]
     },
     { id: 'REPORTS', icon: FileText },
@@ -1319,6 +1321,7 @@ function Dashboard({
     { id: 'CRECOM APPROVAL', icon: CheckCircle2 },
     { id: 'FOR VALIDATION & SURVEY', icon: Star },
     { id: 'VALIDATION & SURVEY', icon: BarChart2 },
+    { id: 'EVALUATION', icon: Star },
     { id: 'PROFILE', icon: User },
   ] : [
     { id: 'DASHBOARD', icon: LayoutDashboard },
@@ -1329,6 +1332,7 @@ function Dashboard({
     { id: 'OB FILLING', icon: Briefcase },
     { id: 'ACCOUNT STATUS', icon: ClipboardList },
     { id: 'FOR VALIDATION & SURVEY', icon: CheckCircle2 },
+    { id: 'EVALUATION', icon: Star },
     { id: 'REPORTS', icon: FileText },
     { id: 'PROFILE', icon: User },
   ];
@@ -1653,6 +1657,7 @@ function Dashboard({
               {activeTab === 'OB FILLING' && !isAdmin && <OBFillingModule user={user} />}
               {(activeTab === 'REVIEW REQUESTS' && (isAdmin || isCoordinator)) && <ReviewRequests user={user} />}
               {(activeTab === 'HR REPORTS' && (isAdmin || isCoordinator)) && <HRReportsModule user={user} />}
+              {activeTab === 'EVALUATION' && <EvaluationModule user={user} />}
               {activeTab === 'USERS' && <UserManagement user={user} />}
               {(activeTab === 'ASSIGN ACCOUNT' && (isAdmin || isCoordinator)) && <AssignAccount user={user} />}
               {activeTab === 'ACCOUNT STATUS' && <AccountStatus user={user} />}

@@ -222,5 +222,13 @@ service cloud.firestore {
                     (isPrivileged() || request.auth.uid == resource.data.ciOfficerId);
       allow delete: if isAdmin();
     }
+
+    match /evaluations/{evaluationId} {
+      allow list: if isSignedIn() && (isPrivileged() || (resource.data != null && resource.data.employeeId == request.auth.uid));
+      allow get: if isSignedIn() && (isPrivileged() || (resource.data != null && resource.data.employeeId == request.auth.uid));
+      allow create: if isSignedIn() && (isPrivileged() || request.resource.data.employeeId == request.auth.uid);
+      allow update: if isSignedIn() && isPrivileged();
+      allow delete: if isAdmin();
+    }
   }
 }

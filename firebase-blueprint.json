@@ -218,9 +218,44 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "userName", "startDate", "endDate", "reason", "status", "createdAt"]
+    },
+    "Evaluation": {
+      "title": "Evaluation",
+      "description": "Performance evaluation form details",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string" },
+        "employeeName": { "type": "string" },
+        "evaluatorId": { "type": "string" },
+        "evaluatorName": { "type": "string" },
+        "evaluatorRole": { "type": "string" },
+        "type": { "type": "string", "enum": ["self", "superior"] },
+        "dateHired": { "type": "string" },
+        "position": { "type": "string" },
+        "status": { "type": "string" },
+        "department": { "type": "string" },
+        "ratingPeriod": { "type": "string" },
+        "classification": { "type": "string" },
+        "otherClassification": { "type": "string" },
+        "ratings": { "type": "object" },
+        "strongPoints": { "type": "string" },
+        "weakPoints": { "type": "string" },
+        "trainingRecommendation": { "type": "string" },
+        "absences": { "type": "string" },
+        "tardiness": { "type": "string" },
+        "undertime": { "type": "string" },
+        "disciplinaryActions": { "type": "string" },
+        "typeOfViolation": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["employeeId", "employeeName", "evaluatorId", "evaluatorName", "type", "ratings", "createdAt"]
     }
   },
   "firestore": {
+    "/evaluations/{evaluationId}": {
+      "schema": "Evaluation",
+      "description": "Employee performance evaluations"
+    },
     "/scoringConfigs/{configId}": {
       "schema": "ScoringConfig",
       "description": "Dynamic scoring sheets"
