@@ -576,47 +576,22 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
             }
           ` }} />
 
-          {/* Akkun Header Layout precisely matches image */}
+          {/* CIBI System Header Layout */}
           <table className="w-full border-collapse border border-black text-[8px] leading-tight mb-1">
             <tbody>
               <tr>
                 {/* Left block for status tracking metadata */}
-                <td className="border border-black p-1 w-[18%] font-mono text-[7px]" style={{ width: '18%' }}>
+                <td className="border border-black p-1 w-[20%] font-mono text-[7px]" style={{ width: '20%' }}>
                   <div className="flex justify-between"><span>Initial Release</span><span className="font-semibold">: 12.05.2021</span></div>
                   <div className="flex justify-between"><span>Approved date</span><span className="font-semibold">: 12.05.2021</span></div>
                   <div className="flex justify-between"><span>Registration date</span><span className="font-semibold">: 12.05.2021</span></div>
                   <div className="flex justify-between"><span>Uploaded</span><span className="font-semibold">: </span></div>
                 </td>
                 
-                {/* Center logo block */}
-                <td className="border border-black p-1 w-[32%] text-center align-middle" style={{ width: '32%' }}>
-                  <div className="flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 48" className="h-[38px] w-auto">
-                      <g transform="translate(4, 4)">
-                        {/* Cube 1 (Left and bottom) */}
-                        <path d="M 12 20 L 20 16 L 28 20 L 20 24 Z" fill="#86efac" stroke="#15803d" strokeWidth="0.5" />
-                        <path d="M 12 20 L 20 24 L 20 32 L 12 28 Z" fill="#15803d" stroke="#15803d" strokeWidth="0.5" />
-                        <path d="M 20 24 L 28 20 L 28 28 L 20 32 Z" fill="#166534" stroke="#15803d" strokeWidth="0.5" />
-                        
-                        {/* Cube 2 (Right and bottom) */}
-                        <path d="M 28 20 L 36 16 L 44 20 L 36 24 Z" fill="#86efac" stroke="#15803d" strokeWidth="0.5" />
-                        <path d="M 28 20 L 36 24 L 36 32 L 28 28 Z" fill="#15803d" stroke="#15803d" strokeWidth="0.5" />
-                        <path d="M 36 24 L 44 20 L 44 28 L 36 32 Z" fill="#166534" stroke="#15803d" strokeWidth="0.5" />
-
-                        {/* Cube 3 (Center top) */}
-                        <path d="M 20 12 L 28 8 L 36 12 L 28 16 Z" fill="#4ade80" stroke="#15803d" strokeWidth="0.5" />
-                        <path d="M 20 12 L 28 16 L 28 24 L 20 20 Z" fill="#16a34a" stroke="#15803d" strokeWidth="0.5" />
-                        <path d="M 28 16 L 36 12 L 36 20 L 28 24 Z" fill="#15803d" stroke="#15803d" strokeWidth="0.5" />
-                      </g>
-                      <text x="50" y="22" fontFamily="Arial, Helvetica, sans-serif" fontSize="16" fontWeight="900" fill="#166534" letterSpacing="-0.8">AKKUN</text>
-                      <text x="50" y="32" fontFamily="Arial, Helvetica, sans-serif" fontSize="6.2" fontWeight="900" fill="#334155" letterSpacing="0.4">LENDING CORPORATION</text>
-                    </svg>
-                  </div>
-                </td>
-                
-                {/* Centered Document Title */}
-                <td className="border border-black p-1 w-[35%] text-center align-middle font-bold text-[13px] uppercase tracking-wide" style={{ width: '35%' }}>
-                  Performance Evaluation
+                {/* Centered Document Title & Organization Branding */}
+                <td className="border border-black p-1.5 w-[65%] text-center align-middle" style={{ width: '65%' }}>
+                  <div className="font-black text-[13px] uppercase tracking-[0.2em] text-emerald-900 leading-none">CIBI Management System</div>
+                  <div className="font-bold text-[9.5px] uppercase tracking-wider text-slate-800 mt-1">Performance Evaluation Sheet</div>
                 </td>
                 
                 {/* Form Code details */}
@@ -942,7 +917,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
               Performance Evaluation
             </h1>
             <p className="text-xs text-gray-500 font-bold uppercase mt-1">
-              Akkun Lending Corporation Performance Assessment Tool
+              CIBI Management System Performance Assessment Tool
             </p>
           </div>
 
@@ -1022,19 +997,16 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
               </div>
             </div>
 
-            {/* Design replica of Akkun's form */}
+            {/* CIBI System Form Layout */}
             <div className="border border-gray-200 rounded-2xl overflow-hidden p-6 md:p-8 bg-gray-50/20 max-w-4xl mx-auto space-y-6 shadow-sm">
               <div className="flex flex-col md:flex-row justify-between items-center gap-4 pb-6 border-b border-gray-200">
-                <div className="flex items-center gap-2 select-none">
-                  <div className="grid grid-cols-2 gap-0.5 w-8 h-8">
-                    <div className="w-3.5 h-3.5 bg-emerald-700 rounded-xs" />
-                    <div className="w-3.5 h-3.5 bg-emerald-400 rounded-xs" />
-                    <div className="w-3.5 h-3.5 bg-emerald-500 rounded-xs" />
-                    <div className="w-3.5 h-3.5 bg-slate-800 rounded-xs" />
+                <div className="flex items-center gap-2.5 select-none">
+                  <div className="bg-emerald-850 text-white font-black text-xs px-2.5 py-1.5 rounded-lg tracking-widest shadow-xs">
+                    CIBI
                   </div>
-                  <div className="text-left font-black leading-none text-emerald-850 tracking-tighter">
-                    <span className="text-sm block">AKKUN</span>
-                    <span className="text-[7px] text-gray-500 uppercase block font-black">Lending Corporation</span>
+                  <div className="text-left font-black leading-none text-emerald-900 tracking-tighter">
+                    <span className="text-sm block">CIBI System</span>
+                    <span className="text-[7px] text-gray-500 uppercase block font-black">Management Platform</span>
                   </div>
                 </div>
 
