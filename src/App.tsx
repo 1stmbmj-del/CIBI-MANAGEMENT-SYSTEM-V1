@@ -63,8 +63,7 @@ import {
   FileBarChart,
   CalendarRange,
   XCircle,
-  Plus,
-  Sliders
+  Plus
 } from 'lucide-react';
 import pptxgen from "pptxgenjs";
 import { motion, AnimatePresence } from 'framer-motion';
