@@ -676,7 +676,22 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
                 {/* Center logo block */}
                 <td className="border border-black p-1 w-[32%] text-center align-middle" style={{ width: '32%' }}>
                   <div className="flex items-center justify-center">
-                    <AkkunLogo className="h-[38px] w-auto block object-contain" />
+                    <img 
+                      src="/logo.jpg" 
+                      alt="AKKUN Lending Corporation Logo" 
+                      className="h-[38px] w-auto block object-contain"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        const sibling = e.currentTarget.nextElementSibling;
+                        if (sibling instanceof HTMLElement) {
+                          sibling.classList.remove('hidden');
+                        }
+                      }}
+                    />
+                    <div className="hidden">
+                      <AkkunLogo className="h-[38px] w-auto" />
+                    </div>
                   </div>
                 </td>
                 
@@ -1108,7 +1123,22 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
                       {/* Center logo block */}
                       <td className="border border-slate-900 p-2 w-[32%] text-center align-middle" style={{ width: '32%' }}>
                         <div className="flex items-center justify-center">
-                          <AkkunLogo className="h-[44px] w-auto block object-contain" />
+                          <img 
+                            src="/logo.jpg" 
+                            alt="AKKUN Lending Corporation Logo" 
+                            className="h-[44px] w-auto block object-contain"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              const sibling = e.currentTarget.nextElementSibling;
+                              if (sibling instanceof HTMLElement) {
+                                sibling.classList.remove('hidden');
+                              }
+                            }}
+                          />
+                          <div className="hidden">
+                            <AkkunLogo className="h-[44px] w-auto" />
+                          </div>
                         </div>
                       </td>
                       
