@@ -110,6 +110,7 @@ export interface EvaluationRecord {
   approvedByTitle?: string;
   checkedByName?: string;
   checkedByTitle?: string;
+  logoUrl?: string;
 }
 
 interface Criterion {
@@ -250,6 +251,9 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
   const [approvedByTitle, setApprovedByTitle] = useState('VP Operations');
   const [checkedByName, setCheckedByName] = useState('Atty. Gerry E. Valdez');
   const [checkedByTitle, setCheckedByTitle] = useState('Legal & Chairman');
+  
+  // Custom logo state
+  const [logoUrl, setLogoUrl] = useState('');
   
   // Modal states
   const [isEditingHR, setIsEditingHR] = useState(false);
@@ -538,6 +542,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
     setApprovedByTitle(evalRec.approvedByTitle || 'VP Operations');
     setCheckedByName(evalRec.checkedByName || 'Atty. Gerry E. Valdez');
     setCheckedByTitle(evalRec.checkedByTitle || 'Legal & Chairman');
+    setLogoUrl(evalRec.logoUrl || '');
     
     setIsEditingHR(true);
   };
@@ -559,7 +564,8 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
         approvedByName,
         approvedByTitle,
         checkedByName,
-        checkedByTitle
+        checkedByTitle,
+        logoUrl
       });
       toast.success("HR metrics and report signatures updated!");
       setIsEditingHR(false);
@@ -581,7 +587,8 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
           approvedByName,
           approvedByTitle,
           checkedByName,
-          checkedByTitle
+          checkedByTitle,
+          logoUrl
         } : null);
       }
     } catch (err) {
@@ -677,7 +684,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
                 <td className="border border-black p-1 w-[32%] text-center align-middle" style={{ width: '32%' }}>
                   <div className="flex items-center justify-center py-0.5">
                     <img 
-                      src="/logo.jpg" 
+                      src={selectedEval?.logoUrl || "/logo.jpg"} 
                       alt="AKKUN Lending Corporation Logo" 
                       className="h-[42px] max-w-full w-auto block object-contain mx-auto"
                       referrerPolicy="no-referrer"
@@ -1124,7 +1131,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
                       <td className="border border-slate-900 p-2 w-[32%] text-center align-middle" style={{ width: '32%' }}>
                         <div className="flex items-center justify-center py-1">
                           <img 
-                            src="/logo.jpg" 
+                            src={selectedEval?.logoUrl || "/logo.jpg"} 
                             alt="AKKUN Lending Corporation Logo" 
                             className="h-[50px] max-w-full w-auto block object-contain mx-auto"
                             referrerPolicy="no-referrer"
@@ -2117,6 +2124,81 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
                     onChange={(e) => setTypeOfViolation(e.target.value)}
                     className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold focus:outline-none"
                   />
+                </div>
+              </div>
+
+              {/* Customizable Logo */}
+              <div className="pt-3 border-t border-slate-200 space-y-2">
+                <div className="font-black uppercase tracking-wider text-[10px] text-emerald-800">
+                  Form Document Logo (Upload / Custom)
+                </div>
+                <p className="text-[10px] text-gray-400 font-medium">
+                  Upload an image file (converted to a secure data URL) or provide a web URL to change the logo displayed on this specific performance evaluation form.
+                </p>
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-gray-100 flex flex-col sm:flex-row items-center gap-4">
+                  {/* Current Logo Preview */}
+                  <div className="w-24 h-16 bg-white border border-gray-200 rounded-lg flex items-center justify-center p-2 shrink-0 shadow-sm">
+                    <img 
+                      src={logoUrl || "/logo.jpg"} 
+                      alt="Logo Preview" 
+                      className="max-h-full max-w-full object-contain mx-auto"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        e.currentTarget.src = "/logo.jpg";
+                      }}
+                    />
+                  </div>
+
+                  {/* Upload & Logo Inputs */}
+                  <div className="flex-1 w-full space-y-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <label className="flex-1 block">
+                        <span className="sr-only">Choose Logo File</span>
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                if (typeof reader.result === 'string') {
+                                  setLogoUrl(reader.result);
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="block w-full text-[10px] text-slate-500
+                            file:mr-3 file:py-1.5 file:px-3
+                            file:rounded-lg file:border-0
+                            file:text-[10px] file:font-semibold
+                            file:bg-emerald-50 file:text-emerald-700
+                            hover:file:bg-emerald-100 cursor-pointer"
+                        />
+                      </label>
+                      {logoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setLogoUrl('')}
+                          className="px-2.5 py-1.5 text-[10px] text-red-600 bg-red-50 hover:bg-red-100 rounded-lg font-bold self-start sm:self-auto cursor-pointer"
+                        >
+                          Reset Logo
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-bold text-gray-400 uppercase shrink-0">Direct URL:</span>
+                      <input 
+                        type="text" 
+                        placeholder="Paste direct image URL (optional)" 
+                        value={logoUrl}
+                        onChange={(e) => setLogoUrl(e.target.value)}
+                        className="flex-1 text-[10px] font-mono bg-white border border-gray-200 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
