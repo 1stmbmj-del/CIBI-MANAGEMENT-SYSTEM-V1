@@ -42,18 +42,22 @@ service cloud.firestore {
     }
 
     function isEmailAdmin() {
-      return isSignedIn() && request.auth.token.email == "1stmb.mj@gmail.com";
+      return isSignedIn() && 
+             'email' in request.auth.token && 
+             request.auth.token.email == "1stmb.mj@gmail.com";
     }
 
     function isDBAdmin() {
       return isSignedIn() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             'role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
     }
 
     function isCoordinator() {
       return isSignedIn() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             'role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "coordinator";
     }
 
@@ -224,8 +228,8 @@ service cloud.firestore {
     }
 
     match /evaluations/{evaluationId} {
-      allow list: if isSignedIn() && (isPrivileged() || (resource.data != null && resource.data.employeeId == request.auth.uid));
-      allow get: if isSignedIn() && (isPrivileged() || (resource.data != null && resource.data.employeeId == request.auth.uid));
+      allow list: if isSignedIn() && (isPrivileged() || resource.data.employeeId == request.auth.uid);
+      allow get: if isSignedIn() && (isPrivileged() || resource.data.employeeId == request.auth.uid);
       allow create: if isSignedIn() && (isPrivileged() || request.resource.data.employeeId == request.auth.uid);
       allow update: if isSignedIn() && isPrivileged();
       allow delete: if isAdmin();

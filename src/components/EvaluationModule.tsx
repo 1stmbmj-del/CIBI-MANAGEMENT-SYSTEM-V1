@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile } from '../types';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { 
   collection, 
   addDoc, 
@@ -12,6 +12,53 @@ import {
   updateDoc, 
   deleteDoc 
 } from 'firebase/firestore';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 import { 
   Award, 
   ClipboardCheck, 
@@ -236,8 +283,8 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
       setEvaluations(records);
       setLoading(false);
     }, (error) => {
-      console.error("Error loading evaluations:", error);
       setLoading(false);
+      handleFirestoreError(error, OperationType.LIST, 'evaluations');
     });
 
     // If admin, load system users to allow superior evaluations
@@ -250,6 +297,8 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
           ...doc.data()
         })) as UserProfile[];
         setUsers(userList);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'users');
       });
     }
 
@@ -387,8 +436,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
       toast.success("Performance Evaluation successfully submitted!");
       setCurrentTab('list');
     } catch (err) {
-      console.error("Error submitting evaluation:", err);
-      toast.error("Failed to submit evaluation. Please check your Firestore rules.");
+      handleFirestoreError(err, OperationType.CREATE, 'evaluations');
     }
   };
 
@@ -400,8 +448,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
       toast.success("Evaluation record deleted!");
       if (selectedEval?.id === id) setSelectedEval(null);
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to delete record.");
+      handleFirestoreError(err, OperationType.DELETE, `evaluations/${id}`);
     }
   };
 
@@ -461,8 +508,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
         } : null);
       }
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to update HR metrics.");
+      handleFirestoreError(err, OperationType.UPDATE, `evaluations/${hrEditId}`);
     }
   };
 
