@@ -8816,8 +8816,23 @@ function DataStorage({ user }: { user: UserProfile }) {
   );
 }
 
+function getLeaveDays(startDateStr: string, endDateStr: string): number {
+  if (!startDateStr || !endDateStr) return 0;
+  try {
+    const d1 = new Date(startDateStr);
+    const d2 = new Date(endDateStr);
+    if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
+    d1.setHours(0, 0, 0, 0);
+    d2.setHours(0, 0, 0, 0);
+    const diffTime = Math.abs(d2.getTime() - d1.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  } catch {
+    return 1;
+  }
+}
+
 function ReportsView({ user }: { user: UserProfile }) {
-  const [activeReportTab, setActiveReportTab] = useState<'assignments' | 'attendance' | 'leaves' | 'overtime'>('assignments');
+  const [activeReportTab, setActiveReportTab] = useState<'assignments' | 'attendance' | 'leaves' | 'overtime' | 'leave_summary'>('assignments');
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
@@ -8827,6 +8842,7 @@ function ReportsView({ user }: { user: UserProfile }) {
   const [statusFilter, setStatusFilter] = useState('All');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [selectedSummaryMonth, setSelectedSummaryMonth] = useState<string>('all');
 
   useEffect(() => {
     setLoading(true);
@@ -8917,19 +8933,66 @@ function ReportsView({ user }: { user: UserProfile }) {
     return matchesSearch && matchesStatus && matchesDate;
   });
 
+  const summaryMonths = useMemo(() => {
+    const monthsSet = new Set<string>();
+    leaves.forEach(l => {
+      const dateStr = l.startDate || l.createdAt;
+      if (dateStr) {
+        try {
+          const date = new Date(dateStr);
+          if (!isNaN(date.getTime())) {
+            const yyyymm = format(date, 'yyyy-MM');
+            monthsSet.add(yyyymm);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    });
+    return Array.from(monthsSet).sort((a, b) => b.localeCompare(a));
+  }, [leaves]);
+
+  const filteredSummaryLeaves = useMemo(() => {
+    return leaves.filter(l => {
+      const matchesSearch = l.userName.toLowerCase().includes(search.toLowerCase()) || l.leaveType.toLowerCase().includes(search.toLowerCase());
+      const matchesStatus = statusFilter === 'All' || l.status === statusFilter;
+      
+      let matchesMonth = true;
+      if (selectedSummaryMonth !== 'all') {
+        const dateStr = l.startDate || l.createdAt;
+        if (dateStr) {
+          try {
+            const d = new Date(dateStr);
+            matchesMonth = !isNaN(d.getTime()) && format(d, 'yyyy-MM') === selectedSummaryMonth;
+          } catch {
+            matchesMonth = false;
+          }
+        } else {
+          matchesMonth = false;
+        }
+      }
+
+      const date = new Date(l.startDate);
+      const matchesDate = (!startDate || date >= new Date(startDate)) && (!endDate || date <= new Date(endDate + 'T23:59:59'));
+      
+      return matchesSearch && matchesStatus && matchesMonth && matchesDate;
+    });
+  }, [leaves, search, statusFilter, selectedSummaryMonth, startDate, endDate]);
+
   const getExportData = () => {
     switch(activeReportTab) {
       case 'assignments': return filteredAssignments;
       case 'attendance': return filteredAttendance;
       case 'leaves': return filteredLeaves;
       case 'overtime': return filteredOvertime;
+      case 'leave_summary': return filteredSummaryLeaves;
     }
   };
 
   const exportCSV = () => {
     const data = getExportData();
     let headers: string[] = [];
-    let rows: any[] = [];
+    let rows: (string | number)[][] = [];
 
     if (activeReportTab === 'assignments') {
       headers = ['Borrower', 'Account Type', 'Officer', 'Status', 'Date'];
@@ -8943,6 +9006,16 @@ function ReportsView({ user }: { user: UserProfile }) {
     } else if (activeReportTab === 'overtime') {
       headers = ['Employee', 'Date', 'Hours', 'Minutes', 'Status'];
       rows = (data as OvertimeRequest[]).map(o => [o.userName, o.date, o.hours, o.minutes, o.status]);
+    } else if (activeReportTab === 'leave_summary') {
+      headers = ['Employee', 'Type of Leave', 'Start Date', 'End Date', 'No. of Days', 'Status'];
+      rows = (data as LeaveRequest[]).map(l => [
+        l.userName,
+        l.leaveType,
+        l.startDate,
+        l.endDate,
+        getLeaveDays(l.startDate, l.endDate),
+        l.status === 'Approved' ? 'Approved' : l.status === 'Rejected' ? 'Denied' : 'Pending'
+      ]);
     }
 
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -8966,16 +9039,16 @@ function ReportsView({ user }: { user: UserProfile }) {
         <div className="space-y-1 z-10">
           <h2 className="text-3xl font-black text-emerald-900 uppercase tracking-tighter">Reporting Hub</h2>
           <div className="flex flex-wrap items-center gap-2 mt-4">
-            {(['assignments', 'attendance', 'leaves', 'overtime'] as const).map(tab => (
+            {(['assignments', 'attendance', 'leaves', 'overtime', 'leave_summary'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => { setActiveReportTab(tab); setSearch(''); setStatusFilter('All'); }}
                 className={cn(
                   "px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95",
-                  activeReportTab === tab ? "bg-emerald-800 text-white shadow-xl shadow-emerald-900/20" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                  activeReportTab === tab ? "bg-emerald-800 text-white shadow-xl shadow-emerald-950/20" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                 )}
               >
-                {tab}
+                {tab === 'leave_summary' ? 'Leave Filed Summary' : tab}
               </button>
             ))}
           </div>
@@ -8993,7 +9066,10 @@ function ReportsView({ user }: { user: UserProfile }) {
       </div>
 
       {/* SEARCH & FILTERS */}
-      <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className={cn(
+        "bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm grid gap-6",
+        activeReportTab === 'leave_summary' ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-5" : "grid-cols-1 md:grid-cols-4"
+      )}>
         <div className="relative group">
           <Search size={16} className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-emerald-500 transition-colors" />
           <input 
@@ -9005,6 +9081,31 @@ function ReportsView({ user }: { user: UserProfile }) {
           />
         </div>
         
+        {activeReportTab === 'leave_summary' && (
+          <div className="relative">
+             <select 
+               className="w-full h-14 px-6 bg-gray-50 border-2 border-transparent rounded-2xl text-xs font-bold focus:border-teal-500 focus:bg-white focus:outline-none appearance-none cursor-pointer uppercase tracking-wider text-emerald-800"
+               value={selectedSummaryMonth}
+               onChange={e => setSelectedSummaryMonth(e.target.value)}
+             >
+               <option value="all">📅 All Months</option>
+               {summaryMonths.map(m => {
+                 let label = m;
+                 try {
+                   const [year, colMonth] = m.split('-');
+                   const d = new Date(parseInt(year), parseInt(colMonth) - 1, 1);
+                   label = format(d, 'MMMM yyyy');
+                 } catch {
+                   // ignore
+                 }
+                 return <option key={m} value={m}>{label}</option>;
+               })}
+             </select>
+             <Calendar className="absolute right-5 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none" size={16} />
+             <p className="absolute -top-2.5 left-5 bg-white px-2 text-[8px] font-black text-gray-400 uppercase tracking-widest">Select Month</p>
+          </div>
+        )}
+
         {activeReportTab !== 'attendance' && (
           <div className="relative">
              <select 
@@ -9014,7 +9115,9 @@ function ReportsView({ user }: { user: UserProfile }) {
              >
                <option value="All">All Status Manifests</option>
                {activeReportTab === 'assignments' && statusOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-               {(activeReportTab === 'leaves' || activeReportTab === 'overtime') && ['Pending', 'Approved', 'Rejected'].map(opt => <option key={opt} value={opt}>{opt}</option>)}
+               {(activeReportTab === 'leaves' || activeReportTab === 'overtime' || activeReportTab === 'leave_summary') && ['Pending', 'Approved', 'Rejected'].map(opt => (
+                 <option key={opt} value={opt}>{opt === 'Rejected' ? 'Denied' : opt}</option>
+               ))}
              </select>
              <Filter className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" size={16} />
           </div>
@@ -9047,10 +9150,22 @@ function ReportsView({ user }: { user: UserProfile }) {
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50/80 border-b border-gray-100">
-                <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Primary Entity</th>
-                <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Operational Data</th>
-                <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Temporal Stamp</th>
-                <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">System Status</th>
+                {activeReportTab === 'leave_summary' ? (
+                  <>
+                    <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Employee Name</th>
+                    <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Type of Leave</th>
+                    <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Date of Leave</th>
+                    <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">No. of Days</th>
+                    <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Status</th>
+                  </>
+                ) : (
+                  <>
+                    <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Primary Entity</th>
+                    <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Operational Data</th>
+                    <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Temporal Stamp</th>
+                    <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">System Status</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50/50">
@@ -9143,10 +9258,51 @@ function ReportsView({ user }: { user: UserProfile }) {
                   </td>
                 </tr>
               ))}
+
+              {activeReportTab === 'leave_summary' && filteredSummaryLeaves.map(l => (
+                <tr key={l.id} className="group hover:bg-teal-55/30 transition-all duration-300">
+                  <td className="p-8">
+                    <p className="text-sm font-black text-slate-900 uppercase">{l.userName}</p>
+                    <p className="text-[9px] text-teal-600 font-bold uppercase tracking-widest mt-0.5">Active Exemption Duty</p>
+                  </td>
+                  <td className="p-8">
+                    <p className="text-xs font-black text-teal-800 uppercase tracking-tighter">{l.leaveType}</p>
+                    <p className="text-[9px] text-gray-400 font-medium italic mt-0.5 line-clamp-1 max-w-[200px]">"{l.reason || 'No specific reason given'}"</p>
+                  </td>
+                  <td className="p-8">
+                    <p className="text-xs font-semibold text-gray-600 uppercase tracking-tight">
+                      {format(new Date(l.startDate), 'MMM dd, yyyy')}
+                    </p>
+                    <p className="text-[10px] text-gray-400 font-bold mt-0.5">
+                      to {format(new Date(l.endDate), 'MMM dd, yyyy')}
+                    </p>
+                  </td>
+                  <td className="p-8">
+                    <span className="px-3.5 py-1.5 bg-slate-100/80 text-slate-800 text-[10px] font-black uppercase rounded-lg tracking-wider border border-slate-200/40">
+                      {getLeaveDays(l.startDate, l.endDate)} {getLeaveDays(l.startDate, l.endDate) === 1 ? 'Day' : 'Days'}
+                    </span>
+                  </td>
+                  <td className="p-8">
+                    <span className={cn(
+                      "px-5 py-1.5 text-[9px] font-black uppercase rounded-full tracking-widest border shadow-xs transition-colors",
+                      l.status === 'Approved' ? "bg-emerald-100/50 text-emerald-700 border-emerald-200/50" :
+                      l.status === 'Rejected' ? "bg-red-100/50 text-red-700 border-red-200/50" : "bg-blue-100/50 text-blue-700 border-blue-200/50"
+                    )}>
+                      {l.status === 'Approved' ? 'Approved' : l.status === 'Rejected' ? 'Denied' : 'Pending'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
           
-          {(activeReportTab === 'assignments' ? filteredAssignments : activeReportTab === 'attendance' ? filteredAttendance : activeReportTab === 'leaves' ? filteredLeaves : filteredOvertime).length === 0 && (
+          {(
+            activeReportTab === 'assignments' ? filteredAssignments : 
+            activeReportTab === 'attendance' ? filteredAttendance : 
+            activeReportTab === 'leaves' ? filteredLeaves : 
+            activeReportTab === 'leave_summary' ? filteredSummaryLeaves :
+            filteredOvertime
+          ).length === 0 && (
             <div className="py-32 text-center">
               <div className="relative inline-block">
                 <ClipboardList className="mx-auto text-gray-100 mb-6" size={80} />
