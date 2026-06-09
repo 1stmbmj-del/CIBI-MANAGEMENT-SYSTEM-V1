@@ -1302,6 +1302,7 @@ function Dashboard({
     { id: 'ASSIGN ACCOUNT', icon: UserPlus },
     { id: 'ACCOUNT STATUS', icon: ClipboardList },
     { id: 'CRECOM APPROVAL', icon: CheckCircle2 },
+    { id: 'FOR VALIDATION & SURVEY', icon: CheckCircle2 },
     { id: 'VALIDATION & SURVEY', icon: Star },
     { id: 'DATA STORAGE', icon: Database },
     { id: 'SCORING CONFIG', icon: Settings2 },
@@ -5507,7 +5508,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
                     <Archive size={14} /> Archive Client
                   </button>
                 )}
-                {user.role === 'user' && selected.status !== 'Completed' && selected.status !== 'Approved' && selected.status !== 'Denied' && selected.status !== 'Report Submitted' && selected.status !== 'Pre-approved' && (
+                {(user.role === 'user' || (user.role === 'admin' && selected.ciOfficerId === user.id)) && selected.status !== 'Completed' && selected.status !== 'Approved' && selected.status !== 'Denied' && selected.status !== 'Report Submitted' && selected.status !== 'Pre-approved' && (
                 <button 
                   onClick={() => handleNextStep(selected)}
                   className="px-6 py-2 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/10"
