@@ -5181,6 +5181,9 @@ function AccountStatus({ user }: { user: UserProfile }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isViewingAccount, setIsViewingAccount] = useState(false);
   const [ciOfficers, setCiOfficers] = useState<UserProfile[]>([]);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [archiveReason, setArchiveReason] = useState('');
+  const [targetToArchive, setTargetToArchive] = useState<Assignment | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, 'users'));
@@ -5297,28 +5300,41 @@ function AccountStatus({ user }: { user: UserProfile }) {
     }
   };
 
-  const handleArchive = async (assignment: Assignment) => {
-    if (!confirm(`Are you sure you want to archive ${assignment.borrowerName}? This is for clients whose application will no longer proceed.`)) return;
-    const newTimeline = [...assignment.timeline, { step: 'Archived', timestamp: new Date().toISOString() }];
+  const initiateArchive = (assignment: Assignment) => {
+    setTargetToArchive(assignment);
+    setArchiveReason('');
+    setIsArchiving(true);
+  };
+
+  const handleArchiveConfirm = async () => {
+    if (!targetToArchive) return;
+    if (!archiveReason.trim()) {
+      alert('Please enter a remark or reason for archiving the account.');
+      return;
+    }
+    const newTimeline = [...targetToArchive.timeline, { step: 'Archived', timestamp: new Date().toISOString() }];
     try {
-      await api.patch(`/api/assignments/${assignment.id}`, {
+      await api.patch(`/api/assignments/${targetToArchive.id}`, {
         status: 'Archived',
+        archiveReason: archiveReason.trim(),
         timeline: newTimeline
       });
 
       await createNotification(
-        assignment.ciOfficerId,
+        targetToArchive.ciOfficerId,
         'Account Archived',
-        `The application for ${assignment.borrowerName} has been archived because the application will not proceed.`,
+        `The application for ${targetToArchive.borrowerName} has been archived. Reason: ${archiveReason.trim()}`,
         'status_change',
-        assignment.id
+        targetToArchive.id
       );
 
       // Show alert & sync local state if selected
       alert('Client archived successfully.');
-      if (selected?.id === assignment.id) {
-        setSelected({ ...assignment, status: 'Archived', timeline: newTimeline });
+      if (selected?.id === targetToArchive.id) {
+        setSelected({ ...targetToArchive, status: 'Archived', archiveReason: archiveReason.trim(), timeline: newTimeline });
       }
+      setIsArchiving(false);
+      setTargetToArchive(null);
     } catch (err) {
       console.error(err);
       alert('Failed to archive application.');
@@ -5484,7 +5500,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
                 </button>
                 {user.role === 'admin' && selected.status !== 'Archived' && (
                   <button 
-                    onClick={() => handleArchive(selected)}
+                    onClick={() => initiateArchive(selected)}
                     className="flex items-center gap-2 px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all border border-amber-200"
                     title="Archive this client application"
                   >
@@ -5536,9 +5552,17 @@ function AccountStatus({ user }: { user: UserProfile }) {
 
             {/* Visual Stepper */}
             {selected.status === 'Archived' ? (
-              <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-semibold flex items-center gap-2">
-                <AlertCircle size={16} className="text-amber-600 animate-pulse" />
-                This client application has been Archived (will not proceed).
+              <div className="mb-6 p-6 bg-amber-50/70 border border-amber-200/60 rounded-2xl text-amber-900 text-xs flex flex-col gap-3 shadow-xs">
+                <div className="flex items-center gap-2.5 text-amber-700 font-extrabold uppercase tracking-widest text-[10px]">
+                  <AlertCircle size={16} className="text-amber-600 animate-pulse" />
+                  <span>Client Application Archived (Will Not Proceed)</span>
+                </div>
+                <div className="bg-white/90 p-4 rounded-xl border border-amber-100 shadow-3xs">
+                  <p className="text-[8px] text-amber-600 font-black uppercase tracking-widest mb-1.5">Official Archive Remarks / Reason:</p>
+                  <p className="text-xs font-semibold leading-relaxed text-slate-850 italic">
+                    "{selected.archiveReason || 'No specific reason was logged.'}"
+                  </p>
+                </div>
               </div>
             ) : null}
             <div className="relative pt-12 pb-8">
@@ -5637,6 +5661,53 @@ function AccountStatus({ user }: { user: UserProfile }) {
             assignment={selected} 
             onClose={() => setIsViewingAccount(false)} 
           />
+        )}
+        {isArchiving && targetToArchive && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn select-text">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-gray-100 flex flex-col space-y-6"
+            >
+              <div className="flex items-center gap-3 text-amber-600">
+                <div className="p-3 bg-amber-50 rounded-2xl">
+                  <Archive size={24} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 uppercase">Archive Client Account</h3>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Client: {targetToArchive.borrowerName}</p>
+                </div>
+              </div>
+              <p className="text-[11px] text-gray-500 leading-relaxed font-semibold">
+                Archiving this client marks their application as discontinued. To proceed, please specify the exact reason or remarks regarding why this application is discontinued.
+              </p>
+              <div className="space-y-2">
+                <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Reason / Remarks for Archiving</label>
+                <textarea 
+                  value={archiveReason}
+                  onChange={(e) => setArchiveReason(e.target.value)}
+                  placeholder="e.g., Client decided not to proceed, duplicate application, unreachable contact details, etc..."
+                  className="w-full h-28 px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold leading-relaxed focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                  required
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => { setIsArchiving(false); setTargetToArchive(null); }}
+                  className="w-1/2 py-3.5 bg-slate-100 text-slate-750 text-slate-700 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-200 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleArchiveConfirm}
+                  className="w-1/2 py-3.5 bg-amber-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-amber-700 transition-all cursor-pointer shadow-lg shadow-amber-900/10"
+                >
+                  Confirm Archive
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>
@@ -8497,6 +8568,7 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
 }
 
 function DataStorage({ user }: { user: UserProfile }) {
+  console.log("Accessing Data Storage repository for user authenticated email:", user.email);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -8589,6 +8661,7 @@ function DataStorage({ user }: { user: UserProfile }) {
             >
               <option value="All">All Statuses</option>
               {steps.map(s => <option key={s} value={s}>{s}</option>)}
+              <option value="Archived">Archived</option>
             </select>
           </div>
           <div className="space-y-1">
@@ -8649,6 +8722,12 @@ function DataStorage({ user }: { user: UserProfile }) {
                       <p className="text-[10px] text-gray-400 flex items-center gap-1 mt-1">
                         <Phone size={10} /> {a.mobileNumber}
                       </p>
+                      {a.status === 'Archived' && (
+                        <div className="mt-2 text-[10px] bg-amber-50 border border-amber-200/50 rounded-lg p-2 text-amber-800 max-w-xs font-semibold leading-relaxed">
+                          <span className="font-extrabold uppercase text-[8px] tracking-widest text-amber-600 block mb-0.5">Archive Reason:</span>
+                          "{a.archiveReason || 'No specific reason logged.'}"
+                        </div>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-5">
@@ -8684,6 +8763,7 @@ function DataStorage({ user }: { user: UserProfile }) {
                       "text-[9px] font-black uppercase px-3 py-1 rounded-full",
                       a.status === 'Approved' ? "bg-green-100 text-green-600" :
                       a.status === 'Denied' ? "bg-red-100 text-red-600" :
+                      a.status === 'Archived' ? "bg-amber-100 text-amber-700 border border-amber-200" :
                       a.status === 'Completed' ? "bg-blue-100 text-blue-600" : "bg-amber-100 text-amber-600"
                     )}>
                       {a.status}
@@ -8855,6 +8935,17 @@ function DataStorage({ user }: { user: UserProfile }) {
                </div>
             </div>
             
+            {selected.status === 'Archived' && (
+              <div className="mx-8 mb-6 p-4 bg-amber-50 border border-amber-200/50 rounded-2xl flex items-start gap-3 select-text text-left">
+                <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5 animate-pulse" />
+                <div className="space-y-1">
+                  <h4 className="text-[10px] font-black text-amber-950 uppercase tracking-widest">Archived Account Specification</h4>
+                  <p className="text-[9px] text-amber-600 font-extrabold uppercase tracking-wider">Reason / Remarks for Discontinuation:</p>
+                  <p className="text-xs text-slate-800 font-semibold italic">"{selected.archiveReason || 'No specific remarks were entered during archive.'}"</p>
+                </div>
+              </div>
+            )}
+
             <div className="p-6 bg-gray-50 flex justify-end gap-3 border-t border-gray-100">
                <button 
                  onClick={() => { setIsViewing(false); setSelected(null); }}

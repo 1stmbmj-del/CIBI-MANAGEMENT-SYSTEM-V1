@@ -254,6 +254,7 @@ export interface Assignment {
   mclCreditScore?: MCLCreditScore;
   cashflowReport?: CashflowReport;
   deniedComments?: string;
+  archiveReason?: string;
   isMCLReferral?: boolean;
   aiAnalysis?: string;
   createdAt: string;
