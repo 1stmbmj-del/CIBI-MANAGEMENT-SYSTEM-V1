@@ -31,7 +31,8 @@ export type AssignmentStatus =
   | 'Pre-approved'
   | 'Approved' 
   | 'Denied'
-  | 'Completed';
+  | 'Completed'
+  | 'Archived';
 
 export interface TimelineStep {
   step: string;

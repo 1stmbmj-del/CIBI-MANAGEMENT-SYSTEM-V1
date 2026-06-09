@@ -63,7 +63,8 @@ import {
   FileBarChart,
   CalendarRange,
   XCircle,
-  Plus
+  Plus,
+  Archive
 } from 'lucide-react';
 import pptxgen from "pptxgenjs";
 import { motion, AnimatePresence } from 'framer-motion';
@@ -5296,8 +5297,43 @@ function AccountStatus({ user }: { user: UserProfile }) {
     }
   };
 
+  const handleArchive = async (assignment: Assignment) => {
+    if (!confirm(`Are you sure you want to archive ${assignment.borrowerName}? This is for clients whose application will no longer proceed.`)) return;
+    const newTimeline = [...assignment.timeline, { step: 'Archived', timestamp: new Date().toISOString() }];
+    try {
+      await api.patch(`/api/assignments/${assignment.id}`, {
+        status: 'Archived',
+        timeline: newTimeline
+      });
+
+      await createNotification(
+        assignment.ciOfficerId,
+        'Account Archived',
+        `The application for ${assignment.borrowerName} has been archived because the application will not proceed.`,
+        'status_change',
+        assignment.id
+      );
+
+      // Show alert & sync local state if selected
+      alert('Client archived successfully.');
+      if (selected?.id === assignment.id) {
+        setSelected({ ...assignment, status: 'Archived', timeline: newTimeline });
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to archive application.');
+    }
+  };
+
   const filtered = assignments.filter(a => {
-    if (a.status === 'Completed' || a.status === 'Denied') return false;
+    if (statusFilter === 'Archived') {
+      const matchesSearch = a.borrowerName.toLowerCase().includes(search.toLowerCase()) ||
+                           a.mobileNumber.includes(search);
+      const matchesType = accountTypeFilter === 'All' || a.accountType === accountTypeFilter;
+      return a.status === 'Archived' && matchesSearch && matchesType;
+    }
+    
+    if (a.status === 'Completed' || a.status === 'Denied' || a.status === 'Archived') return false;
     const matchesSearch = a.borrowerName.toLowerCase().includes(search.toLowerCase()) ||
                          a.mobileNumber.includes(search);
     const matchesStatus = statusFilter === 'All' || a.status === statusFilter;
@@ -5344,6 +5380,9 @@ function AccountStatus({ user }: { user: UserProfile }) {
               >
                 <option value="All">All Status</option>
                 {steps.filter(s => s !== 'Completed' && s !== 'Denied').map(s => <option key={s} value={s}>{s}</option>)}
+                {(user.role === 'admin' || user.role === 'coordinator') && (
+                  <option value="Archived">Archived</option>
+                )}
               </select>
               <select 
                 className="px-2 py-2 bg-gray-50 border border-gray-100 rounded-lg text-[10px] font-bold uppercase focus:outline-none"
@@ -5443,6 +5482,15 @@ function AccountStatus({ user }: { user: UserProfile }) {
                 >
                   <Presentation size={14} /> PPT
                 </button>
+                {user.role === 'admin' && selected.status !== 'Archived' && (
+                  <button 
+                    onClick={() => handleArchive(selected)}
+                    className="flex items-center gap-2 px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all border border-amber-200"
+                    title="Archive this client application"
+                  >
+                    <Archive size={14} /> Archive Client
+                  </button>
+                )}
                 {user.role === 'user' && selected.status !== 'Completed' && selected.status !== 'Approved' && selected.status !== 'Denied' && selected.status !== 'Report Submitted' && selected.status !== 'Pre-approved' && (
                 <button 
                   onClick={() => handleNextStep(selected)}
@@ -5487,15 +5535,21 @@ function AccountStatus({ user }: { user: UserProfile }) {
           </div>
 
             {/* Visual Stepper */}
+            {selected.status === 'Archived' ? (
+              <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-semibold flex items-center gap-2">
+                <AlertCircle size={16} className="text-amber-600 animate-pulse" />
+                This client application has been Archived (will not proceed).
+              </div>
+            ) : null}
             <div className="relative pt-12 pb-8">
               <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-100 -translate-y-1/2" />
               <div 
                 className="absolute top-1/2 left-0 h-1 bg-green-500 -translate-y-1/2 transition-all duration-500" 
-                style={{ width: `${(steps.indexOf(selected.status) / (steps.length - 1)) * 100}%` }}
+                style={{ width: `${selected.status === 'Archived' ? 0 : (steps.indexOf(selected.status) / (steps.length - 1)) * 100}%` }}
               />
               <div className="relative flex justify-between">
                 {steps.map((step, idx) => {
-                  const isCompleted = steps.indexOf(selected.status) >= idx;
+                  const isCompleted = selected.status !== 'Archived' && steps.indexOf(selected.status) >= idx;
                   const isCurrent = selected.status === step;
                   return (
                     <div key={step} className="flex flex-col items-center space-y-4">
