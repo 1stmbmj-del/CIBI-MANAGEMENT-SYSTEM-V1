@@ -633,7 +633,15 @@ export default function App() {
       setViewportMode={setViewportMode} 
       isPhysicalMobile={isPhysicalMobile}
     >
-      <div className="min-h-screen bg-gray-50 font-sans text-gray-900 flex flex-col">
+      <div className="min-h-screen bg-slate-50 font-sans text-gray-900 flex flex-col relative overflow-hidden">
+        {/* Dynamic Liquid Glass Backdrop Blobs for non-dashboard pages */}
+        {currentView !== 'dashboard' && (
+          <div className="absolute inset-0 overflow-hidden pointer-events-none select-none z-0">
+            <div className="absolute top-[-10%] left-[-10%] w-[55vw] h-[55vw] min-w-[350px] min-h-[350px] rounded-full liquid-glow-1 animate-liquid-one" />
+            <div className="absolute bottom-[-15%] right-[-5%] w-[60vw] h-[60vw] min-w-[400px] min-h-[400px] rounded-full liquid-glow-2 animate-liquid-two" />
+            <div className="absolute top-[30%] right-[15%] w-[45vw] h-[45vw] min-w-[300px] min-h-[300px] rounded-full liquid-glow-3 animate-liquid-three" />
+          </div>
+        )}
         <AnimatePresence mode="wait">
           {currentView === 'login' && (
             <Login 
@@ -718,13 +726,13 @@ function Login({
       initial={{ opacity: 0 }} 
       animate={{ opacity: 1 }} 
       exit={{ opacity: 0 }}
-      className="min-h-screen flex"
+      className="min-h-screen flex relative z-10"
     >
-      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-white">
-        <div className="w-full max-w-sm space-y-8">
+      <div className="flex-1 flex flex-col items-center justify-center p-4 md:p-8 bg-transparent">
+        <div className="w-full max-w-md space-y-8 glass-card p-8 md:p-12 rounded-3xl shadow-xl border border-white/25 transition-all duration-300">
           <div className="text-center">
-            <h2 className="text-3xl font-black text-emerald-800">WELCOME</h2>
-            <p className="text-xs text-gray-400 uppercase tracking-widest mt-1">Sign in to CIBI System</p>
+            <h2 className="text-3xl font-black text-emerald-900 tracking-tight">WELCOME</h2>
+            <p className="text-xs text-emerald-800/65 uppercase tracking-widest mt-1 font-extrabold">Sign in to CIBI System</p>
           </div>
           
           <form className="space-y-4" onSubmit={handleLogin}>
@@ -732,7 +740,7 @@ function Login({
               <input
                 type="email"
                 placeholder="Email Address"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="w-full px-4 py-3 glass-input text-emerald-950 font-bold placeholder-gray-400/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -742,7 +750,7 @@ function Login({
               <input
                 type="password"
                 placeholder="Password"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="w-full px-4 py-3 glass-input text-emerald-950 font-bold placeholder-gray-400/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -750,20 +758,20 @@ function Login({
             </div>
             {error && <p className="text-red-500 text-xs text-center font-bold">{error}</p>}
             <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-4 bg-linear-to-r from-emerald-600 to-emerald-800 text-white font-black rounded-xl shadow-lg shadow-emerald-900/20 hover:shadow-emerald-900/40 hover:-translate-y-0.5 transition-all disabled:opacity-50 uppercase tracking-widest text-xs"
+               type="submit"
+               disabled={loading}
+               className="w-full py-4 bg-linear-to-r from-emerald-600 to-emerald-800 text-white font-black rounded-xl shadow-lg shadow-emerald-900/20 hover:shadow-emerald-900/40 hover:-translate-y-0.5 transition-all disabled:opacity-50 uppercase tracking-widest text-xs"
             >
               {loading ? 'Authenticating...' : 'Secure Access'}
             </button>
           </form>
-
+ 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-100"></div>
+              <div className="w-full border-t border-white/20"></div>
             </div>
             <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
-              <span className="bg-white px-4 text-gray-400">Identity Providers</span>
+              <span className="bg-transparent backdrop-blur-xs px-4 text-emerald-900/60 font-black">Identity Providers</span>
             </div>
           </div>
 
@@ -796,14 +804,14 @@ function Login({
           <div className="text-center">
             <button 
               onClick={onSwitch}
-              className="text-emerald-700 text-xs font-black uppercase tracking-widest hover:underline"
+              className="text-emerald-800 hover:text-emerald-950 text-xs font-black uppercase tracking-widest hover:underline transition-colors"
             >
               Create System Account
             </button>
           </div>
         </div>
       </div>
-      <div className="hidden lg:flex flex-1 bg-linear-to-br from-emerald-800 via-emerald-700 to-emerald-950 items-center justify-center p-12 relative overflow-hidden">
+      <div className="hidden lg:flex flex-1 glass-sidebar items-center justify-center p-12 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/brushed-alum.png')]"></div>
         <div className="text-center space-y-4 relative z-10">
           <div className="w-20 h-20 bg-white/10 rounded-3xl backdrop-blur-md border border-white/20 flex items-center justify-center mx-auto mb-8 shadow-2xl animate-pulse">
@@ -1339,7 +1347,15 @@ function Dashboard({
   ];
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden bg-slate-50 relative">
+      {/* Liquid Glass Backdrop Blob Animations */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none select-none z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[55vw] h-[55vw] min-w-[500px] min-h-[500px] rounded-full liquid-glow-1 animate-liquid-one" />
+        <div className="absolute bottom-[-15%] right-[-5%] w-[60vw] h-[60vw] min-w-[550px] min-h-[550px] rounded-full liquid-glow-2 animate-liquid-two" />
+        <div className="absolute top-[30%] right-[15%] w-[45vw] h-[45vw] min-w-[400px] min-h-[400px] rounded-full liquid-glow-3 animate-liquid-three" />
+        <div className="absolute bottom-[20%] left-[10%] w-[50vw] h-[50vw] min-w-[450px] min-h-[450px] rounded-full liquid-glow-4 animate-liquid-one" />
+      </div>
+
       {/* Mobile Backdrop */}
       <AnimatePresence>
         {isMobile && sidebarOpen && (
@@ -1348,7 +1364,7 @@ function Dashboard({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setSidebarOpen(false)}
-            className="fixed inset-0 bg-emerald-950/40 backdrop-blur-sm z-30 lg:hidden"
+            className="fixed inset-0 bg-emerald-950/40 backdrop-blur-md z-30 lg:hidden"
           />
         )}
       </AnimatePresence>
@@ -1361,7 +1377,7 @@ function Dashboard({
           x: (isMobile && !sidebarOpen) ? -280 : 0
         }}
         className={cn(
-          "bg-linear-to-b from-emerald-800 via-emerald-900 to-emerald-950 text-white flex-shrink-0 overflow-hidden relative z-40 transition-all duration-300 ease-in-out shadow-2xl border-r border-emerald-400/10",
+          "glass-sidebar text-white flex-shrink-0 overflow-hidden relative z-40 transition-all duration-300 ease-in-out shadow-xl",
           isMobile ? "fixed h-full" : "relative"
         )}
       >
@@ -1466,7 +1482,7 @@ function Dashboard({
                     className={cn(
                       "w-full flex items-center transition-all duration-200 rounded-xl group",
                       activeTab === item.id 
-                        ? "bg-linear-to-r from-white to-emerald-50 text-emerald-800 shadow-lg shadow-black/20 scale-105" 
+                        ? "bg-white/85 text-emerald-950 shadow-md scale-105 border border-white/25 backdrop-blur-md" 
                         : "hover:bg-white/10 text-white/70 hover:text-white",
                       sidebarOpen ? "px-4 py-3 space-x-3" : "py-4 justify-center"
                     )}
@@ -1517,8 +1533,8 @@ function Dashboard({
       </motion.aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-6">
+      <main className="flex-1 flex flex-col overflow-hidden relative z-10 bg-transparent">
+        <header className="h-16 glass-header flex items-center justify-between px-6 z-10 transition-all">
           <div className="flex items-center space-x-4">
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-400 hover:text-emerald-600">
               {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
@@ -1644,10 +1660,10 @@ function Dashboard({
           </div>
         </header>
 
-        <div className="flex-1 overflow-x-hidden overflow-y-auto w-full">
+        <div className="flex-1 overflow-x-hidden overflow-y-auto w-full relative z-10">
           <div className={cn(
             "p-4 md:p-8 min-h-full",
-            isMobile ? "pb-24 bg-white" : "bg-gray-50/50"
+            isMobile ? "pb-24 bg-white/65 backdrop-blur-md" : "bg-transparent"
           )}>
             <AnimatePresence mode="wait">
               {activeTab === 'DASHBOARD' && ((isAdmin || isCoordinator) ? <DashboardOverview user={user} /> : <CIDashboard user={user} />)}
@@ -4690,13 +4706,13 @@ function ReviewRequests() {
 
 function StatCard({ label, value, icon }: { label: string, value: number | string, icon: React.ReactNode }) {
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-4">
-      <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center">
+    <div className="glass-card glass-card-hover p-6 rounded-2xl flex items-center space-x-4 transition-all duration-300">
+      <div className="w-12 h-12 bg-white/40 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/30 shadow-xs">
         {icon}
       </div>
       <div>
-        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{label}</p>
-        <p className="text-2xl font-black text-gray-900">{value}</p>
+        <p className="text-[10px] text-gray-400 font-extrabold uppercase tracking-widest">{label}</p>
+        <p className="text-2xl font-extrabold text-emerald-950">{value}</p>
       </div>
     </div>
   );

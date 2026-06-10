@@ -1,9 +1,121 @@
 @import "tailwindcss";
 
+@theme {
+  --animate-liquid-one: liquid-one 18s ease-in-out infinite;
+  --animate-liquid-two: liquid-two 22s ease-in-out infinite;
+  --animate-liquid-three: liquid-three 26s ease-in-out infinite;
+
+  @keyframes liquid-one {
+    0%, 100% {
+      transform: translate(0px, 0px) scale(1) rotate(0deg);
+    }
+    33% {
+      transform: translate(40px, -60px) scale(1.2) rotate(120deg);
+    }
+    66% {
+      transform: translate(-30px, 30px) scale(0.85) rotate(240deg);
+    }
+  }
+  @keyframes liquid-two {
+    0%, 100% {
+      transform: translate(0px, 0px) scale(1) rotate(0deg);
+    }
+    33% {
+      transform: translate(-50px, 50px) scale(0.85) rotate(-90deg);
+    }
+    66% {
+      transform: translate(50px, -30px) scale(1.15) rotate(180deg);
+    }
+  }
+  @keyframes liquid-three {
+    0%, 100% {
+      transform: translate(0px, 0px) scale(1) rotate(0deg);
+    }
+    50% {
+      transform: translate(-40px, -80px) scale(1.25) rotate(360deg);
+    }
+  }
+}
+
 @utility no-scrollbar {
   -ms-overflow-style: none; /* IE and Edge */
   scrollbar-width: none; /* Firefox */
   &::-webkit-scrollbar {
     display: none; /* Chrome, Safari and Opera */
   }
+}
+
+@utility glass-panel {
+  background: rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 10px 40px -10px rgba(15, 23, 42, 0.05), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+
+@utility glass-sidebar {
+  background: rgba(6, 78, 59, 0.48); /* emerald-900 translucent */
+  backdrop-filter: blur(24px) saturate(130%);
+  -webkit-backdrop-filter: blur(24px) saturate(130%);
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 4px 0 30px 0 rgba(0, 0, 0, 0.05);
+}
+
+@utility glass-card {
+  background: rgba(255, 255, 255, 0.58);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 8px 30px -5px rgba(0, 0, 0, 0.03), inset 0 1px 0px rgba(255, 255, 255, 0.5);
+}
+
+@utility glass-card-hover {
+  &:hover {
+    background: rgba(255, 255, 255, 0.68) !important;
+    border-color: rgba(255, 255, 255, 0.75) !important;
+    box-shadow: 0 12px 35px -5px rgba(16, 185, 129, 0.12), inset 0 1px 0px rgba(255, 255, 255, 0.6);
+  }
+}
+
+@utility glass-input {
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.01);
+}
+
+@utility glass-header {
+  background: rgba(255, 245, 240, 0.28);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+@utility glass-toast {
+  background: rgba(15, 23, 42, 0.85); /* deep slate */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+@utility liquid-glow-1 {
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.18) 0%, rgba(5, 150, 105, 0) 70%);
+  filter: blur(65px);
+}
+
+@utility liquid-glow-2 {
+  background: radial-gradient(circle, rgba(52, 211, 153, 0.22) 0%, rgba(110, 231, 183, 0) 70%);
+  filter: blur(55px);
+}
+
+@utility liquid-glow-3 {
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.12) 0%, rgba(219, 39, 119, 0) 65%);
+  filter: blur(75px);
+}
+
+@utility liquid-glow-4 {
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, rgba(29, 78, 216, 0) 70%);
+  filter: blur(80px);
 }
