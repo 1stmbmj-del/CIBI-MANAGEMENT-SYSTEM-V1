@@ -633,7 +633,10 @@ export default function App() {
       setViewportMode={setViewportMode} 
       isPhysicalMobile={isPhysicalMobile}
     >
-      <div className="min-h-screen bg-slate-50 font-sans text-gray-900 flex flex-col relative overflow-hidden">
+      <div className={cn(
+        "min-h-screen font-sans flex flex-col relative overflow-hidden transition-colors duration-500",
+        currentView === 'dashboard' ? "bg-slate-50 text-gray-900" : "bg-slate-950 text-white"
+      )}>
         {/* Dynamic Liquid Glass Backdrop Blobs for non-dashboard pages */}
         {currentView !== 'dashboard' && (
           <div className="absolute inset-0 overflow-hidden pointer-events-none select-none z-0">
@@ -729,10 +732,10 @@ function Login({
       className="min-h-screen flex relative z-10"
     >
       <div className="flex-1 flex flex-col items-center justify-center p-4 md:p-8 bg-transparent">
-        <div className="w-full max-w-md space-y-8 glass-card p-8 md:p-12 rounded-3xl shadow-xl border border-white/25 transition-all duration-300">
+        <div className="w-full max-w-md space-y-8 glass-card p-8 md:p-12 rounded-3xl shadow-xl border border-white/10 transition-all duration-300">
           <div className="text-center">
-            <h2 className="text-3xl font-black text-emerald-900 tracking-tight">WELCOME</h2>
-            <p className="text-xs text-emerald-800/65 uppercase tracking-widest mt-1 font-extrabold">Sign in to CIBI System</p>
+            <h2 className="text-3xl font-black text-white tracking-tight">WELCOME</h2>
+            <p className="text-xs text-emerald-400 uppercase tracking-widest mt-1 font-extrabold">Sign in to CIBI System</p>
           </div>
           
           <form className="space-y-4" onSubmit={handleLogin}>
@@ -740,7 +743,7 @@ function Login({
               <input
                 type="email"
                 placeholder="Email Address"
-                className="w-full px-4 py-3 glass-input text-emerald-950 font-bold placeholder-gray-400/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="w-full px-4 py-3 glass-input text-white font-bold placeholder-slate-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -750,13 +753,13 @@ function Login({
               <input
                 type="password"
                 placeholder="Password"
-                className="w-full px-4 py-3 glass-input text-emerald-950 font-bold placeholder-gray-400/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+                className="w-full px-4 py-3 glass-input text-white font-bold placeholder-slate-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
             </div>
-            {error && <p className="text-red-500 text-xs text-center font-bold">{error}</p>}
+            {error && <p className="text-red-400 text-xs text-center font-bold">{error}</p>}
             <button
                type="submit"
                disabled={loading}
@@ -768,17 +771,17 @@ function Login({
  
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/20"></div>
+              <div className="w-full border-t border-white/10"></div>
             </div>
             <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
-              <span className="bg-transparent backdrop-blur-xs px-4 text-emerald-900/60 font-black">Identity Providers</span>
+              <span className="bg-transparent px-4 text-slate-300 font-black">Identity Providers</span>
             </div>
           </div>
 
           <button
             onClick={handleGoogleSignIn}
             disabled={loading}
-            className="w-full py-3 bg-white border border-gray-100 text-gray-600 font-bold rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 shadow-sm"
+            className="w-full py-3 bg-white/5 border border-white/10 text-white font-bold rounded-xl hover:bg-white/10 transition-all flex items-center justify-center gap-2 shadow-md uppercase tracking-widest text-xs"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
@@ -804,7 +807,7 @@ function Login({
           <div className="text-center">
             <button 
               onClick={onSwitch}
-              className="text-emerald-800 hover:text-emerald-950 text-xs font-black uppercase tracking-widest hover:underline transition-colors"
+              className="text-emerald-400 hover:text-emerald-300 text-xs font-black uppercase tracking-widest hover:underline transition-colors"
             >
               Create System Account
             </button>
@@ -896,27 +899,27 @@ function Register({
       initial={{ opacity: 0 }} 
       animate={{ opacity: 1 }} 
       exit={{ opacity: 0 }}
-      className="min-h-screen flex"
+      className="min-h-screen flex relative z-10"
     >
-      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-white overflow-y-auto">
-        <div className="w-full max-w-sm space-y-6 py-8">
+      <div className="flex-1 flex flex-col items-center justify-center p-4 md:p-8 bg-transparent overflow-y-auto relative z-10">
+        <div className="w-full max-w-md space-y-6 py-6 glass-card p-8 md:p-12 rounded-3xl shadow-xl border border-white/10 transition-all duration-300">
           <div className="text-center">
-            <h2 className="text-3xl font-black text-emerald-800 uppercase tracking-tighter">CREATE ACCOUNT</h2>
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Join CIBI Management System</p>
+            <h2 className="text-3xl font-black text-white uppercase tracking-tighter">CREATE ACCOUNT</h2>
+            <p className="text-xs text-emerald-400 font-bold uppercase tracking-widest mt-1">Join CIBI Management System</p>
           </div>
           
           <div className="flex flex-col items-center space-y-2">
-            <div className="w-20 h-20 bg-gray-50 rounded-3xl flex items-center justify-center border-2 border-dashed border-emerald-200 shadow-inner group hover:border-emerald-400 transition-all">
-              <Camera className="text-emerald-300 group-hover:text-emerald-500" />
+            <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center border-2 border-dashed border-white/20 shadow-inner group hover:border-emerald-400 transition-all">
+              <Camera className="text-emerald-400 group-hover:text-emerald-300" />
             </div>
-            <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Identity Badge</span>
+            <span className="text-[10px] text-slate-300 font-black uppercase tracking-widest">Identity Badge</span>
           </div>
 
           <form className="space-y-3" onSubmit={handleRegister}>
             <input
               type="text"
               placeholder="Full Name"
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-bold text-gray-700"
+              className="w-full px-4 py-3 glass-input text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 font-bold placeholder-slate-400"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               required
@@ -924,7 +927,7 @@ function Register({
             <input
               type="email"
               placeholder="Email Address"
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-bold text-gray-700"
+              className="w-full px-4 py-3 glass-input text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 font-bold placeholder-slate-400"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -933,13 +936,13 @@ function Register({
               <input
                 type="text"
                 placeholder="Mobile"
-                className="flex-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-bold text-gray-700"
+                className="flex-1 px-4 py-3 glass-input text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 font-bold placeholder-slate-400"
                 value={mobile}
                 onChange={(e) => setMobile(e.target.value)}
                 required
               />
               <select 
-                className="px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-black text-emerald-800 text-xs"
+                className="px-4 py-3 glass-input rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 font-black text-emerald-400 text-xs bg-slate-900"
                 value={role}
                 onChange={(e) => setRole(e.target.value as UserRole)}
               >
@@ -950,7 +953,7 @@ function Register({
             <input
               type="password"
               placeholder="Password"
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-bold text-gray-700"
+              className="w-full px-4 py-3 glass-input text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 font-bold placeholder-slate-400"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -958,16 +961,16 @@ function Register({
             <input
               type="password"
               placeholder="Confirm"
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-bold text-gray-700"
+              className="w-full px-4 py-3 glass-input text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 font-bold placeholder-slate-400"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
             />
-            {error && <p className="text-red-500 text-xs text-center font-bold">{error}</p>}
+            {error && <p className="text-red-400 text-xs text-center font-bold">{error}</p>}
             <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-4 bg-linear-to-r from-emerald-600 to-emerald-800 text-white font-black rounded-xl shadow-lg shadow-emerald-900/20 hover:shadow-emerald-900/40 hover:-translate-y-0.5 transition-all disabled:opacity-50 uppercase tracking-widest text-xs"
+               type="submit"
+               disabled={loading}
+               className="w-full py-4 bg-linear-to-r from-emerald-600 to-emerald-800 text-white font-black rounded-xl shadow-lg shadow-emerald-900/20 hover:shadow-emerald-900/40 hover:-translate-y-0.5 transition-all disabled:opacity-50 uppercase tracking-widest text-xs"
             >
               {loading ? 'Processing...' : 'Verify & Register'}
             </button>
@@ -975,17 +978,17 @@ function Register({
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-100"></div>
+              <div className="w-full border-t border-white/10"></div>
             </div>
             <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
-              <span className="bg-white px-4 text-gray-400 font-bold">Fast Lane</span>
+              <span className="bg-transparent px-4 text-slate-300 font-bold">Fast Lane</span>
             </div>
           </div>
 
           <button
             onClick={handleGoogleSignIn}
             disabled={loading}
-            className="w-full py-3 bg-white border border-gray-100 text-gray-600 font-black rounded-xl hover:bg-gray-50 transition-all flex items-center justify-center gap-2 shadow-sm text-xs"
+            className="w-full py-3 bg-white/5 border border-white/10 text-white font-black rounded-xl hover:bg-white/10 transition-all flex items-center justify-center gap-2 shadow-md text-xs tracking-widest"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
@@ -1011,14 +1014,14 @@ function Register({
           <div className="text-center">
             <button 
               onClick={onSwitch}
-              className="text-gray-400 text-[10px] uppercase tracking-widest hover:text-emerald-700 font-bold"
+              className="text-slate-300 text-[10px] uppercase tracking-widest hover:text-emerald-400 font-bold transition-colors"
             >
-              Registered? <span className="font-black text-emerald-700">Access Key</span>
+              Registered? <span className="font-black text-emerald-400 underline decoration-dashed">Access Key</span>
             </button>
           </div>
         </div>
       </div>
-      <div className="hidden lg:flex flex-1 bg-linear-to-br from-emerald-800 via-emerald-700 to-emerald-950 items-center justify-center p-12 relative overflow-hidden">
+      <div className="hidden lg:flex flex-1 glass-sidebar items-center justify-center p-12 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/brushed-alum.png')]"></div>
         <div className="text-center space-y-4 relative z-10">
           <div className="w-20 h-20 bg-white/10 rounded-3xl backdrop-blur-md border border-white/20 flex items-center justify-center mx-auto mb-8 shadow-2xl">
@@ -1091,27 +1094,27 @@ function AdminKeyVerification({
   };
 
   return (
-    <div className="min-h-screen bg-emerald-950 flex items-center justify-center p-6 bg-cover bg-center" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1550684848-fac1c5b4e853?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80)', backgroundBlendMode: 'overlay' }}>
+    <div className="min-h-screen flex items-center justify-center p-6 bg-transparent relative z-10">
       <motion.div 
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-10 space-y-8 border border-emerald-500/10"
+        className="w-full max-w-md glass-card rounded-[2.5rem] shadow-2xl p-10 space-y-8 border border-white/10 relative z-10"
       >
         <div className="text-center space-y-2">
-          <div className="w-16 h-16 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-200 shadow-inner">
+          <div className="w-16 h-16 bg-white/10 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-white/10 shadow-inner">
             <ShieldCheck size={32} />
           </div>
-          <h2 className="text-3xl font-black text-emerald-900 uppercase tracking-tighter">Identity Check</h2>
-          <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Enter Verification Key to Access CIBI System</p>
+          <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Identity Check</h2>
+          <p className="text-xs text-emerald-400 font-bold uppercase tracking-widest">Enter Verification Key to Access CIBI System</p>
         </div>
 
         <form onSubmit={handleVerify} className="space-y-6">
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Authorization Key</label>
+            <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest px-1">Authorization Key</label>
             <input 
               type="text"
               placeholder="E.G. XJ3K-9PR2"
-              className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl text-center text-xl font-mono font-black text-emerald-700 uppercase tracking-[0.3em] focus:ring-4 focus:ring-emerald-500/10 focus:outline-none transition-all shadow-inner"
+              className="w-full p-4 glass-input rounded-2xl text-center text-xl font-mono font-black text-emerald-400 uppercase tracking-[0.3em] focus:ring-4 focus:ring-emerald-500/20 focus:outline-none transition-all shadow-inner"
               value={key}
               onChange={(e) => setKey(e.target.value)}
               required
@@ -1122,7 +1125,7 @@ function AdminKeyVerification({
             <motion.div 
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="p-4 bg-red-50 text-red-500 rounded-xl text-center text-[10px] font-black uppercase tracking-widest border border-red-100"
+              className="p-4 bg-red-950/40 text-red-400 rounded-xl text-center text-[10px] font-black uppercase tracking-widest border border-red-500/20"
             >
               {error}
             </motion.div>
@@ -1142,11 +1145,11 @@ function AdminKeyVerification({
           </button>
         </form>
 
-        <div className="pt-6 border-t border-gray-50 text-center">
-          <p className="text-[10px] text-gray-400 font-bold uppercase mb-4">Logged in as: <span className="text-emerald-700">{user.email}</span></p>
+        <div className="pt-6 border-t border-white/10 text-center">
+          <p className="text-[10px] text-slate-300 font-bold uppercase mb-4">Logged in as: <span className="text-emerald-400 font-extrabold">{user.email}</span></p>
           <button 
             onClick={onLogout}
-            className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] hover:text-red-500 transition-colors"
+            className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-red-400 transition-colors"
           >
             Use different account
           </button>
@@ -1534,7 +1537,7 @@ function Dashboard({
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden relative z-10 bg-transparent">
-        <header className="h-16 glass-header flex items-center justify-between px-6 z-10 transition-all">
+        <header className="h-16 glass-header flex items-center justify-between px-6 z-50 transition-all">
           <div className="flex items-center space-x-4">
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-400 hover:text-emerald-600">
               {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
@@ -1576,22 +1579,22 @@ function Dashboard({
                       initial={{ opacity: 0, y: 10, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      className="absolute right-0 top-10 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-40 overflow-hidden"
+                      className="absolute right-0 top-12 w-80 glass-card rounded-2xl shadow-2xl border border-white/10 z-40 overflow-hidden"
                     >
-                      <div className="p-4 bg-linear-to-r from-emerald-700 to-emerald-900 text-white flex justify-between items-center shadow-lg">
-                        <h3 className="text-[10px] font-black uppercase tracking-widest">System Alerts</h3>
+                      <div className="p-4 bg-linear-to-r from-slate-900 to-emerald-950 text-white flex justify-between items-center border-b border-white/10 shadow-lg">
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-emerald-400">System Alerts</h3>
                         {unreadCount > 0 && (
                           <button 
                             onClick={markAllAsRead}
-                            className="text-[8px] font-bold uppercase tracking-widest hover:underline"
+                            className="text-[8px] font-black uppercase tracking-widest text-white hover:text-emerald-300 hover:underline transition-colors cursor-pointer"
                           >
                             Mark all as read
                           </button>
                         )}
                       </div>
-                      <div className="max-h-96 overflow-y-auto divide-y divide-gray-50">
+                      <div className="max-h-96 overflow-y-auto divide-y divide-white/10">
                         {notifications.length === 0 ? (
-                          <div className="p-8 text-center text-gray-400">
+                          <div className="p-8 text-center text-slate-400 bg-slate-950/50">
                             <Bell size={24} className="mx-auto mb-2 opacity-20" />
                             <p className="text-[10px] font-bold uppercase tracking-widest">No notifications yet</p>
                           </div>
@@ -1601,16 +1604,19 @@ function Dashboard({
                               key={n.id} 
                               onClick={() => markAsRead(n.id)}
                               className={cn(
-                                "p-4 cursor-pointer hover:bg-gray-50 transition-colors",
-                                !n.read && "bg-blue-50/30"
+                                "p-4 cursor-pointer hover:bg-white/5 transition-colors text-left",
+                                !n.read ? "bg-emerald-950/30 border-l-2 border-emerald-500" : "bg-slate-950/20"
                               )}
                             >
                               <div className="flex justify-between items-start mb-1">
-                                <span className="text-[10px] font-black text-emerald-800 uppercase tracking-tight">{n.title}</span>
-                                <span className="text-[8px] font-mono text-gray-400">{format(new Date(n.createdAt), 'h:mm a')}</span>
+                                <span className={cn(
+                                  "text-[10px] font-black uppercase tracking-tight",
+                                  !n.read ? "text-emerald-300" : "text-slate-300"
+                                )}>{n.title}</span>
+                                <span className="text-[8px] font-mono text-slate-400">{format(new Date(n.createdAt), 'h:mm a')}</span>
                               </div>
-                              <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">{n.message}</p>
-                              {!n.read && <div className="mt-2 w-1.5 h-1.5 bg-blue-500 rounded-full" />}
+                              <p className="text-xs text-slate-200 line-clamp-2 leading-relaxed">{n.message}</p>
+                              {!n.read && <div className="mt-2 w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />}
                             </div>
                           ))
                         )}
