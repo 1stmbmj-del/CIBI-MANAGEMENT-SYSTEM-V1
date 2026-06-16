@@ -141,8 +141,9 @@ Structure your markdown report clearly:
 ### 1. Financial Profile & Capacity Assessment
 Summarize monthly Net Disposable Income (NDI) and evaluate if the requested loan (₱${assignment.requestedAmount?.toLocaleString() || 'N/A'}) matches their actual repayment capacity. Note any cashflow anomalies (e.g. expenses too high relative to net income, or too close to recommended caps).
 
-### 2. Credit Scoring & Risk Analysis
+### 2. Credit Scoring, Risk Analysis & Future Risk Exposure
 Analyze their risk classification/grade (${assignment.creditScore?.finalGrade || assignment.creditScore?.totalGrade || assignment.mclCreditScore?.riskClassification || 'N/A'}) and highlight specific risk elements in stability, business foot traffic, or household criteria. Critically weigh their outstanding external debts (liabilities) and the impact of existing amortizations on the proposed obligation.
+Furthermore, analyze and describe the possible future risks based on the gathered data (e.g., potential cashflow disruptions, default susceptibility under income volatility, credit-phasing liabilities stress, or micro-economic dependencies of their tribal/regional location).
 
 ### 3. Credit Recommendation & Mitigating Strategy
 Express if the loan is fully viable, should be resized/restructured (lower amount or longer term for amortization relief), or conditioned. Specify a suggested approved amount, term (months), monthly amortization range, and list 2-3 specific risk-mitigating strategies (e.g. requiring a co-maker, specific post-dated check security, or periodic site inspections).
@@ -181,8 +182,9 @@ Structure your markdown report clearly:
 ### 1. Financial Profile & Capacity Assessment
 Summarize monthly Net Disposable Income (NDI) and evaluate if the requested loan (₱${assignment.requestedAmount?.toLocaleString() || 'N/A'}) matches their actual repayment capacity. Note any cashflow anomalies (e.g. expenses too high relative to net income, or too close to recommended caps).
 
-### 2. Credit Scoring & Risk Analysis
+### 2. Credit Scoring, Risk Analysis & Future Risk Exposure
 Analyze their risk classification/grade (${assignment.creditScore?.finalGrade || assignment.creditScore?.totalGrade || assignment.mclCreditScore?.riskClassification || 'N/A'}) and highlight specific risk elements in stability, business foot traffic, or household criteria. Critically weigh their outstanding external debts (liabilities) and the impact of existing amortizations on the proposed obligation.
+Furthermore, analyze and describe the possible future risks based on the gathered data (e.g., potential cashflow disruptions, default susceptibility under income volatility, credit-phasing liabilities stress, or micro-economic dependencies of their tribal/regional location).
 
 ### 3. Credit Recommendation & Mitigating Strategy
 Express if the loan is fully viable, should be resized/restructured (lower amount or longer term for amortization relief), or conditioned. Specify a suggested approved amount, term (months), monthly amortization range, and list 2-3 specific risk-mitigating strategies (e.g. requiring a co-maker, specific post-dated check security, or periodic site inspections).
