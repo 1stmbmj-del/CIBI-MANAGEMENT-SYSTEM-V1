@@ -148,7 +148,16 @@ Furthermore, analyze and describe the possible future risks based on the gathere
 ### 3. Credit Recommendation & Mitigating Strategy
 Express if the loan is fully viable, should be resized/restructured (lower amount or longer term for amortization relief), or conditioned. Specify a suggested approved amount, term (months), monthly amortization range, and list 2-3 specific risk-mitigating strategies (e.g. requiring a co-maker, specific post-dated check security, or periodic site inspections).
 
-Be objective, concise, and business-focused (avoid boilerplate sales jargon). Word count limit: 250-400 words. DO NOT output any system logs, port info, or technical database tracking strings. Keep the tone completely professional, humble, and analytical.`,
+### 4. Summary Report
+Provide a clean bulleted-list summary of the primary indicators:
+- **Borrower Profile:** ${assignment.borrowerName || "N/A"} (${assignment.location || "N/A"})
+- **Requested Obligation:** ₱${(assignment.requestedAmount || 0).toLocaleString()} for ${assignment.term || "N/A"} months (${assignment.mop || "N/A"})
+- **Net Disposable monthly Income (NDI):** ₱${(assignment.cashflowReport?.analysis?.monthlyNdi || 0).toLocaleString()} (${assignment.cashflowReport?.analysis?.ndiPercentage || 0}% ratio)
+- **Risk Evaluation Grade:** ${assignment.creditScore?.finalGrade || assignment.creditScore?.totalGrade || assignment.mclCreditScore?.riskClassification || 'N/A'}
+- **Automated Score Recommendation:** ${assignment.creditScore?.recommendation || "N/A"}
+- **CI Recommended Loan Allocation:** ₱${(assignment.cashflowReport?.ciRecommendation?.loanAmount || 0).toLocaleString()} for ${assignment.cashflowReport?.ciRecommendation?.term || "N/A"} months
+
+Be objective, concise, and business-focused (avoid boilerplate sales jargon). Word count limit: 300-500 words. DO NOT output any system logs, port info, or technical database tracking strings. Keep the tone completely professional, humble, and analytical.`,
             temperature: 0.7,
           }
         });
@@ -189,7 +198,16 @@ Furthermore, analyze and describe the possible future risks based on the gathere
 ### 3. Credit Recommendation & Mitigating Strategy
 Express if the loan is fully viable, should be resized/restructured (lower amount or longer term for amortization relief), or conditioned. Specify a suggested approved amount, term (months), monthly amortization range, and list 2-3 specific risk-mitigating strategies (e.g. requiring a co-maker, specific post-dated check security, or periodic site inspections).
 
-Be objective, concise, and business-focused (avoid boilerplate sales jargon). Word count limit: 250-400 words. DO NOT output any system logs, port info, or technical database tracking strings. Keep the tone completely professional, humble, and analytical.`,
+### 4. Summary Report
+Provide a clean bulleted-list summary of the primary indicators:
+- **Borrower Profile:** ${assignment.borrowerName || "N/A"} (${assignment.location || "N/A"})
+- **Requested Obligation:** ₱${(assignment.requestedAmount || 0).toLocaleString()} for ${assignment.term || "N/A"} months (${assignment.mop || "N/A"})
+- **Net Disposable monthly Income (NDI):** ₱${(assignment.cashflowReport?.analysis?.monthlyNdi || 0).toLocaleString()} (${assignment.cashflowReport?.analysis?.ndiPercentage || 0}% ratio)
+- **Risk Evaluation Grade:** ${assignment.creditScore?.finalGrade || assignment.creditScore?.totalGrade || assignment.mclCreditScore?.riskClassification || 'N/A'}
+- **Automated Score Recommendation:** ${assignment.creditScore?.recommendation || "N/A"}
+- **CI Recommended Loan Allocation:** ₱${(assignment.cashflowReport?.ciRecommendation?.loanAmount || 0).toLocaleString()} for ${assignment.cashflowReport?.ciRecommendation?.term || "N/A"} months
+
+Be objective, concise, and business-focused (avoid boilerplate sales jargon). Word count limit: 300-500 words. DO NOT output any system logs, port info, or technical database tracking strings. Keep the tone completely professional, humble, and analytical.`,
               temperature: 0.7,
             }
           });
