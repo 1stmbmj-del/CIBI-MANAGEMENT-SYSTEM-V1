@@ -5799,6 +5799,72 @@ function MarkdownViewer({ content }: { content: string }) {
   );
 }
 
+// Executive dashboard summary metric parser for prompt comments
+function AiSummaryHighlight({ content }: { content: string }) {
+  if (!content) return null;
+
+  let summarySection = '';
+  const match = content.match(/(?:###?\s*.*[Ss]ummary\s*[Rr]eport|Summary Report|###\s*4\.\s*Summary\s*Report)[\s\S]*/i);
+  if (match) {
+    summarySection = match[0];
+  } else {
+    return null;
+  }
+
+  const bulletLines = summarySection
+    .split('\n')
+    .map(l => l.trim())
+    .filter(l => l.startsWith('-') || l.startsWith('*') || /^\d+\./.test(l));
+
+  if (bulletLines.length === 0) return null;
+
+  return (
+    <div className="bg-slate-900 border border-emerald-500/20 rounded-2xl p-5 mb-5 shadow-lg relative overflow-hidden text-left">
+      <div className="absolute inset-0 bg-radial from-emerald-500/5 via-transparent to-transparent pointer-events-none" />
+      <div className="flex items-center gap-2 mb-4 relative z-10">
+        <span className="text-emerald-400 font-extrabold text-sm">✨</span>
+        <h4 className="text-[10px] font-black uppercase tracking-[0.15em] text-emerald-400">Executive Diagnostics Summary</h4>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 relative z-10">
+        {bulletLines.map((line, idx) => {
+          const cleanLine = line.replace(/^[-*\d.\s]+/, '').trim();
+          let label = '';
+          let value = '';
+          
+          if (cleanLine.includes('**')) {
+            const parts = cleanLine.split('**');
+            if (parts.length >= 3) {
+              label = parts[1].replace(':', '').trim();
+              value = parts.slice(2).join('').trim();
+            }
+          }
+          
+          if (!label && cleanLine.includes(':')) {
+            const colonIndex = cleanLine.indexOf(':');
+            label = cleanLine.substring(0, colonIndex).trim();
+            value = cleanLine.substring(colonIndex + 1).trim();
+          }
+
+          if (label && value) {
+            return (
+              <div key={idx} className="bg-slate-950/60 p-3 rounded-xl border border-white/10 flex flex-col justify-between shadow-xs hover:border-emerald-500/30 transition-all duration-300">
+                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1.5">{label}</span>
+                <span className="text-[11px] font-black text-emerald-300">{value}</span>
+              </div>
+            );
+          }
+
+          return (
+            <div key={idx} className="bg-slate-950/60 p-3 rounded-xl border border-white/10 text-[10px] font-bold text-slate-200">
+              {cleanLine}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // UI Copilot analysis Component using the server-side proxy
 function AiAccountAnalysis({ assignment }: { assignment: Assignment }) {
   const [loading, setLoading] = useState(false);
@@ -5923,6 +5989,7 @@ function AiAccountAnalysis({ assignment }: { assignment: Assignment }) {
            </div>
          ) : analysis ? (
            <div className="bg-white rounded-2xl p-6 border border-emerald-100 shadow-xs/30 animate-fadeIn">
+             <AiSummaryHighlight content={analysis} />
              <MarkdownViewer content={analysis} />
            </div>
          ) : (
@@ -7319,6 +7386,7 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
           {aiReportText && (
             <div className="space-y-4">
               <div className="bg-emerald-50/10 rounded-2xl p-5 border border-emerald-100/50">
+                <AiSummaryHighlight content={aiReportText} />
                 <MarkdownViewer content={aiReportText} />
               </div>
               <div className="flex justify-end">
