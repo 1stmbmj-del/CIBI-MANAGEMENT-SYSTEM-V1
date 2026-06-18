@@ -61,12 +61,19 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "coordinator";
     }
 
+    function isSupervisor() {
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             'role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "supervisor";
+    }
+
     function isAdmin() {
       return isEmailAdmin() || isDBAdmin();
     }
 
     function isPrivileged() {
-      return isAdmin() || isCoordinator();
+      return isAdmin() || isCoordinator() || isSupervisor();
     }
 
     function isVerified() {

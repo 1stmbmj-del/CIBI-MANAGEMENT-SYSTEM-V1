@@ -8,7 +8,7 @@
         "fullName": { "type": "string" },
         "mobileNumber": { "type": "string" },
         "email": { "type": "string" },
-        "role": { "type": "string", "enum": ["admin", "user"] },
+        "role": { "type": "string", "enum": ["admin", "user", "coordinator", "supervisor"] },
         "photoURL": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },

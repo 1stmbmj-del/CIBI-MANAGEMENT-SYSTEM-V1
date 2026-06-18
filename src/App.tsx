@@ -947,6 +947,7 @@ function Register({
                 onChange={(e) => setRole(e.target.value as UserRole)}
               >
                 <option value="user">USER</option>
+                <option value="supervisor">SUPERVISOR</option>
                 <option value="admin">ADMIN</option>
               </select>
             </div>
@@ -1183,6 +1184,7 @@ function Dashboard({
 }) {
   const isAdmin = user.role === 'admin';
   const isCoordinator = user.role === 'coordinator';
+  const isSupervisor = user.role === 'supervisor';
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [paddingRequestsActive, setPendingRequestsActive] = useState(false);
@@ -1206,6 +1208,14 @@ function Dashboard({
         { id: 'CRECOM APPROVAL', label: 'Approvals', icon: CheckCircle2 },
         { id: 'PROFILE', label: 'Profile', icon: User }
       ];
+    } else if (isSupervisor) {
+      return [
+        { id: 'DASHBOARD', label: 'Home', icon: LayoutDashboard },
+        { id: 'ATTENDANCE', label: 'Punch-In', icon: Fingerprint },
+        { id: 'ATTENDANCE CALENDAR', label: 'Calendar', icon: CalendarDays },
+        { id: 'ACCOUNT STATUS', label: 'Accounts', icon: ClipboardList },
+        { id: 'PROFILE', label: 'Profile', icon: User }
+      ];
     } else {
       return [
         { id: 'DASHBOARD', label: 'Home', icon: LayoutDashboard },
@@ -1215,7 +1225,7 @@ function Dashboard({
         { id: 'PROFILE', label: 'Profile', icon: User }
       ];
     }
-  }, [isAdmin, isCoordinator]);
+  }, [isAdmin, isCoordinator, isSupervisor]);
 
   useEffect(() => {
     if (isMobile) setSidebarOpen(false);
@@ -1237,7 +1247,7 @@ function Dashboard({
   }, [user.id]);
 
   useEffect(() => {
-    if (!user || (user.role !== 'admin' && user.role !== 'coordinator')) {
+    if (!user || (user.role !== 'admin' && user.role !== 'coordinator' && user.role !== 'supervisor')) {
        setPendingRequestsActive(false);
        return;
     }
@@ -1319,7 +1329,7 @@ function Dashboard({
     { id: 'SCORING CONFIG', icon: Settings2 },
     { id: 'ADMIN KEYS', icon: Key },
     { id: 'PROFILE', icon: User },
-  ] : isCoordinator ? [
+  ] : (isCoordinator || isSupervisor) ? [
     { id: 'DASHBOARD', icon: LayoutDashboard },
     { id: 'ATTENDANCE', icon: Fingerprint },
     { id: 'ATTENDANCE CALENDAR', icon: CalendarRange },
@@ -1672,20 +1682,20 @@ function Dashboard({
             isMobile ? "pb-24 bg-white/65 backdrop-blur-md" : "bg-transparent"
           )}>
             <AnimatePresence mode="wait">
-              {activeTab === 'DASHBOARD' && ((isAdmin || isCoordinator) ? <DashboardOverview user={user} /> : <CIDashboard user={user} />)}
+              {activeTab === 'DASHBOARD' && ((isAdmin || isCoordinator || user.role === 'supervisor') ? <DashboardOverview user={user} /> : <CIDashboard user={user} />)}
               {activeTab === 'ATTENDANCE' && <AttendanceModule user={user} />}
               {activeTab === 'ATTENDANCE CALENDAR' && <AttendanceCalendar user={user} />}
               {activeTab === 'LEAVES' && <LeaveModule user={user} />}
               {activeTab === 'OVERTIME' && <OvertimeModule user={user} />}
               {activeTab === 'OB FILLING' && !isAdmin && <OBFillingModule user={user} />}
-              {(activeTab === 'REVIEW REQUESTS' && (isAdmin || isCoordinator)) && <ReviewRequests user={user} />}
-              {(activeTab === 'HR REPORTS' && (isAdmin || isCoordinator)) && <HRReportsModule user={user} />}
+               {(activeTab === 'REVIEW REQUESTS' && (isAdmin || isCoordinator || user.role === 'supervisor')) && <ReviewRequests user={user} />}
+              {(activeTab === 'HR REPORTS' && (isAdmin || isCoordinator || user.role === 'supervisor')) && <HRReportsModule user={user} />}
               {activeTab === 'EVALUATION' && <EvaluationModule user={user} />}
               {activeTab === 'USERS' && <UserManagement user={user} />}
-              {(activeTab === 'ASSIGN ACCOUNT' && (isAdmin || isCoordinator)) && <AssignAccount user={user} />}
+              {(activeTab === 'ASSIGN ACCOUNT' && (isAdmin || isCoordinator || user.role === 'supervisor')) && <AssignAccount user={user} />}
               {activeTab === 'ACCOUNT STATUS' && <AccountStatus user={user} />}
-              {(activeTab === 'CRECOM APPROVAL' && (isAdmin || isCoordinator)) && <CrecomApproval user={user} />}
-              {(activeTab === 'VALIDATION & SURVEY' && (isAdmin || isCoordinator)) && <ValidationSurveyResults user={user} />}
+              {(activeTab === 'CRECOM APPROVAL' && (isAdmin || isCoordinator || user.role === 'supervisor')) && <CrecomApproval user={user} />}
+              {(activeTab === 'VALIDATION & SURVEY' && (isAdmin || isCoordinator || user.role === 'supervisor')) && <ValidationSurveyResults user={user} />}
               {activeTab === 'REPORTS' && <ReportsView user={user} />}
               {activeTab === 'DATA STORAGE' && <DataStorage user={user} />}
               {activeTab === 'SCORING CONFIG' && <AdminScoringSettings />}
@@ -1876,7 +1886,7 @@ const createNotification = async (userId: string, title: string, message: string
 
 const notifyAdmins = async (title: string, message: string, type: string, assignmentId: string = '') => {
   try {
-    const adminSnap = await getDocs(query(collection(db, 'users'), where('role', 'in', ['admin', 'coordinator'])));
+    const adminSnap = await getDocs(query(collection(db, 'users'), where('role', 'in', ['admin', 'coordinator', 'supervisor'])));
     const notifications = adminSnap.docs.map(doc => createNotification(doc.id, title, message, type, assignmentId));
     await Promise.all(notifications);
   } catch (err) {
@@ -1941,7 +1951,7 @@ function DashboardOverview({ user }: { user: UserProfile }) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
 
   useEffect(() => {
-    const qUsers = query(collection(db, 'users'), where('role', 'in', ['user', 'coordinator']));
+    const qUsers = query(collection(db, 'users'), where('role', 'in', ['user', 'coordinator', 'supervisor']));
     const unsubUsers = onSnapshot(qUsers, (snapshot) => {
       setCiOfficers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as UserProfile[]);
     }, (error) => {
@@ -3153,6 +3163,7 @@ function UserManagement({ user }: { user: UserProfile }) {
                     onChange={e => setEditingUser({...editingUser, role: e.target.value})}
                   >
                     <option value="user">CI Officer (Standard Access)</option>
+                    <option value="supervisor">Supervisor (View Authority Only)</option>
                     <option value="coordinator">CI Coordinator (Limited Admin)</option>
                     <option value="admin">System Administrator (Full Authority)</option>
                   </select>
@@ -3754,7 +3765,7 @@ function AttendanceModule({ user }: { user: UserProfile }) {
   const isAfterCutoff = now.getHours() > 18 || (now.getHours() === 18 && now.getMinutes() >= 30);
 
   useEffect(() => {
-    const isAdminOrCoordinator = user.role === 'admin' || user.role === 'coordinator';
+    const isAdminOrCoordinator = user.role === 'admin' || user.role === 'coordinator' || user.role === 'supervisor';
     const q = isAdminOrCoordinator 
       ? query(collection(db, 'attendance'), orderBy('createdAt', 'desc'), limit(100))
       : query(collection(db, 'attendance'), where('userId', '==', user.id), orderBy('createdAt', 'desc'), limit(50));
@@ -3838,8 +3849,8 @@ function AttendanceModule({ user }: { user: UserProfile }) {
           return;
         }
 
-        // If the logged in user is a Field Officer, they must fill dynamic itinerary and tasks first
-        if (user.role === 'user') {
+        // If the logged in user is a Field Officer or Supervisor, they must fill dynamic itinerary and tasks first
+        if (user.role === 'user' || user.role === 'supervisor') {
           setShowTimeInModal(true);
           return;
         }
@@ -4069,7 +4080,7 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                 <th className="p-4">Status</th>
                 <th className="p-4">Day Plan / Itinerary</th>
                 <th className="p-4">Log Out Tasks</th>
-                {(isAdmin || user.role === 'coordinator') && <th className="p-4">Coord Remarks</th>}
+                {(isAdmin || user.role === 'coordinator' || user.role === 'supervisor') && <th className="p-4">Coord Remarks</th>}
                 {(isAdmin || user.role === 'coordinator') && <th className="p-4 text-center">Manage</th>}
               </tr>
             </thead>
@@ -4122,7 +4133,7 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                       <p className="truncate max-w-[150px]" title={r.tasks}>{r.tasks}</p>
                     ) : "---"}
                   </td>
-                  {(isAdmin || user.role === 'coordinator') && (
+                  {(isAdmin || user.role === 'coordinator' || user.role === 'supervisor') && (
                     <td className="p-4 text-[10px] text-indigo-400 font-medium italic">
                       {r.coordinatorRemarks ? (
                         <p className="truncate max-w-[150px]" title={r.coordinatorRemarks}>{r.coordinatorRemarks}</p>
@@ -4199,7 +4210,7 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                 <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto border border-emerald-55">
                    <Calendar size={32} className="text-emerald-600" />
                 </div>
-                <h3 className="text-2xl font-black text-emerald-900 uppercase tracking-tighter">Officer Time-In Planner</h3>
+                <h3 className="text-2xl font-black text-emerald-900 uppercase tracking-tighter">{user.role === 'supervisor' ? 'Supervisor' : 'Officer'} Time-In Planner</h3>
                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Provide your itinerary and tasks before recording time-in</p>
               </div>
 
@@ -8115,7 +8126,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                       </>
                     ) : (
                       <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100 italic text-[10px] text-amber-700 font-bold text-center">
-                        Viewing as Coordinator. Final approval authority is restricted to System Administrators.
+                        Viewing as {user.role === 'supervisor' ? 'Supervisor' : 'Coordinator'}. Final approval authority is restricted to System Administrators.
                       </div>
                     )}
                   </div>
@@ -9995,7 +10006,7 @@ function AttendanceCalendar({ user }: { user: UserProfile }) {
   useEffect(() => {
     let unsubUsers = () => {};
     if (canManage) {
-      unsubUsers = onSnapshot(query(collection(db, 'users'), where('role', 'in', ['user', 'coordinator'])), (snap) => {
+      unsubUsers = onSnapshot(query(collection(db, 'users'), where('role', 'in', ['user', 'coordinator', 'supervisor'])), (snap) => {
           setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })) as UserProfile[]);
       });
     }
@@ -10431,7 +10442,7 @@ function HRReportsModule({ user }: { user: UserProfile }) {
   const generateReport = async () => {
     setIsLoading(true);
     try {
-      const usersSnap = await getDocs(query(collection(db, 'users'), where('role', 'in', ['user', 'coordinator'])));
+      const usersSnap = await getDocs(query(collection(db, 'users'), where('role', 'in', ['user', 'coordinator', 'supervisor'])));
       const staff = usersSnap.docs.map(d => ({ id: d.id, ...d.data() })) as UserProfile[];
       
       const start = parseISO(startDate);
