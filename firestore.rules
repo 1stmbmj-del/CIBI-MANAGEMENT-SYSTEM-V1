@@ -47,29 +47,22 @@ service cloud.firestore {
              request.auth.token.email == "1stmb.mj@gmail.com";
     }
 
-    function isDBAdmin() {
-      return isSignedIn() && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             'role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
-    }
-
-    function isCoordinator() {
-      return isSignedIn() && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             'role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "coordinator";
-    }
-
-    function isSupervisor() {
-      return isSignedIn() && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             'role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "supervisor";
+    function getUserRole() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user')
+        : 'user';
     }
 
     function isAdmin() {
-      return isEmailAdmin() || isDBAdmin();
+      return isEmailAdmin() || (isSignedIn() && getUserRole() == "admin");
+    }
+
+    function isCoordinator() {
+      return isSignedIn() && getUserRole() == "coordinator";
+    }
+
+    function isSupervisor() {
+      return isSignedIn() && getUserRole() == "supervisor";
     }
 
     function isPrivileged() {

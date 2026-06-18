@@ -5388,7 +5388,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
   useEffect(() => {
     let q = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
     
-    if (user.role !== 'admin' && user.role !== 'coordinator') {
+    if (user.role !== 'admin' && user.role !== 'coordinator' && user.role !== 'supervisor') {
       q = query(
         collection(db, 'assignments'),
         where('ciOfficerId', '==', user.id),
@@ -8241,7 +8241,7 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
 
   useEffect(() => {
     let q = query(collection(db, 'assignments'), where('status', '==', 'Approved'));
-    if (user.role !== 'admin' && user.role !== 'coordinator') {
+    if (user.role !== 'admin' && user.role !== 'coordinator' && user.role !== 'supervisor') {
       q = query(
         collection(db, 'assignments'),
         where('status', '==', 'Approved'),
