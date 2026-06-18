@@ -3746,6 +3746,10 @@ function AttendanceModule({ user }: { user: UserProfile }) {
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
   const [coordRemarks, setCoordRemarks] = useState('');
 
+  const [showTimeInModal, setShowTimeInModal] = useState(false);
+  const [itineraryInput, setItineraryInput] = useState('');
+  const [plannedTasksInput, setPlannedTasksInput] = useState('');
+
   const now = new Date();
   const isAfterCutoff = now.getHours() > 18 || (now.getHours() === 18 && now.getMinutes() >= 30);
 
@@ -3772,6 +3776,55 @@ function AttendanceModule({ user }: { user: UserProfile }) {
     return () => unsubscribe();
   }, [user.id, user.role]);
 
+  const confirmTimeIn = async () => {
+    if (!itineraryInput.trim() || !plannedTasksInput.trim()) {
+      toast.error("Please fill in both daily itinerary and tasks");
+      return;
+    }
+    setIsSubmittingAction(true);
+    const now = new Date();
+    const today = format(now, 'yyyy-MM-dd');
+    const timeStr = format(now, 'HH:mm:ss');
+
+    const hour = now.getHours();
+    const minutes = now.getMinutes();
+    const isSaturday = now.getDay() === 6;
+    let status: 'LATE' | 'ON TIME' = 'ON TIME';
+    
+    if (isSaturday) {
+      if (hour > 9 || (hour === 9 && minutes >= 1)) {
+        status = 'LATE';
+      }
+    } else {
+      if (hour >= 8) {
+        status = 'LATE';
+      }
+    }
+
+    try {
+      await addDoc(collection(db, 'attendance'), {
+        userId: user.id,
+        userName: user.fullName,
+        date: today,
+        timeIn: timeStr,
+        timeOut: null,
+        status,
+        tasks: '',
+        itinerary: itineraryInput.trim(),
+        plannedTasks: plannedTasksInput.trim(),
+        createdAt: now.toISOString()
+      });
+      toast.success("Timed in successfully with itinerary!");
+      setShowTimeInModal(false);
+      setItineraryInput('');
+      setPlannedTasksInput('');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, 'attendance');
+    } finally {
+      setIsSubmittingAction(false);
+    }
+  };
+
   const handleTimeAction = async (type: 'in' | 'out') => {
     if (isSubmittingAction) return;
     const now = new Date();
@@ -3784,6 +3837,13 @@ function AttendanceModule({ user }: { user: UserProfile }) {
           toast.error("Already timed in for today");
           return;
         }
+
+        // If the logged in user is a Field Officer, they must fill dynamic itinerary and tasks first
+        if (user.role === 'user') {
+          setShowTimeInModal(true);
+          return;
+        }
+
         setIsSubmittingAction(true);
         const hour = now.getHours();
         const minutes = now.getMinutes();
@@ -4007,7 +4067,8 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                 <th className="p-4">Date</th>
                 <th className="p-4">Action</th>
                 <th className="p-4">Status</th>
-                <th className="p-4">User Remarks</th>
+                <th className="p-4">Day Plan / Itinerary</th>
+                <th className="p-4">Log Out Tasks</th>
                 {(isAdmin || user.role === 'coordinator') && <th className="p-4">Coord Remarks</th>}
                 {(isAdmin || user.role === 'coordinator') && <th className="p-4 text-center">Manage</th>}
               </tr>
@@ -4025,10 +4086,10 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                   <td className="p-4">
                     <div className="flex gap-2">
                        {r.timeIn && (
-                         <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[8px] font-black uppercase tracking-tighter">In</span>
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[8px] font-black uppercase tracking-tighter">In</span>
                        )}
                        {r.timeOut && (
-                         <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[8px] font-black uppercase tracking-tighter">Out</span>
+                          <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[8px] font-black uppercase tracking-tighter">Out</span>
                        )}
                     </div>
                   </td>
@@ -4036,6 +4097,25 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                     <span className={cn(
                       r.status === 'ON TIME' ? "text-emerald-500" : "text-amber-500"
                     )}>{r.status}</span>
+                  </td>
+                  <td className="p-4 text-[10px] text-gray-600">
+                    <div className="space-y-1 max-w-[220px]">
+                      {r.itinerary && (
+                        <p className="text-[10px] leading-relaxed text-slate-700 font-bold" title={r.itinerary}>
+                          <span className="text-emerald-700 font-black text-[8px] uppercase tracking-wider block">🗺️ Itinerary:</span>
+                          {r.itinerary}
+                        </p>
+                      )}
+                      {r.plannedTasks && (
+                        <p className="text-[10px] leading-relaxed text-slate-500 font-bold" title={r.plannedTasks}>
+                          <span className="text-indigo-700 font-black text-[8px] uppercase tracking-wider block">📋 Day Goals:</span>
+                          {r.plannedTasks}
+                        </p>
+                      )}
+                      {!r.itinerary && !r.plannedTasks && (
+                        <span className="text-gray-300">---</span>
+                      )}
+                    </div>
                   </td>
                   <td className="p-4 text-[10px] text-gray-400 font-medium italic">
                     {r.tasks ? (
@@ -4093,6 +4173,83 @@ function AttendanceModule({ user }: { user: UserProfile }) {
           )}
         </div>
       </div>
+
+       {/* Time-In Planner Modal */}
+      <AnimatePresence>
+        {showTimeInModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setShowTimeInModal(false);
+                setItineraryInput('');
+                setPlannedTasksInput('');
+              }}
+              className="absolute inset-0 bg-emerald-950/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-sm relative z-10 p-8"
+            >
+              <div className="text-center space-y-4 mb-6">
+                <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto border border-emerald-55">
+                   <Calendar size={32} className="text-emerald-600" />
+                </div>
+                <h3 className="text-2xl font-black text-emerald-900 uppercase tracking-tighter">Officer Time-In Planner</h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Provide your itinerary and tasks before recording time-in</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1 text-left">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-gray-400">Daily Itinerary / Routing <span className="text-red-500 font-bold">*</span></label>
+                  <textarea
+                    value={itineraryInput}
+                    onChange={(e) => setItineraryInput(e.target.value)}
+                    placeholder="E.G., Field visit to Calamba, Laguna; Client verification at Brgy. Canlubang..."
+                    className="w-full h-24 bg-gray-50 border-2 border-emerald-55 rounded-2xl p-3 text-xs font-bold text-gray-700 focus:border-emerald-500 focus:outline-none transition-all resize-none"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1 text-left">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-gray-400">Tasks / Day Goals <span className="text-red-500 font-bold">*</span></label>
+                  <textarea
+                    value={plannedTasksInput}
+                    onChange={(e) => setPlannedTasksInput(e.target.value)}
+                    placeholder="E.G., Complete 3 client credit assessments; Submit cashflow reports by 4 PM..."
+                    className="w-full h-24 bg-gray-50 border-2 border-emerald-55 rounded-2xl p-3 text-xs font-bold text-gray-700 focus:border-emerald-500 focus:outline-none transition-all resize-none"
+                    required
+                  />
+                </div>
+
+                <div className="flex gap-4 pt-2">
+                  <button
+                    onClick={() => {
+                      setShowTimeInModal(false);
+                      setItineraryInput('');
+                      setPlannedTasksInput('');
+                    }}
+                    className="flex-1 h-12 border-2 border-gray-100 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmTimeIn}
+                    disabled={isSubmittingAction || !itineraryInput.trim() || !plannedTasksInput.trim()}
+                    className="flex-1 h-12 bg-emerald-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-950/20 active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    {isSubmittingAction ? "Recording..." : "Verify & Time In"}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Task Log Modal */}
       <AnimatePresence>
