@@ -194,7 +194,7 @@ service cloud.firestore {
 
     match /scoringConfigs/{configId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow write: if isPrivileged();
     }
 
     match /users/{userId} {

@@ -1344,6 +1344,8 @@ function Dashboard({
     { id: 'FOR VALIDATION & SURVEY', icon: Star },
     { id: 'VALIDATION & SURVEY', icon: BarChart2 },
     { id: 'EVALUATION', icon: Star },
+    { id: 'DATA STORAGE', icon: Database },
+    { id: 'SCORING CONFIG', icon: Settings2 },
     { id: 'PROFILE', icon: User },
   ] : [
     { id: 'DASHBOARD', icon: LayoutDashboard },
