@@ -1200,7 +1200,7 @@ function Dashboard({
   const isMobile = viewportMode === 'mobile' || windowWidth < 1024;
 
   const bottomTabs = useMemo(() => {
-    if (isAdmin || isCoordinator) {
+    if (isAdmin) {
       return [
         { id: 'DASHBOARD', label: 'Home', icon: LayoutDashboard },
         { id: 'ATTENDANCE CALENDAR', label: 'Calendar', icon: CalendarDays },
@@ -1208,7 +1208,7 @@ function Dashboard({
         { id: 'CRECOM APPROVAL', label: 'Approvals', icon: CheckCircle2 },
         { id: 'PROFILE', label: 'Profile', icon: User }
       ];
-    } else if (isSupervisor) {
+    } else if (isCoordinator || isSupervisor) {
       return [
         { id: 'DASHBOARD', label: 'Home', icon: LayoutDashboard },
         { id: 'ATTENDANCE', label: 'Punch-In', icon: Fingerprint },
@@ -3851,8 +3851,8 @@ function AttendanceModule({ user }: { user: UserProfile }) {
           return;
         }
 
-        // If the logged in user is a Field Officer or Supervisor, they must fill dynamic itinerary and tasks first
-        if (user.role === 'user' || user.role === 'supervisor') {
+        // If the logged in user is a Field Officer, Coordinator, or Supervisor, they must fill dynamic itinerary and tasks first
+        if (user.role === 'user' || user.role === 'supervisor' || user.role === 'coordinator') {
           setShowTimeInModal(true);
           return;
         }
@@ -4283,29 +4283,26 @@ function AttendanceModule({ user }: { user: UserProfile }) {
        {/* Time-In Planner Modal */}
       <AnimatePresence>
         {showTimeInModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto no-scrollbar">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => {
-                setShowTimeInModal(false);
-                setItineraryInput('');
-                setPlannedTasksInput('');
-              }}
-              className="absolute inset-0 bg-emerald-950/40 backdrop-blur-sm"
+              className="fixed inset-0 bg-emerald-950/40 backdrop-blur-sm -z-10"
             />
             <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-[calc(100%-1rem)] sm:max-w-sm relative z-10 p-5 sm:p-8 max-h-[90vh] overflow-y-auto no-scrollbar"
+              className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-[calc(100%-1rem)] sm:max-w-sm relative z-10 p-5 sm:p-8 max-h-[85vh] sm:max-h-none overflow-y-auto no-scrollbar my-auto"
             >
               <div className="text-center space-y-3 sm:space-y-4 mb-4 sm:mb-6">
                 <div className="w-12 h-12 sm:w-16 sm:h-16 bg-emerald-50 rounded-xl sm:rounded-2xl flex items-center justify-center mx-auto border border-emerald-55">
                    <Calendar size={24} className="text-emerald-600 sm:size-8" />
                 </div>
-                <h3 className="text-lg sm:text-2xl font-black text-emerald-900 uppercase tracking-tighter leading-tight">{user.role === 'supervisor' ? 'Supervisor' : 'Officer'} Time-In Planner</h3>
+                <h3 className="text-lg sm:text-2xl font-black text-emerald-900 uppercase tracking-tighter leading-tight">
+                  {user.role === 'supervisor' ? 'Supervisor' : user.role === 'coordinator' ? 'Coordinator' : 'Officer'} Time-In Planner
+                </h3>
                 <p className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest">Provide your itinerary and tasks before recording time-in</p>
               </div>
 
