@@ -1341,8 +1341,8 @@ function Dashboard({
     { id: 'ASSIGN ACCOUNT', icon: UserPlus },
     { id: 'ACCOUNT STATUS', icon: ClipboardList },
     { id: 'CRECOM APPROVAL', icon: CheckCircle2 },
-    { id: 'FOR VALIDATION & SURVEY', icon: Star },
-    { id: 'VALIDATION & SURVEY', icon: BarChart2 },
+    { id: 'FOR VALIDATION & SURVEY', icon: CheckCircle2 },
+    { id: 'VALIDATION & SURVEY', icon: Star },
     { id: 'EVALUATION', icon: Star },
     { id: 'DATA STORAGE', icon: Database },
     { id: 'SCORING CONFIG', icon: Settings2 },
@@ -3468,7 +3468,7 @@ function CIDashboard({ user }: { user: UserProfile }) {
     // Also fetch ALL assignments for the shared leaderboard only if privileged
     // Regular workers won't see are not allowed to list all assignments for security
     let unsubAll = () => {};
-    if (user.role === 'admin' || user.role === 'coordinator') {
+    if (user.role === 'admin' || user.role === 'coordinator' || user.role === 'supervisor') {
       const qAll = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'), limit(500));
       unsubAll = onSnapshot(qAll, (snapshot) => {
         setAllAssignments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[]);
@@ -5556,11 +5556,12 @@ function AccountStatus({ user }: { user: UserProfile }) {
       });
 
       // Notify relevant parties
-      if (user.role === 'admin' || user.role === 'coordinator') {
+      if (user.role === 'admin' || user.role === 'coordinator' || user.role === 'supervisor') {
+        const updaterRole = user.role === 'admin' ? 'Admin' : user.role === 'supervisor' ? 'Supervisor' : 'Coordinator';
         await createNotification(
           assignment.ciOfficerId,
           'Status Update',
-          `${user.role === 'admin' ? 'Admin' : 'Coordinator'} updated ${assignment.borrowerName} to ${nextStatus}`,
+          `${updaterRole} updated ${assignment.borrowerName} to ${nextStatus}`,
           'status_change',
           assignment.id
         );
@@ -5632,7 +5633,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
       return a.status === 'Archived' && matchesSearch && matchesType;
     }
     
-    if (a.status === 'Completed' || a.status === 'Denied' || a.status === 'Archived') return false;
+    if (a.status === 'Completed' || a.status === 'Denied' || a.status === 'Archived' || a.status === 'Approved') return false;
     const matchesSearch = a.borrowerName.toLowerCase().includes(search.toLowerCase()) ||
                          a.mobileNumber.includes(search);
     const matchesStatus = statusFilter === 'All' || a.status === statusFilter;
@@ -5678,8 +5679,8 @@ function AccountStatus({ user }: { user: UserProfile }) {
                 onChange={(e) => setStatusFilter(e.target.value)}
               >
                 <option value="All">All Status</option>
-                {steps.filter(s => s !== 'Completed' && s !== 'Denied').map(s => <option key={s} value={s}>{s}</option>)}
-                {(user.role === 'admin' || user.role === 'coordinator') && (
+                {steps.filter(s => s !== 'Completed' && s !== 'Denied' && s !== 'Approved').map(s => <option key={s} value={s}>{s}</option>)}
+                {(user.role === 'admin' || user.role === 'coordinator' || user.role === 'supervisor') && (
                   <option value="Archived">Archived</option>
                 )}
               </select>
@@ -5718,7 +5719,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
                     )}>
                       {a.status}
                     </span>
-                    {user.role === 'admin' && (
+                    {(user.role === 'admin' || user.role === 'supervisor') && (
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
@@ -5781,7 +5782,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
                 >
                   <Presentation size={14} /> PPT
                 </button>
-                {user.role === 'admin' && selected.status !== 'Archived' && (
+                {(user.role === 'admin' || user.role === 'supervisor') && selected.status !== 'Archived' && (
                   <button 
                     onClick={() => initiateArchive(selected)}
                     className="flex items-center gap-2 px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all border border-amber-200"
@@ -5790,7 +5791,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
                     <Archive size={14} /> Archive Client
                   </button>
                 )}
-                {(user.role === 'user' || (user.role === 'admin' && selected.ciOfficerId === user.id)) && selected.status !== 'Completed' && selected.status !== 'Approved' && selected.status !== 'Denied' && selected.status !== 'Report Submitted' && selected.status !== 'Pre-approved' && (
+                {(user.role === 'user' || ((user.role === 'admin' || user.role === 'supervisor') && selected.ciOfficerId === user.id)) && selected.status !== 'Completed' && selected.status !== 'Approved' && selected.status !== 'Denied' && selected.status !== 'Report Submitted' && selected.status !== 'Pre-approved' && (
                 <button 
                   onClick={() => handleNextStep(selected)}
                   className="px-6 py-2 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/10"
@@ -5798,7 +5799,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
                   Mark Next Step as Done
                 </button>
               )}
-              {user.role === 'admin' && selected.status === 'Report Submitted' && (
+              {(user.role === 'admin' || user.role === 'supervisor') && selected.status === 'Report Submitted' && (
                 <div className="flex items-center gap-2">
                   <button 
                     onClick={() => handleDenyReportSubmitted(selected)}
@@ -5814,7 +5815,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
                   </button>
                 </div>
               )}
-              {user.role === 'admin' && (
+              {(user.role === 'admin' || user.role === 'supervisor') && (
                 <div className="flex items-center gap-2">
                   <button 
                     onClick={() => setIsEditing(true)}
@@ -6554,7 +6555,7 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
 
   const results = calculateGrades();
   const isReadOnly = forceReadOnly || (
-    user.role !== 'admin' && (
+    user.role !== 'admin' && user.role !== 'supervisor' && (
       user.role !== 'user' || assignment.status !== 'Field CIBI'
     )
   );
@@ -7349,13 +7350,14 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
   };
 
   const isReadOnly = forceReadOnly || (
-    user.role !== 'admin' && (
+    user.role !== 'admin' && user.role !== 'supervisor' && (
       user.role !== 'user' || (assignment.status !== 'Cashflowing' && assignment.status !== 'Report Submitted')
     )
   );
 
   const isCiRecommendationEditable = (
     user.role === 'admin' ||
+    user.role === 'supervisor' ||
     user.role === 'coordinator' ||
     assignment.ciOfficerId === user.id ||
     user.role === 'user'
@@ -8201,7 +8203,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                 </div>
 
                   <div className="pt-8 flex flex-col gap-4 mt-auto">
-                    {user.role === 'admin' ? (
+                    {(user.role === 'admin' || user.role === 'supervisor') ? (
                       <>
                         <button 
                           onClick={handleDeny}
@@ -8218,7 +8220,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                       </>
                     ) : (
                       <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100 italic text-[10px] text-amber-700 font-bold text-center">
-                        Viewing as {user.role === 'supervisor' ? 'Supervisor' : 'Coordinator'}. Final approval authority is restricted to System Administrators.
+                        Viewing as {user.role}. Final approval authority is restricted.
                       </div>
                     )}
                   </div>
@@ -8666,7 +8668,7 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
         timeline: [...selected.timeline, {
           step: 'Response Deleted',
           timestamp: new Date().toISOString(),
-          note: `Admin ${user.fullName} deleted the previous validation & survey response.`
+          note: `${user.role === 'admin' ? 'Admin' : 'Supervisor'} ${user.fullName} deleted the previous validation & survey response.`
         }]
       });
       setSelected(null);
@@ -8801,7 +8803,7 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
                     </div>
                   </div>
                   <div className="flex items-start gap-4">
-                    {user.role === 'admin' && (
+                    {(user.role === 'admin' || user.role === 'supervisor') && (
                       <button
                         onClick={handleDeleteResponse}
                         disabled={isDeleting}
