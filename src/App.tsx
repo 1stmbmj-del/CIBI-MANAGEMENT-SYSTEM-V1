@@ -3960,119 +3960,125 @@ function AttendanceModule({ user }: { user: UserProfile }) {
   if (isLoading) return <div className="p-12 text-center text-emerald-800 font-bold uppercase tracking-widest animate-pulse">Loading Records...</div>;
 
   return (
-    <div className="space-y-12">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="space-y-6 sm:space-y-12">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white p-6 rounded-3xl border border-emerald-50 shadow-sm"
+          className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-emerald-50 shadow-sm"
         >
-           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Total Presence</p>
-           <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
-                <CheckCircle size={20} />
+           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 sm:mb-2">Total Presence</p>
+           <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-emerald-50 rounded-lg sm:rounded-xl flex items-center justify-center text-emerald-600 shrink-0">
+                <CheckCircle size={16} className="sm:size-5" />
               </div>
-              <span className="text-4xl font-black text-emerald-900 tracking-tighter">{records.length}</span>
+              <span className="text-2xl sm:text-4xl font-black text-emerald-900 tracking-tighter">{records.length}</span>
            </div>
-           <p className="text-[9px] font-bold text-gray-400 uppercase mt-2">Active Duty Days</p>
+           <p className="text-[8px] sm:text-[9px] font-bold text-gray-400 uppercase mt-1 sm:mt-2">Active Duty Days</p>
         </motion.div>
 
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-white p-6 rounded-3xl border border-amber-50 shadow-sm"
+          className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-amber-50 shadow-sm"
         >
-           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 text-amber-600">Total Late</p>
-           <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-500">
-                <AlertCircle size={20} />
+           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 sm:mb-2 text-amber-600">Total Late</p>
+           <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-amber-50 rounded-lg sm:rounded-xl flex items-center justify-center text-amber-500 shrink-0">
+                <AlertCircle size={16} className="sm:size-5" />
               </div>
-              <span className="text-4xl font-black text-amber-600 tracking-tighter">{records.filter(r => r.status === 'LATE').length}</span>
+              <span className="text-2xl sm:text-4xl font-black text-amber-600 tracking-tighter">{records.filter(r => r.status === 'LATE').length}</span>
            </div>
-           <p className="text-[9px] font-bold text-gray-400 uppercase mt-2">Time-In Violations</p>
+           <p className="text-[8px] sm:text-[9px] font-bold text-gray-400 uppercase mt-1 sm:mt-2">Time-In Violations</p>
         </motion.div>
       </div>
 
       {!isAdmin && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
           <motion.div
-            whileHover={{ scale: 1.02 }}
+            whileHover={{ scale: 1.01 }}
             className={cn(
-              "h-48 rounded-3xl p-8 flex flex-col justify-between relative overflow-hidden transition-all shadow-xl",
+              "h-40 sm:h-48 rounded-2xl sm:rounded-3xl p-5 sm:p-8 flex flex-col justify-between relative overflow-hidden transition-all shadow-xl",
               todayRecord ? "bg-emerald-900/10 border-2 border-emerald-500/20" : "bg-black text-white"
             )}
           >
              <div className="z-10">
                 <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Entry Activity</p>
-                <h3 className={cn("text-4xl font-black uppercase tracking-tighter mt-1", todayRecord ? "text-emerald-900" : "text-white")}>
+                <h3 className={cn("text-xl sm:text-2xl md:text-4xl font-black uppercase tracking-tighter mt-1 truncate", todayRecord ? "text-emerald-900" : "text-white")}>
                     {todayRecord ? "Time In" : "Ready to Start"}
                 </h3>
              </div>
              <div className="z-10 flex items-center justify-between">
                 {todayRecord?.timeIn ? (
-                  <span className="text-2xl font-mono text-emerald-600 font-black">{todayRecord.timeIn}</span>
+                  <span className="text-xl sm:text-2xl font-mono text-emerald-600 font-black">{todayRecord.timeIn}</span>
                 ) : (
                   <button 
                     onClick={() => handleTimeAction('in')}
                     disabled={isSubmittingAction}
-                    className="bg-white text-black px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50"
+                    className="bg-white text-black px-4 sm:px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50"
                   >
                     {isSubmittingAction ? "Processing..." : "Time In Now"}
                   </button>
                 )}
-                <TrendingUp size={32} className="opacity-20 translate-x-4" />
+                <TrendingUp size={24} className="opacity-20 translate-x-4 sm:size-8" />
              </div>
-             <Fingerprint className="absolute -right-8 -bottom-8 w-48 h-48 opacity-5" />
+             <Fingerprint className="absolute -right-8 -bottom-8 w-32 sm:w-48 h-32 sm:h-48 opacity-5" />
           </motion.div>
 
           <motion.div
-            whileHover={{ scale: 1.02 }}
+            whileHover={{ scale: 1.01 }}
             className={cn(
-              "h-48 rounded-3xl p-8 flex flex-col justify-between relative overflow-hidden transition-all shadow-xl",
+              "h-40 sm:h-48 rounded-2xl sm:rounded-3xl p-5 sm:p-8 flex flex-col justify-between relative overflow-hidden transition-all shadow-xl",
               (todayRecord?.timeOut) ? "bg-indigo-900/10 border-2 border-indigo-500/20" : "bg-linear-to-br from-indigo-700 to-purple-800 text-white"
             )}
           >
              <div className="z-10">
                 <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Exit Activity</p>
-                <h3 className={cn("text-4xl font-black uppercase tracking-tighter mt-1", todayRecord?.timeOut ? "text-indigo-900" : "text-white")}>
+                <h3 className={cn("text-xl sm:text-2xl md:text-4xl font-black uppercase tracking-tighter mt-1 truncate", todayRecord?.timeOut ? "text-indigo-900" : "text-white")}>
                     {todayRecord?.timeOut ? "Time Out" : "Duty in Progress"}
                 </h3>
              </div>
              <div className="z-10 flex items-center justify-between">
                 {todayRecord?.timeOut ? (
-                  <span className="text-2xl font-mono text-indigo-600 font-black">{todayRecord.timeOut}</span>
+                  <span className="text-xl sm:text-2xl font-mono text-indigo-600 font-black">{todayRecord.timeOut}</span>
                 ) : (
                   <button 
                     onClick={() => handleTimeAction('out')}
                     disabled={!todayRecord || isAfterCutoff}
-                    className="bg-white text-indigo-900 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50"
+                    className="bg-white text-indigo-900 px-4 sm:px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50"
                   >
                     {isAfterCutoff ? "Cutoff Reached" : "Time Out Now"}
                   </button>
                 )}
-                <Clock size={32} className="opacity-20 translate-x-4" />
+                <Clock size={24} className="opacity-20 translate-x-4 sm:size-8" />
              </div>
-             <Timer className="absolute -right-8 -bottom-8 w-48 h-48 opacity-5" />
+             <Timer className="absolute -right-8 -bottom-8 w-32 sm:w-48 h-32 sm:h-48 opacity-5" />
           </motion.div>
         </div>
       )}
 
       {/* RECENT ACTIVITY */}
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
-        <div className="flex justify-between items-center mb-8">
-          <h3 className="text-xs font-black text-emerald-800 uppercase tracking-[0.2em]">
-            {isAdmin ? "Summary of Attendance" : "Recent Activity"}
-          </h3>
-          <div className="flex items-center gap-4">
-             <span className="text-[9px] text-gray-400 font-bold uppercase">{records.length} records found</span>
-             <button className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full uppercase tracking-tighter hover:bg-emerald-100 transition-colors">
+      <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 p-4 sm:p-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8">
+          <div>
+            <h3 className="text-xs sm:text-sm font-black text-emerald-800 uppercase tracking-[0.2em]">
+              {isAdmin ? "Summary of Attendance" : "Recent Activity"}
+            </h3>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1 block sm:hidden">
+              {records.length} records found
+            </p>
+          </div>
+          <div className="flex items-center justify-between w-full sm:w-auto gap-4">
+             <span className="text-[9px] text-gray-400 font-bold uppercase hidden sm:inline">{records.length} records found</span>
+             <button className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full uppercase tracking-tighter hover:bg-emerald-100 transition-colors ml-auto sm:ml-0">
                 Refresh
              </button>
           </div>
         </div>
         
-        <div className="overflow-x-auto no-scrollbar">
+        {/* DESKTOP TABLE VIEW */}
+        <div className="hidden md:block overflow-x-auto no-scrollbar">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest text-left">
@@ -4178,19 +4184,106 @@ function AttendanceModule({ user }: { user: UserProfile }) {
               ))}
             </tbody>
           </table>
-          {records.length === 0 && (
-            <div className="py-24 text-center text-gray-300">
-               <Fingerprint className="mx-auto mb-2 opacity-20" size={48} />
-               <p className="text-[10px] font-bold uppercase tracking-widest">No activity reported</p>
-            </div>
-          )}
         </div>
+
+        {/* MOBILE CARDS VIEW */}
+        <div className="block md:hidden space-y-4">
+          {records.map((r) => (
+            <div key={r.id} className="bg-slate-50/50 p-4 rounded-xl border border-gray-100 space-y-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-black text-emerald-99 uppercase truncate max-w-[180px]">{r.userName}</p>
+                  <p className="text-[10px] font-bold text-gray-500 mt-0.5">{format(new Date(r.date), 'MMMM dd, yyyy')}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <span className={cn(
+                    "px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider",
+                    r.status === 'ON TIME' ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                  )}>{r.status}</span>
+                  <div className="flex gap-1">
+                    {r.timeIn && (
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[8px] font-black uppercase">In: {r.timeIn.substring(0, 5)}</span>
+                    )}
+                    {r.timeOut && (
+                      <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[8px] font-black uppercase">Out: {r.timeOut.substring(0, 5)}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-gray-100/60 text-[10px] text-gray-600">
+                {r.itinerary && (
+                  <div>
+                    <span className="text-emerald-700 font-extrabold text-[8px] uppercase tracking-wider block mb-0.5">🗺️ Itinerary / Routing</span>
+                    <p className="leading-relaxed text-slate-700 font-semibold whitespace-pre-line bg-white/70 p-2 rounded-lg border border-slate-100">{r.itinerary}</p>
+                  </div>
+                )}
+                {r.plannedTasks && (
+                  <div>
+                    <span className="text-indigo-700 font-extrabold text-[8px] uppercase tracking-wider block mb-0.5">📋 Day Goals</span>
+                    <p className="leading-relaxed text-slate-600 font-semibold whitespace-pre-line bg-white/70 p-2 rounded-lg border border-indigo-50/50">{r.plannedTasks}</p>
+                  </div>
+                )}
+                {r.tasks && (
+                  <div>
+                    <span className="text-gray-500 font-extrabold text-[8px] uppercase tracking-wider block mb-0.5">📝 Work Logs (PM)</span>
+                    <p className="leading-relaxed text-slate-500 font-medium italic whitespace-pre-line bg-white/70 p-2 rounded-lg border border-gray-100">{r.tasks}</p>
+                  </div>
+                )}
+                {(isAdmin || user.role === 'coordinator' || user.role === 'supervisor') && r.coordinatorRemarks && (
+                  <div className="bg-indigo-50/50 p-2 rounded-lg border border-indigo-100/60">
+                    <span className="text-indigo-700 font-extrabold text-[8px] uppercase tracking-wider block">Coord Remarks:</span>
+                    <p className="leading-relaxed text-indigo-700 font-semibold">{r.coordinatorRemarks}</p>
+                  </div>
+                )}
+              </div>
+
+              {(isAdmin || user.role === 'coordinator') && (
+                <div className="flex justify-end gap-2 pt-2 border-t border-gray-100/60">
+                  <button 
+                    onClick={() => {
+                      setEditingRecord(r);
+                      setCoordRemarks(r.coordinatorRemarks || '');
+                    }}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-[9px] font-black uppercase tracking-wider rounded-lg transition-colors"
+                  >
+                    <Pencil size={10} /> Remarks
+                  </button>
+                  {isAdmin && (
+                    <button 
+                      onClick={async () => {
+                        if (confirm('Are you sure you want to delete this attendance record?')) {
+                          try {
+                            await deleteDoc(doc(db, 'attendance', r.id));
+                            toast.success("Record deleted");
+                          } catch (err) {
+                            handleFirestoreError(err, OperationType.DELETE, `attendance/${r.id}`);
+                          }
+                        }
+                      }}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-[9px] font-black uppercase tracking-wider rounded-lg transition-colors"
+                    >
+                      <Trash2 size={10} /> Delete
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {records.length === 0 && (
+          <div className="py-16 sm:py-24 text-center text-gray-300">
+             <Fingerprint className="mx-auto mb-2 opacity-20" size={40} />
+             <p className="text-[10px] font-bold uppercase tracking-widest">No activity reported</p>
+          </div>
+        )}
       </div>
 
        {/* Time-In Planner Modal */}
       <AnimatePresence>
         {showTimeInModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -4206,54 +4299,54 @@ function AttendanceModule({ user }: { user: UserProfile }) {
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-sm relative z-10 p-8"
+              className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-[calc(100%-1rem)] sm:max-w-sm relative z-10 p-5 sm:p-8 max-h-[90vh] overflow-y-auto no-scrollbar"
             >
-              <div className="text-center space-y-4 mb-6">
-                <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto border border-emerald-55">
-                   <Calendar size={32} className="text-emerald-600" />
+              <div className="text-center space-y-3 sm:space-y-4 mb-4 sm:mb-6">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-emerald-50 rounded-xl sm:rounded-2xl flex items-center justify-center mx-auto border border-emerald-55">
+                   <Calendar size={24} className="text-emerald-600 sm:size-8" />
                 </div>
-                <h3 className="text-2xl font-black text-emerald-900 uppercase tracking-tighter">{user.role === 'supervisor' ? 'Supervisor' : 'Officer'} Time-In Planner</h3>
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Provide your itinerary and tasks before recording time-in</p>
+                <h3 className="text-lg sm:text-2xl font-black text-emerald-900 uppercase tracking-tighter leading-tight">{user.role === 'supervisor' ? 'Supervisor' : 'Officer'} Time-In Planner</h3>
+                <p className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest">Provide your itinerary and tasks before recording time-in</p>
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-1 text-left">
-                  <label className="text-[9px] font-black uppercase tracking-widest text-gray-400">Daily Itinerary / Routing <span className="text-red-500 font-bold">*</span></label>
+                  <label className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-gray-400">Daily Itinerary / Routing <span className="text-red-500 font-bold">*</span></label>
                   <textarea
                     value={itineraryInput}
                     onChange={(e) => setItineraryInput(e.target.value)}
                     placeholder="E.G., Field visit to Calamba, Laguna; Client verification at Brgy. Canlubang..."
-                    className="w-full h-24 bg-gray-50 border-2 border-emerald-55 rounded-2xl p-3 text-xs font-bold text-gray-700 focus:border-emerald-500 focus:outline-none transition-all resize-none"
+                    className="w-full h-20 sm:h-24 bg-gray-50 border-2 border-emerald-55 rounded-xl sm:rounded-2xl p-3 text-xs font-bold text-gray-700 focus:border-emerald-500 focus:outline-none transition-all resize-none"
                     required
                   />
                 </div>
 
                 <div className="space-y-1 text-left">
-                  <label className="text-[9px] font-black uppercase tracking-widest text-gray-400">Tasks / Day Goals <span className="text-red-500 font-bold">*</span></label>
+                  <label className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-gray-400">Tasks / Day Goals <span className="text-red-500 font-bold">*</span></label>
                   <textarea
                     value={plannedTasksInput}
                     onChange={(e) => setPlannedTasksInput(e.target.value)}
                     placeholder="E.G., Complete 3 client credit assessments; Submit cashflow reports by 4 PM..."
-                    className="w-full h-24 bg-gray-50 border-2 border-emerald-55 rounded-2xl p-3 text-xs font-bold text-gray-700 focus:border-emerald-500 focus:outline-none transition-all resize-none"
+                    className="w-full h-20 sm:h-24 bg-gray-50 border-2 border-emerald-55 rounded-xl sm:rounded-2xl p-3 text-xs font-bold text-gray-700 focus:border-emerald-500 focus:outline-none transition-all resize-none"
                     required
                   />
                 </div>
 
-                <div className="flex gap-4 pt-2">
+                <div className="flex gap-3 sm:gap-4 pt-2">
                   <button
                     onClick={() => {
                       setShowTimeInModal(false);
                       setItineraryInput('');
                       setPlannedTasksInput('');
                     }}
-                    className="flex-1 h-12 border-2 border-gray-100 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-50 transition-colors"
+                    className="flex-1 h-10 sm:h-12 border border-gray-100 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-50 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={confirmTimeIn}
                     disabled={isSubmittingAction || !itineraryInput.trim() || !plannedTasksInput.trim()}
-                    className="flex-1 h-12 bg-emerald-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-950/20 active:scale-95 transition-all disabled:opacity-50"
+                    className="flex-1 h-10 sm:h-12 bg-emerald-800 text-white rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-950/20 active:scale-95 transition-all disabled:opacity-50"
                   >
                     {isSubmittingAction ? "Recording..." : "Verify & Time In"}
                   </button>
@@ -9253,7 +9346,7 @@ function ReportsView({ user }: { user: UserProfile }) {
   useEffect(() => {
     setLoading(true);
     const unsubscribes: (() => void)[] = [];
-    const isAdminOrCoordinator = user.role === 'admin' || user.role === 'coordinator';
+    const isAdminOrCoordinator = user.role === 'admin' || user.role === 'coordinator' || user.role === 'supervisor';
 
     // Assignments
     const qAssign = isAdminOrCoordinator 
@@ -9988,7 +10081,8 @@ function OBFillingModule({ user }: { user: UserProfile }) {
 function AttendanceCalendar({ user }: { user: UserProfile }) {
   const isAdmin = user.role === 'admin';
   const isCoordinator = user.role === 'coordinator';
-  const canManage = isAdmin || isCoordinator;
+  const isSupervisor = user.role === 'supervisor';
+  const canManage = isAdmin || isCoordinator || isSupervisor;
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [obRequests, setObRequests] = useState<OBRequest[]>([]);
