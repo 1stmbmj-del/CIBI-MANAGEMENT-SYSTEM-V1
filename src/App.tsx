@@ -7081,7 +7081,7 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
   }, [assignment.id, assignment.cashflowReport, assignment.aiAnalysis]);
 
   // Extract or fallback collaterals list
-  const activeCollaterals = (ciRecommendation.collaterals && ciRecommendation.collaterals.length > 0)
+  const activeCollaterals = (ciRecommendation.collaterals !== undefined)
     ? ciRecommendation.collaterals
     : (ciRecommendation.collateralType ? [{
         id: 'legacy-1',
