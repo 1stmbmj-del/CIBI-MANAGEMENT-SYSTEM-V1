@@ -112,6 +112,29 @@ Recommended Term of Credit check: ${assignment.cashflowReport.ciRecommendation?.
 CI Recommended Loan Amount: ₱${(assignment.cashflowReport.ciRecommendation?.loanAmount || 0).toLocaleString()}
 ` : "No financial cashflow diagnostic or monthly statement filled yet."}
 
+--- COLLATERAL EVALUATION DETAILS ---
+${assignment.cashflowReport?.ciRecommendation?.hasCollateral ? `
+Has Collateral: Yes
+Collateral Type: ${assignment.cashflowReport.ciRecommendation.collateralType || "N/A"}
+Collaterals List:
+${assignment.cashflowReport.ciRecommendation.collaterals && assignment.cashflowReport.ciRecommendation.collaterals.length > 0 
+  ? assignment.cashflowReport.ciRecommendation.collaterals.map((c: any, i: number) => 
+      `- ${i + 1}. Type: ${c.type || "Other"} | Value @ 100%: ₱${(c.value100 || 0).toLocaleString()} | Value @ 70%: ₱${(c.value70 || 0).toLocaleString()}`
+    ).join("\n")
+  : `Single Collateral Type: ${assignment.cashflowReport.ciRecommendation.collateralType || "N/A"} | Value @ 100%: ₱${(assignment.cashflowReport.ciRecommendation.collateralValue100 || 0).toLocaleString()} | Value @ 70%: ₱${(assignment.cashflowReport.ciRecommendation.collateralValue70 || 0).toLocaleString()}`}
+Total Collateral Value @ 100%: ₱${(assignment.cashflowReport.ciRecommendation.collaterals && assignment.cashflowReport.ciRecommendation.collaterals.length > 0 
+  ? assignment.cashflowReport.ciRecommendation.collaterals.reduce((sum: number, c: any) => sum + Number(c.value100 || 0), 0)
+  : (assignment.cashflowReport.ciRecommendation.collateralValue100 || 0)).toLocaleString()}
+Total Collateral Value @ 70%: ₱${(assignment.cashflowReport.ciRecommendation.collaterals && assignment.cashflowReport.ciRecommendation.collaterals.length > 0 
+  ? assignment.cashflowReport.ciRecommendation.collaterals.reduce((sum: number, c: any) => sum + Number(c.value70 || 0), 0)
+  : (assignment.cashflowReport.ciRecommendation.collateralValue70 || 0)).toLocaleString()}
+Amount @ Risk (Loan - 70% Collateral): ₱${(Number(assignment.cashflowReport.ciRecommendation.loanAmount || 0) - Number(
+  assignment.cashflowReport.ciRecommendation.collaterals && assignment.cashflowReport.ciRecommendation.collaterals.length > 0 
+    ? assignment.cashflowReport.ciRecommendation.collaterals.reduce((sum: number, c: any) => sum + Number(c.value70 || 0), 0)
+    : (assignment.cashflowReport.ciRecommendation.collateralValue70 || 0)
+)).toLocaleString()}
+` : "No Collateral provided / Unsecured loan."}
+
 --- END OF RECORD ---`;
 
       const modelsToTry = [
@@ -141,11 +164,13 @@ Summarize monthly Net Disposable Income (NDI) and evaluate if the requested loan
 
 ### 2. Credit Scoring & Risk Analysis
 Analyze their risk classification/grade (${assignment.creditScore?.finalGrade || assignment.creditScore?.totalGrade || assignment.mclCreditScore?.riskClassification || 'N/A'}) and highlight specific risk elements in stability, business foot traffic, or household criteria. Critically weigh their outstanding external debts (liabilities) and the impact of existing amortizations on the proposed obligation.
+If there is indicated collateral, include a brief evaluation of the collateral types, valuation coverage, and the resulting Amount @ Risk here.
 
 ### 3. Credit Recommendation & Mitigating Strategy
 Express if the loan is fully viable, should be resized/restructured (lower amount or longer term for amortization relief), or conditioned. Specify a suggested approved amount, term (months), monthly amortization range, and list 2-3 specific risk-mitigating strategies (e.g. requiring a co-maker, specific post-dated check security, or periodic site inspections).
+Explicitly assess if the indicated collateral (if any) provides adequate coverage and significantly mitigates the credit risk of the loan.
 
-Be objective, concise, and business-focused (avoid boilerplate sales jargon). Word count limit: 250-400 words. DO NOT output any system logs, port info, or technical database tracking strings. Keep the tone completely professional, humble, and analytical.`,
+Be objective, concise, and business-focused (avoid boilerplate sales jargon). Word count limit: 250-450 words. DO NOT output any system logs, port info, or technical database tracking strings. Keep the tone completely professional, humble, and analytical.`,
               temperature: 0.7,
             }
           });
@@ -181,11 +206,13 @@ Summarize monthly Net Disposable Income (NDI) and evaluate if the requested loan
 
 ### 2. Credit Scoring & Risk Analysis
 Analyze their risk classification/grade (${assignment.creditScore?.finalGrade || assignment.creditScore?.totalGrade || assignment.mclCreditScore?.riskClassification || 'N/A'}) and highlight specific risk elements in stability, business foot traffic, or household criteria. Critically weigh their outstanding external debts (liabilities) and the impact of existing amortizations on the proposed obligation.
+If there is indicated collateral, include a brief evaluation of the collateral types, valuation coverage, and the resulting Amount @ Risk here.
 
 ### 3. Credit Recommendation & Mitigating Strategy
 Express if the loan is fully viable, should be resized/restructured (lower amount or longer term for amortization relief), or conditioned. Specify a suggested approved amount, term (months), monthly amortization range, and list 2-3 specific risk-mitigating strategies (e.g. requiring a co-maker, specific post-dated check security, or periodic site inspections).
+Explicitly assess if the indicated collateral (if any) provides adequate coverage and significantly mitigates the credit risk of the loan.
 
-Be objective, concise, and business-focused (avoid boilerplate sales jargon). Word count limit: 250-400 words. DO NOT output any system logs, port info, or technical database tracking strings. Keep the tone completely professional, humble, and analytical.`,
+Be objective, concise, and business-focused (avoid boilerplate sales jargon). Word count limit: 250-450 words. DO NOT output any system logs, port info, or technical database tracking strings. Keep the tone completely professional, humble, and analytical.`,
                 temperature: 0.7,
               }
             });

@@ -261,6 +261,63 @@ const generateAssignmentPPT = (a: Assignment) => {
       slideLia.addText("No external liabilities or outstanding loans declared for this borrower.", { x: 0.5, y: 1.5, w: 9.0, h: 0.5, fontSize: 13, italic: true });
     }
 
+    // Slide 4.8: Collateral Evaluation (if applicable)
+    if (recommended.hasCollateral) {
+      const slideCol = pptx.addSlide();
+      slideCol.addText("COLLATERAL EVALUATION", { x: 0.5, y: 0.3, w: 9.0, h: 0.5, fontSize: 18, bold: true, color: "065F46" });
+
+      const collateralsList = (recommended.collaterals && recommended.collaterals.length > 0)
+        ? recommended.collaterals
+        : (recommended.collateralType ? [{
+            id: 'legacy-1',
+            type: recommended.collateralType,
+            value100: recommended.collateralValue100 || 0,
+            value70: recommended.collateralValue70 || 0
+          }] : []);
+
+      if (collateralsList.length > 0) {
+        const colHeader = [
+          [
+            { text: "COLLATERAL TYPE", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } },
+            { text: "VALUE @ 100%", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } },
+            { text: "VALUE @ 70%", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } }
+          ]
+        ];
+
+        const colRows = [
+          ...colHeader,
+          ...collateralsList.map((col: any) => [
+            { text: col.type || "Other" },
+            { text: col.value100 ? `₱${Number(col.value100).toLocaleString()}` : "₱0" },
+            { text: col.value70 ? `₱${Number(col.value70).toLocaleString()}` : "₱0" }
+          ])
+        ];
+
+        slideCol.addTable(colRows, { x: 0.5, y: 1.0, w: 9.0, fontSize: 11, border: { pt: 1, color: "E2E8F0" } });
+
+        const total100 = collateralsList.reduce((sum: number, item: any) => sum + Number(item.value100 || 0), 0);
+        const total70 = collateralsList.reduce((sum: number, item: any) => sum + Number(item.value70 || 0), 0);
+        const proposedAmount = Number(recommended.loanAmount || 0);
+        const riskAmount = proposedAmount - total70;
+        const isNegRisk = riskAmount < 0;
+
+        slideCol.addTable(
+          [
+            [{ text: "Total Collateral Value (100%)", options: { bold: true, fill: { color: "F3F4F6" } } }, { text: `₱${total100.toLocaleString()}` }],
+            [{ text: "Total Collateral Value (70%)", options: { bold: true, fill: { color: "F3F4F6" } } }, { text: `₱${total70.toLocaleString()}` }],
+            [{ text: "Recommended Loan Amount", options: { bold: true, fill: { color: "F3F4F6" } } }, { text: `₱${proposedAmount.toLocaleString()}` }],
+            [
+              { text: "Amount @ Risk", options: { bold: true, fill: { color: isNegRisk ? "FEE2E2" : "E0F2FE" }, color: isNegRisk ? "991B1B" : "0369A1" } },
+              { text: `${isNegRisk ? '-' : ''}₱${Math.abs(riskAmount).toLocaleString()}`, options: { bold: true, fill: { color: isNegRisk ? "FEE2E2" : "E0F2FE" }, color: isNegRisk ? "991B1B" : "0369A1" } }
+            ]
+          ],
+          { x: 0.5, y: 3.5, w: 9.0, fontSize: 11, border: { pt: 1, color: "E2E8F0" } }
+        );
+      } else {
+        slideCol.addText("No matching collateral items specified, but collateral evaluation is enabled.", { x: 0.5, y: 1.5, w: 9.0, h: 0.5, fontSize: 13, italic: true });
+      }
+    }
+
     const slide5 = pptx.addSlide();
     slide5.addText("CI RECOMMENDATION & JUSTIFICATION", { x: 0.5, y: 0.3, w: 9.0, h: 0.5, fontSize: 18, bold: true, color: "065F46" });
     slide5.addText("PROPOSED REPAYMENT TERMS:", { x: 0.5, y: 1.0, w: 9.0, h: 0.3, fontSize: 12, bold: true });
@@ -6601,7 +6658,9 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
           riskScore,
           recommendation: formData.recommendation,
           ciRemarks: formData.ciRemarks,
-          isBusinessEnabled
+          isBusinessEnabled,
+          riskClassification,
+          finalGrade: riskClassification
         };
         await updateDoc(doc(db, 'assignments', assignment.id), { creditScore: scoreData });
       }
@@ -6965,9 +7024,11 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
     food: 0, rent: 0, electricity: 0, water: 0, insurance: 0, clothing: 0, lpg: 0, association: 0,
     loanPayments: 0, vehicle: 0, transportation: 0, internet: 0, education: 0, medical: 0, miscellaneous: 0, total: 0
   });
-  const [ciRecommendation, setCiRecommendation] = useState(assignment.cashflowReport?.ciRecommendation || {
+  const [ciRecommendation, setCiRecommendation] = useState({
     loanAmount: assignment.requestedAmount, term: safeParseTerm(assignment.term) || 0, interest: 0, rate: 4,
-    monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: ''
+    monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: '',
+    hasCollateral: false, collateralType: '', collateralValue100: 0, collateralValue70: 0,
+    ...(assignment.cashflowReport?.ciRecommendation || {})
   });
   const [opRecommendation, setOpRecommendation] = useState(assignment.cashflowReport?.operationRecommendation || {
     loanAmount: assignment.requestedAmount, term: safeParseTerm(assignment.term) || 0, interest: 0, rate: 4,
@@ -6988,9 +7049,11 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
         food: 0, rent: 0, electricity: 0, water: 0, insurance: 0, clothing: 0, lpg: 0, association: 0,
         loanPayments: 0, vehicle: 0, transportation: 0, internet: 0, education: 0, medical: 0, miscellaneous: 0, total: 0
       });
-      setCiRecommendation(assignment.cashflowReport.ciRecommendation || {
+      setCiRecommendation({
         loanAmount: assignment.requestedAmount, term: safeParseTerm(assignment.term) || 0, interest: 0, rate: 4,
-        monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: ''
+        monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: '',
+        hasCollateral: false, collateralType: '', collateralValue100: 0, collateralValue70: 0,
+        ...assignment.cashflowReport.ciRecommendation
       });
       setOpRecommendation(assignment.cashflowReport.operationRecommendation || {
         loanAmount: assignment.requestedAmount, term: safeParseTerm(assignment.term) || 0, interest: 0, rate: 4,
@@ -7006,7 +7069,8 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
       });
       setCiRecommendation({
         loanAmount: assignment.requestedAmount, term: safeParseTerm(assignment.term) || 0, interest: 0, rate: 4,
-        monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: ''
+        monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: '',
+        hasCollateral: false, collateralType: '', collateralValue100: 0, collateralValue70: 0
       });
       setOpRecommendation({
         loanAmount: assignment.requestedAmount, term: safeParseTerm(assignment.term) || 0, interest: 0, rate: 4,
@@ -7015,6 +7079,74 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
     }
     setAiReportText(assignment.aiAnalysis || null);
   }, [assignment.id, assignment.cashflowReport, assignment.aiAnalysis]);
+
+  // Extract or fallback collaterals list
+  const activeCollaterals = (ciRecommendation.collaterals && ciRecommendation.collaterals.length > 0)
+    ? ciRecommendation.collaterals
+    : (ciRecommendation.collateralType ? [{
+        id: 'legacy-1',
+        type: ciRecommendation.collateralType,
+        value100: ciRecommendation.collateralValue100 || 0,
+        value70: ciRecommendation.collateralValue70 || 0
+      }] : [{
+        id: 'col-1',
+        type: '',
+        value100: 0,
+        value70: 0
+      }]);
+
+  const addCollateralItem = () => {
+    const newItem = {
+      id: `col-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      type: '',
+      value100: 0,
+      value70: 0
+    };
+    const updated = [...activeCollaterals, newItem];
+    setCiRecommendation({
+      ...ciRecommendation,
+      collaterals: updated,
+      collateralType: updated[0]?.type || '',
+      collateralValue100: updated.reduce((sum, item) => sum + Number(item.value100 || 0), 0),
+      collateralValue70: updated.reduce((sum, item) => sum + Number(item.value70 || 0), 0)
+    });
+  };
+
+  const updateCollateralItem = (id: string, fields: Partial<{ type: string; value100: number; value70: number }>) => {
+    const updated = activeCollaterals.map(item => {
+      if (item.id === id) {
+        const newItem = { ...item, ...fields };
+        if ('value100' in fields) {
+          newItem.value70 = Math.round(Number(fields.value100 || 0) * 0.7);
+        }
+        return newItem;
+      }
+      return item;
+    });
+    setCiRecommendation({
+      ...ciRecommendation,
+      collaterals: updated,
+      collateralType: updated[0]?.type || '',
+      collateralValue100: updated.reduce((sum, item) => sum + Number(item.value100 || 0), 0),
+      collateralValue70: updated.reduce((sum, item) => sum + Number(item.value70 || 0), 0)
+    });
+  };
+
+  const removeCollateralItem = (id: string) => {
+    const updated = activeCollaterals.filter(item => item.id !== id);
+    setCiRecommendation({
+      ...ciRecommendation,
+      collaterals: updated,
+      collateralType: updated[0]?.type || '',
+      collateralValue100: updated.reduce((sum, item) => sum + Number(item.value100 || 0), 0),
+      collateralValue70: updated.reduce((sum, item) => sum + Number(item.value70 || 0), 0)
+    });
+  };
+
+  const totalCollateralValue100 = activeCollaterals.reduce((sum, item) => sum + Number(item.value100 || 0), 0);
+  const totalCollateralValue70 = activeCollaterals.reduce((sum, item) => sum + Number(item.value70 || 0), 0);
+  const amountAtRiskValue = Number(ciRecommendation.loanAmount || 0) - totalCollateralValue70;
+  const isNegativeRisk = amountAtRiskValue < 0;
 
   // Auto-calculations
   useEffect(() => {
@@ -7127,7 +7259,12 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
             loanAmount: safeNum(ciRecommendation.loanAmount),
             term: safeNum(ciRecommendation.term),
             rate: safeNum(ciRecommendation.rate),
-            remarks: ciRecommendation.remarks || ''
+            remarks: ciRecommendation.remarks || '',
+            hasCollateral: !!ciRecommendation.hasCollateral,
+            collateralType: ciRecommendation.collateralType || '',
+            collateralValue100: safeNum(ciRecommendation.collateralValue100),
+            collateralValue70: safeNum(ciRecommendation.collateralValue70),
+            collaterals: ciRecommendation.collaterals || []
           }
         }
       };
@@ -7209,6 +7346,11 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
           term: safeNum(ciRecommendation.term),
           rate: safeNum(ciRecommendation.rate),
           remarks: ciRecommendation.remarks || '',
+          hasCollateral: !!ciRecommendation.hasCollateral,
+          collateralType: ciRecommendation.collateralType || '',
+          collateralValue100: safeNum(ciRecommendation.collateralValue100),
+          collateralValue70: safeNum(ciRecommendation.collateralValue70),
+          collaterals: ciRecommendation.collaterals || [],
           ...calcAmort({
             loanAmount: safeNum(ciRecommendation.loanAmount),
             term: safeNum(ciRecommendation.term),
@@ -7305,6 +7447,11 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
           term: safeNum(ciRecommendation.term),
           rate: safeNum(ciRecommendation.rate),
           remarks: ciRecommendation.remarks || '',
+          hasCollateral: !!ciRecommendation.hasCollateral,
+          collateralType: ciRecommendation.collateralType || '',
+          collateralValue100: safeNum(ciRecommendation.collateralValue100),
+          collateralValue70: safeNum(ciRecommendation.collateralValue70),
+          collaterals: ciRecommendation.collaterals || [],
           ...calcAmort({
             loanAmount: safeNum(ciRecommendation.loanAmount),
             term: safeNum(ciRecommendation.term),
@@ -7608,6 +7755,138 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
               <p className="text-sm font-black text-emerald-800">₱ {calcAmort(ciRecommendation).monthlyAmort.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
             </div>
           </div>
+
+          {/* Collateral Segment */}
+          <div className="pt-4 border-t border-gray-100 space-y-4">
+            <div className="flex items-center justify-between bg-emerald-50/50 p-4 rounded-2xl border border-emerald-500/10">
+              <div className="space-y-0.5">
+                <span className="text-xs font-black text-emerald-900 uppercase tracking-wider">Collateral Evaluation</span>
+                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Does this loan have any matching collateral?</p>
+              </div>
+              <button
+                type="button"
+                disabled={!isCiRecommendationEditable}
+                onClick={() => setCiRecommendation({ 
+                  ...ciRecommendation, 
+                  hasCollateral: !ciRecommendation.hasCollateral,
+                  ...(!ciRecommendation.hasCollateral ? {} : { collateralType: '', collateralValue100: 0, collateralValue70: 0 })
+                })}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${ciRecommendation.hasCollateral ? 'bg-emerald-600' : 'bg-gray-200'} disabled:opacity-50`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${ciRecommendation.hasCollateral ? 'translate-x-5' : 'translate-x-0'}`}
+                />
+              </button>
+            </div>
+
+            {ciRecommendation.hasCollateral && (
+              <div className="space-y-4 p-6 bg-slate-50 rounded-3xl border border-slate-200/60 animate-in fade-in duration-200">
+                <div className="space-y-4">
+                  {activeCollaterals.map((item, idx) => (
+                    <div key={item.id} className="relative grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
+                      {/* Collateral Type */}
+                      <div className="md:col-span-5 space-y-1">
+                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Type of Collateral {activeCollaterals.length > 1 ? `#${idx + 1}` : ''}</label>
+                        <select
+                          disabled={!isCiRecommendationEditable}
+                          className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+                          value={item.type || ''}
+                          onChange={e => updateCollateralItem(item.id, { type: e.target.value })}
+                        >
+                          <option value="">-- Select Type --</option>
+                          <option value="Lot">Lot</option>
+                          <option value="House & Lot">House & Lot</option>
+                          <option value="Vehicle">Vehicle</option>
+                          <option value="Motorcycle">Motorcycle</option>
+                          <option value="Vehicle and motorcycle">Vehicle and motorcycle</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+
+                      {/* Value @ 100% */}
+                      <div className="md:col-span-3 space-y-1">
+                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Value @ 100%</label>
+                        <div className="relative">
+                          <span className="absolute left-4 top-3 text-sm font-bold text-gray-400">₱</span>
+                          <input
+                            disabled={!isCiRecommendationEditable}
+                            type="number"
+                            placeholder="0"
+                            className="w-full pl-8 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-black focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+                            value={item.value100 || ''}
+                            onChange={e => updateCollateralItem(item.id, { value100: Number(e.target.value) })}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Value @ 70% */}
+                      <div className="md:col-span-3 space-y-1">
+                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Value @ 70%</label>
+                        <div className="relative">
+                          <span className="absolute left-4 top-3 text-sm font-bold text-gray-400">₱</span>
+                          <input
+                            disabled={!isCiRecommendationEditable}
+                            type="number"
+                            placeholder="0"
+                            className="w-full pl-8 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-black focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+                            value={item.value70 || ''}
+                            onChange={e => updateCollateralItem(item.id, { value70: Number(e.target.value) })}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Action Button */}
+                      <div className="md:col-span-1 flex justify-center md:justify-end pb-1.5">
+                        <button
+                          type="button"
+                          disabled={!isCiRecommendationEditable}
+                          onClick={() => removeCollateralItem(item.id)}
+                          className="p-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl border border-red-100 cursor-pointer transition-colors active:scale-95 disabled:opacity-50"
+                          title="Remove collateral item"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add Additional Button */}
+                <div className="flex justify-start">
+                  <button
+                    type="button"
+                    disabled={!isCiRecommendationEditable}
+                    onClick={addCollateralItem}
+                    className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center gap-2 cursor-pointer transition-all active:scale-95 shadow-sm disabled:opacity-50"
+                  >
+                    <Plus size={14} /> Add Collateral Input
+                  </button>
+                </div>
+
+                {/* Totals Segment */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 pt-4 border-t border-slate-200">
+                  <div className="bg-white p-4 rounded-2xl border border-slate-100 flex justify-between items-center shadow-xs">
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] font-black text-slate-500 uppercase block">Total Value (100%)</span>
+                      <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest leading-none">Total estimated market value</p>
+                    </div>
+                    <span className="text-sm font-black text-slate-700">
+                      ₱ {totalCollateralValue100.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100 flex justify-between items-center shadow-xs">
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] font-black text-emerald-800 uppercase block">Amount @ Risk</span>
+                      <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest leading-none">Recommended Amt - (70% Collateral Value)</p>
+                    </div>
+                    <span className={`text-sm font-black ${isNegativeRisk ? 'text-red-600 font-black animate-pulse' : 'text-emerald-900'}`}>
+                      {isNegativeRisk ? '-' : ''}₱ {Math.abs(amountAtRiskValue).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* AI Copilot comments box before committing */}
@@ -7854,20 +8133,19 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                 <div className="flex flex-col items-end gap-2">
                   <div className="flex flex-col items-end">
                      <span className="text-[8px] font-black uppercase tracking-widest text-white/50">Credit Score</span>
-                     <span className={cn(
-                       "px-3 py-1 rounded-full text-[10px] font-black uppercase ring-2 ring-white/20",
-                       a.creditScore?.finalGrade === 'EXCELLENT' ? "bg-green-500 text-white" : "bg-amber-500 text-white"
-                     )}>
-                      {a.creditScore?.finalGrade || 'N/A'}
+                     <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-white text-emerald-800 ring-2 ring-white/20">
+                      {a.creditScore?.totalGrade !== undefined ? `${a.creditScore.totalGrade.toFixed(1)} Pts` : 'N/A'}
                      </span>
                   </div>
                   <div className="flex flex-col items-end">
-                     <span className="text-[8px] font-black uppercase tracking-widest text-white/50">Rec. Status</span>
+                     <span className="text-[8px] font-black uppercase tracking-widest text-white/50">Classification Result</span>
                      <span className={cn(
                        "px-3 py-1 rounded-full text-[10px] font-black uppercase ring-2 ring-white/20",
-                       a.creditScore?.recommendation === 'Approved' ? "bg-white text-green-600" : "bg-white text-red-600"
+                       (a.creditScore?.riskClassification || a.creditScore?.finalGrade) === 'EXCELLENT' || (a.creditScore?.riskClassification || a.creditScore?.finalGrade) === 'Low Risk' || (a.creditScore?.riskClassification || a.creditScore?.finalGrade) === 'Excellent' || (a.creditScore?.riskClassification || a.creditScore?.finalGrade) === 'Good'
+                         ? "bg-green-500 text-white"
+                         : "bg-amber-500 text-white"
                      )}>
-                      {a.creditScore?.recommendation === 'Approved' ? 'Approve' : 'Denied'}
+                      {a.creditScore?.riskClassification || a.creditScore?.finalGrade || 'N/A'}
                      </span>
                   </div>
                 </div>
@@ -7974,12 +8252,15 @@ function CrecomApproval({ user }: { user: UserProfile }) {
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-0"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6 md:p-8"
+            onClick={() => setSelected(null)}
           >
             <motion.div 
-              initial={{ y: 50, opacity: 0 }}
+              initial={{ y: 30, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              className="bg-white w-screen h-screen max-w-none max-h-none rounded-none p-0 shadow-none flex flex-col xl:flex-row overflow-hidden"
+              exit={{ y: 30, opacity: 0 }}
+              className="bg-white w-full h-full max-w-7xl max-h-[90vh] rounded-[2.5rem] p-0 shadow-2xl flex flex-col xl:flex-row overflow-hidden border border-gray-100"
+              onClick={(e) => e.stopPropagation()}
             >
               <div className="flex-1 p-6 lg:p-10 overflow-y-auto border-r border-gray-100 xl:h-full flex flex-col">
                 <div className="flex justify-between items-start mb-6 shrink-0">

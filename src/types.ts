@@ -110,6 +110,17 @@ export interface CashflowReport {
     semiMonthlyAmort: number;
     weeklyAmort: number;
     remarks: string;
+    hasCollateral?: boolean;
+    collateralType?: string;
+    collateralValue100?: number;
+    collateralValue70?: number;
+    amountAtRisk?: number;
+    collaterals?: Array<{
+      id: string;
+      type: string;
+      value100: number;
+      value70: number;
+    }>;
   };
   operationRecommendation: {
     loanAmount: number;
@@ -183,6 +194,8 @@ export interface CreditScore {
   recommendation: 'Approved' | 'Denied' | 'Conditional';
   ciRemarks: string;
   isBusinessEnabled?: boolean;
+  riskClassification?: string;
+  finalGrade?: string;
 }
 
 export interface MCLCreditScore {
