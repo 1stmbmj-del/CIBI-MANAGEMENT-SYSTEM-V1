@@ -6437,6 +6437,73 @@ function AccountDossierModal({ assignment, onClose }: { assignment: Assignment, 
             </div>
           </div>
 
+          {/* Crecom Comments Section */}
+          <div className="mt-8 border-t border-gray-100 pt-8">
+            <div className="bg-slate-50 rounded-[2rem] p-6 lg:p-8 border border-slate-200/60 text-left relative overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-200/80 pb-5">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 size={14} className="text-emerald-700" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-800">
+                      Credit Committee (CreCom) Evaluation
+                    </span>
+                    {assignment.status === 'Approved' ? (
+                      <span className="px-2 py-0.5 bg-green-600 text-[8px] font-black text-white uppercase rounded-md tracking-wider">
+                        Approved
+                      </span>
+                    ) : assignment.status === 'Denied' ? (
+                      <span className="px-2 py-0.5 bg-red-600 text-[8px] font-black text-white uppercase rounded-md tracking-wider">
+                        Denied
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 bg-amber-600 text-[8px] font-black text-white uppercase rounded-md tracking-wider">
+                        Pending Decision
+                      </span>
+                    )}
+                  </div>
+                  <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight">
+                    Committee Verdict & Directives
+                  </h4>
+                </div>
+              </div>
+
+              {assignment.crecomComments ? (
+                <div className="space-y-6">
+                  <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-xs">
+                    <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-2">CreCom Comments & Remarks</span>
+                    <p className="text-xs font-bold text-slate-700 whitespace-pre-wrap leading-relaxed select-text">
+                      {assignment.crecomComments}
+                    </p>
+                  </div>
+
+                  {assignment.status === 'Approved' && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                      {[
+                        { label: 'Approved Amount', value: assignment.approvedAmount ? `₱${assignment.approvedAmount.toLocaleString()}` : '-' },
+                        { label: 'Approved Term', value: assignment.approvedTerm || '-' },
+                        { label: 'Approved Rate', value: assignment.approvedIntRate ? `${assignment.approvedIntRate}%` : '-' },
+                        { label: 'MOP', value: assignment.approvedMop || '-' },
+                        { label: 'TOP', value: assignment.approvedTop || '-' },
+                      ].map((metric, idx) => (
+                        <div key={idx} className="bg-white px-4 py-3 border border-slate-100 rounded-xl space-y-1">
+                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider block leading-none">{metric.label}</span>
+                          <span className="text-xs font-black text-emerald-800 uppercase block leading-none">{metric.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl p-8 border border-dashed border-slate-200 text-center space-y-2">
+                  <p className="text-xs font-bold text-slate-600 uppercase tracking-tight">No Committee Comments Found</p>
+                  <p className="text-[10px] text-slate-400 font-semibold tracking-wider">
+                    This account has not been processed by the Credit Committee, or no remarks were left.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* AI Assessment Segment directly inside primary dossier repository view */}
           <div className="mt-8 border-t border-gray-100 pt-8">
             <AiAccountAnalysis assignment={assignment} />
