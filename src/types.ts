@@ -114,6 +114,7 @@ export interface CashflowReport {
     collateralType?: string;
     collateralValue100?: number;
     collateralValue70?: number;
+    ltvPercentage?: number;
     amountAtRisk?: number;
     collaterals?: Array<{
       id: string;

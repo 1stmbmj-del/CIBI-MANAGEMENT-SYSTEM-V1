@@ -276,11 +276,12 @@ const generateAssignmentPPT = (a: Assignment) => {
           }] : []);
 
       if (collateralsList.length > 0) {
+        const ltvPercent = recommended.ltvPercentage !== undefined ? recommended.ltvPercentage : 70;
         const colHeader = [
           [
             { text: "COLLATERAL TYPE", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } },
             { text: "VALUE @ 100%", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } },
-            { text: "VALUE @ 70%", options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } }
+            { text: `VALUE @ ${ltvPercent}%`, options: { bold: true, fill: { color: "065F46" }, color: "FFFFFF" } }
           ]
         ];
 
@@ -304,7 +305,7 @@ const generateAssignmentPPT = (a: Assignment) => {
         slideCol.addTable(
           [
             [{ text: "Total Collateral Value (100%)", options: { bold: true, fill: { color: "F3F4F6" } } }, { text: `₱${total100.toLocaleString()}` }],
-            [{ text: "Total Collateral Value (70%)", options: { bold: true, fill: { color: "F3F4F6" } } }, { text: `₱${total70.toLocaleString()}` }],
+            [{ text: `Total Collateral Value (${ltvPercent}%)`, options: { bold: true, fill: { color: "F3F4F6" } } }, { text: `₱${total70.toLocaleString()}` }],
             [{ text: "Recommended Loan Amount", options: { bold: true, fill: { color: "F3F4F6" } } }, { text: `₱${proposedAmount.toLocaleString()}` }],
             [
               { text: "Amount @ Risk", options: { bold: true, fill: { color: isNegRisk ? "FEE2E2" : "E0F2FE" }, color: isNegRisk ? "991B1B" : "0369A1" } },
@@ -7095,7 +7096,10 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
     loanAmount: assignment.requestedAmount, term: safeParseTerm(assignment.term) || 0, interest: 0, rate: 4,
     monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: '',
     hasCollateral: false, collateralType: '', collateralValue100: 0, collateralValue70: 0,
-    ...(assignment.cashflowReport?.ciRecommendation || {})
+    ...(assignment.cashflowReport?.ciRecommendation || {}),
+    ltvPercentage: assignment.cashflowReport?.ciRecommendation?.ltvPercentage !== undefined 
+      ? assignment.cashflowReport.ciRecommendation.ltvPercentage 
+      : 70
   });
   const [opRecommendation, setOpRecommendation] = useState(assignment.cashflowReport?.operationRecommendation || {
     loanAmount: assignment.requestedAmount, term: safeParseTerm(assignment.term) || 0, interest: 0, rate: 4,
@@ -7120,7 +7124,10 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
         loanAmount: assignment.requestedAmount, term: safeParseTerm(assignment.term) || 0, interest: 0, rate: 4,
         monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: '',
         hasCollateral: false, collateralType: '', collateralValue100: 0, collateralValue70: 0,
-        ...assignment.cashflowReport.ciRecommendation
+        ...assignment.cashflowReport.ciRecommendation,
+        ltvPercentage: assignment.cashflowReport.ciRecommendation.ltvPercentage !== undefined 
+          ? assignment.cashflowReport.ciRecommendation.ltvPercentage 
+          : 70
       });
       setOpRecommendation(assignment.cashflowReport.operationRecommendation || {
         loanAmount: assignment.requestedAmount, term: safeParseTerm(assignment.term) || 0, interest: 0, rate: 4,
@@ -7137,7 +7144,8 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
       setCiRecommendation({
         loanAmount: assignment.requestedAmount, term: safeParseTerm(assignment.term) || 0, interest: 0, rate: 4,
         monthlyAmort: 0, semiMonthlyAmort: 0, weeklyAmort: 0, remarks: '',
-        hasCollateral: false, collateralType: '', collateralValue100: 0, collateralValue70: 0
+        hasCollateral: false, collateralType: '', collateralValue100: 0, collateralValue70: 0,
+        ltvPercentage: 70
       });
       setOpRecommendation({
         loanAmount: assignment.requestedAmount, term: safeParseTerm(assignment.term) || 0, interest: 0, rate: 4,
@@ -7180,11 +7188,12 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
   };
 
   const updateCollateralItem = (id: string, fields: Partial<{ type: string; value100: number; value70: number }>) => {
+    const ltvPercent = ciRecommendation.ltvPercentage !== undefined ? ciRecommendation.ltvPercentage : 70;
     const updated = activeCollaterals.map(item => {
       if (item.id === id) {
         const newItem = { ...item, ...fields };
         if ('value100' in fields) {
-          newItem.value70 = Math.round(Number(fields.value100 || 0) * 0.7);
+          newItem.value70 = Math.round(Number(fields.value100 || 0) * (ltvPercent / 100));
         }
         return newItem;
       }
@@ -7194,6 +7203,20 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
       ...ciRecommendation,
       collaterals: updated,
       collateralType: updated[0]?.type || '',
+      collateralValue100: updated.reduce((sum, item) => sum + Number(item.value100 || 0), 0),
+      collateralValue70: updated.reduce((sum, item) => sum + Number(item.value70 || 0), 0)
+    });
+  };
+
+  const handleLtvPercentageChange = (newPercent: number) => {
+    const updated = activeCollaterals.map(item => ({
+      ...item,
+      value70: Math.round(Number(item.value100 || 0) * (newPercent / 100))
+    }));
+    setCiRecommendation({
+      ...ciRecommendation,
+      ltvPercentage: newPercent,
+      collaterals: updated,
       collateralValue100: updated.reduce((sum, item) => sum + Number(item.value100 || 0), 0),
       collateralValue70: updated.reduce((sum, item) => sum + Number(item.value70 || 0), 0)
     });
@@ -7331,6 +7354,7 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
             collateralType: ciRecommendation.collateralType || '',
             collateralValue100: safeNum(ciRecommendation.collateralValue100),
             collateralValue70: safeNum(ciRecommendation.collateralValue70),
+            ltvPercentage: safeNum(ciRecommendation.ltvPercentage),
             collaterals: ciRecommendation.collaterals || []
           }
         }
@@ -7417,6 +7441,7 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
           collateralType: ciRecommendation.collateralType || '',
           collateralValue100: safeNum(ciRecommendation.collateralValue100),
           collateralValue70: safeNum(ciRecommendation.collateralValue70),
+          ltvPercentage: safeNum(ciRecommendation.ltvPercentage),
           collaterals: ciRecommendation.collaterals || [],
           ...calcAmort({
             loanAmount: safeNum(ciRecommendation.loanAmount),
@@ -7518,6 +7543,7 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
           collateralType: ciRecommendation.collateralType || '',
           collateralValue100: safeNum(ciRecommendation.collateralValue100),
           collateralValue70: safeNum(ciRecommendation.collateralValue70),
+          ltvPercentage: safeNum(ciRecommendation.ltvPercentage),
           collaterals: ciRecommendation.collaterals || [],
           ...calcAmort({
             loanAmount: safeNum(ciRecommendation.loanAmount),
@@ -7848,6 +7874,43 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
 
             {ciRecommendation.hasCollateral && (
               <div className="space-y-4 p-6 bg-slate-50 rounded-3xl border border-slate-200/60 animate-in fade-in duration-200">
+                {/* LTV percentage user configuration control */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-5 rounded-2xl border border-slate-200/60 mb-4 shadow-xs">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-emerald-800 uppercase tracking-widest block">LTV / Collateral Coverage Percentage</label>
+                    <p className="text-[8px] text-gray-400 font-bold uppercase tracking-wider leading-none">Adjust the percentage of collateral value counted towards risk reduction</p>
+                  </div>
+                  <div className="flex items-center gap-3 justify-end">
+                    <input
+                      disabled={!isCiRecommendationEditable}
+                      type="range"
+                      min="10"
+                      max="100"
+                      step="5"
+                      className="w-full md:max-w-[180px] h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                      value={ciRecommendation.ltvPercentage !== undefined ? ciRecommendation.ltvPercentage : 70}
+                      onChange={e => handleLtvPercentageChange(Number(e.target.value))}
+                    />
+                    <div className="flex items-center gap-1 min-w-[70px]">
+                      <input
+                        disabled={!isCiRecommendationEditable}
+                        type="number"
+                        min="1"
+                        max="100"
+                        className="w-14 px-2 py-1 text-xs font-black text-center bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20"
+                        value={ciRecommendation.ltvPercentage !== undefined ? ciRecommendation.ltvPercentage : 70}
+                        onChange={e => {
+                          let val = Number(e.target.value);
+                          if (val < 1) val = 1;
+                          if (val > 100) val = 100;
+                          handleLtvPercentageChange(val);
+                        }}
+                      />
+                      <span className="text-xs font-black text-emerald-800">%</span>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="space-y-4">
                   {activeCollaterals.map((item, idx) => (
                     <div key={item.id} className="relative grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
@@ -7886,9 +7949,9 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
                         </div>
                       </div>
 
-                      {/* Value @ 70% */}
+                      {/* Value @ Custom % */}
                       <div className="md:col-span-3 space-y-1">
-                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Value @ 70%</label>
+                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Value @ {ciRecommendation.ltvPercentage !== undefined ? ciRecommendation.ltvPercentage : 70}%</label>
                         <div className="relative">
                           <span className="absolute left-4 top-3 text-sm font-bold text-gray-400">₱</span>
                           <input
@@ -7944,7 +8007,7 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
                   <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100 flex justify-between items-center shadow-xs">
                     <div className="space-y-0.5">
                       <span className="text-[10px] font-black text-emerald-800 uppercase block">Amount @ Risk</span>
-                      <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest leading-none">Recommended Amt - (70% Collateral Value)</p>
+                      <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest leading-none">Recommended Amt - ({ciRecommendation.ltvPercentage !== undefined ? ciRecommendation.ltvPercentage : 70}% Collateral Value)</p>
                     </div>
                     <span className={`text-sm font-black ${isNegativeRisk ? 'text-red-600 font-black animate-pulse' : 'text-emerald-900'}`}>
                       {isNegativeRisk ? '-' : ''}₱ {Math.abs(amountAtRiskValue).toLocaleString()}

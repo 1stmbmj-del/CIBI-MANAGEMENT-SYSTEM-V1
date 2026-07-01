@@ -119,16 +119,16 @@ Collateral Type: ${assignment.cashflowReport.ciRecommendation.collateralType || 
 Collaterals List:
 ${assignment.cashflowReport.ciRecommendation.collaterals && assignment.cashflowReport.ciRecommendation.collaterals.length > 0 
   ? assignment.cashflowReport.ciRecommendation.collaterals.map((c: any, i: number) => 
-      `- ${i + 1}. Type: ${c.type || "Other"} | Value @ 100%: ₱${(c.value100 || 0).toLocaleString()} | Value @ 70%: ₱${(c.value70 || 0).toLocaleString()}`
+      `- ${i + 1}. Type: ${c.type || "Other"} | Value @ 100%: ₱${(c.value100 || 0).toLocaleString()} | Value @ ${assignment.cashflowReport.ciRecommendation.ltvPercentage !== undefined ? assignment.cashflowReport.ciRecommendation.ltvPercentage : 70}%: ₱${(c.value70 || 0).toLocaleString()}`
     ).join("\n")
-  : `Single Collateral Type: ${assignment.cashflowReport.ciRecommendation.collateralType || "N/A"} | Value @ 100%: ₱${(assignment.cashflowReport.ciRecommendation.collateralValue100 || 0).toLocaleString()} | Value @ 70%: ₱${(assignment.cashflowReport.ciRecommendation.collateralValue70 || 0).toLocaleString()}`}
+  : `Single Collateral Type: ${assignment.cashflowReport.ciRecommendation.collateralType || "N/A"} | Value @ 100%: ₱${(assignment.cashflowReport.ciRecommendation.collateralValue100 || 0).toLocaleString()} | Value @ ${assignment.cashflowReport.ciRecommendation.ltvPercentage !== undefined ? assignment.cashflowReport.ciRecommendation.ltvPercentage : 70}%: ₱${(assignment.cashflowReport.ciRecommendation.collateralValue70 || 0).toLocaleString()}`}
 Total Collateral Value @ 100%: ₱${(assignment.cashflowReport.ciRecommendation.collaterals && assignment.cashflowReport.ciRecommendation.collaterals.length > 0 
   ? assignment.cashflowReport.ciRecommendation.collaterals.reduce((sum: number, c: any) => sum + Number(c.value100 || 0), 0)
   : (assignment.cashflowReport.ciRecommendation.collateralValue100 || 0)).toLocaleString()}
-Total Collateral Value @ 70%: ₱${(assignment.cashflowReport.ciRecommendation.collaterals && assignment.cashflowReport.ciRecommendation.collaterals.length > 0 
+Total Collateral Value @ ${assignment.cashflowReport.ciRecommendation.ltvPercentage !== undefined ? assignment.cashflowReport.ciRecommendation.ltvPercentage : 70}%: ₱${(assignment.cashflowReport.ciRecommendation.collaterals && assignment.cashflowReport.ciRecommendation.collaterals.length > 0 
   ? assignment.cashflowReport.ciRecommendation.collaterals.reduce((sum: number, c: any) => sum + Number(c.value70 || 0), 0)
   : (assignment.cashflowReport.ciRecommendation.collateralValue70 || 0)).toLocaleString()}
-Amount @ Risk (Loan - 70% Collateral): ₱${(Number(assignment.cashflowReport.ciRecommendation.loanAmount || 0) - Number(
+Amount @ Risk (Loan - ${assignment.cashflowReport.ciRecommendation.ltvPercentage !== undefined ? assignment.cashflowReport.ciRecommendation.ltvPercentage : 70}% Collateral): ₱${(Number(assignment.cashflowReport.ciRecommendation.loanAmount || 0) - Number(
   assignment.cashflowReport.ciRecommendation.collaterals && assignment.cashflowReport.ciRecommendation.collaterals.length > 0 
     ? assignment.cashflowReport.ciRecommendation.collaterals.reduce((sum: number, c: any) => sum + Number(c.value70 || 0), 0)
     : (assignment.cashflowReport.ciRecommendation.collateralValue70 || 0)
