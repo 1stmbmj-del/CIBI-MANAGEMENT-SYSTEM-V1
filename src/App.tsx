@@ -6344,173 +6344,614 @@ function AiAccountAnalysis({ assignment }: { assignment: Assignment }) {
  }
 
 function AccountDossierModal({ assignment, onClose }: { assignment: Assignment, onClose: () => void }) {
+  const [activeTab, setActiveTab] = useState<'general' | 'scoring' | 'cashflow' | 'recommendation' | 'committee' | 'ai'>('general');
+
+  const hasScoring = !!assignment.creditScore || !!assignment.mclCreditScore;
+  const hasCashflow = !!assignment.cashflowReport;
+  const hasRecommendation = !!assignment.cashflowReport?.ciRecommendation;
+  const hasCommittee = !!assignment.crecomComments || assignment.status === 'Approved' || assignment.status === 'Denied';
+
+  // Helper to get formatted expense names
+  const expenseLabels: Record<string, string> = {
+    food: "Food & Groceries",
+    rent: "House Rent",
+    electricity: "Electricity",
+    water: "Water Bill",
+    insurance: "Insurance Premium",
+    clothing: "Clothing",
+    lpg: "LPG / Cooking Gas",
+    association: "Association Dues",
+    loanPayments: "Other Loan Payments",
+    vehicle: "Vehicle Amortization",
+    transportation: "Transportation / Fuel",
+    internet: "Internet & Telecom",
+    education: "Schooling & Education",
+    medical: "Medical & Healthcare",
+    miscellaneous: "Miscellaneous"
+  };
+
   return (
-    <div className="fixed inset-0 bg-emerald-950/40 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-emerald-950/40 backdrop-blur-md z-[100] flex items-center justify-center p-4 select-none">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-emerald-100 flex flex-col"
+        className="bg-white w-full max-w-5xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-emerald-100 flex flex-col h-[90vh]"
       >
-        <div className="bg-linear-to-r from-emerald-800 to-emerald-900 p-8 text-white flex justify-between items-center shrink-0">
+        {/* Dossier Header */}
+        <div className="bg-linear-to-r from-emerald-800 to-emerald-900 p-6 text-white flex justify-between items-center shrink-0">
            <div>
-             <h3 className="text-xl font-black uppercase tracking-tight">Main Account Repository</h3>
-             <p className="text-[10px] text-white/50 font-bold uppercase tracking-[0.4em] mt-1">Classification: Confidential Dossier</p>
+             <div className="flex items-center gap-2">
+               <span className="px-2 py-0.5 bg-emerald-700/60 rounded-md text-[8px] font-black uppercase tracking-widest border border-emerald-500/20">
+                 Dossier ID: {assignment.id.slice(0, 8)}
+               </span>
+               {assignment.status === 'Approved' ? (
+                 <span className="px-2 py-0.5 bg-green-600/90 text-[8px] font-black uppercase rounded-md tracking-wider">
+                   Approved
+                 </span>
+               ) : assignment.status === 'Denied' ? (
+                 <span className="px-2 py-0.5 bg-red-600/90 text-[8px] font-black uppercase rounded-md tracking-wider">
+                   Denied
+                 </span>
+               ) : (
+                 <span className="px-2 py-0.5 bg-amber-600/90 text-[8px] font-black uppercase rounded-md tracking-wider">
+                   {assignment.status}
+                 </span>
+               )}
+             </div>
+             <h3 className="text-xl font-black uppercase tracking-tight mt-1">{assignment.borrowerName}</h3>
+             <p className="text-[10px] text-white/50 font-bold uppercase tracking-[0.4em] mt-0.5">Classification: Confidential Account Record</p>
            </div>
            <button onClick={onClose} className="hover:rotate-90 transition-transform bg-white/10 p-2 rounded-xl">
              <X size={20} />
            </button>
         </div>
+
+        {/* Horizontal Navigation Tabs */}
+        <div className="bg-gray-50/80 border-b border-gray-100 px-6 py-2 flex items-center gap-1 overflow-x-auto shrink-0 scrollbar-none">
+          {[
+            { id: 'general', label: 'General Info', icon: <User size={14} />, alert: false },
+            { id: 'scoring', label: 'Credit Scoring', icon: <ListChecks size={14} />, alert: hasScoring },
+            { id: 'cashflow', label: 'Cashflow Diagnostic', icon: <FileBarChart size={14} />, alert: hasCashflow },
+            { id: 'recommendation', label: 'CI Recommendation', icon: <ClipboardCheck size={14} />, alert: hasRecommendation },
+            { id: 'committee', label: 'Committee Verdict', icon: <ShieldCheck size={14} />, alert: hasCommittee },
+            { id: 'ai', label: 'AI Investigation', icon: <Fingerprint size={14} />, alert: !!assignment.aiAnalysis },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 shrink-0 select-none",
+                activeTab === tab.id 
+                  ? "bg-emerald-800 text-white shadow-md shadow-emerald-800/10" 
+                  : "bg-white border border-gray-100 text-gray-500 hover:text-gray-800 hover:border-gray-200"
+              )}
+            >
+              {tab.icon}
+              <span>{tab.label}</span>
+              {tab.alert && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              )}
+            </button>
+          ))}
+        </div>
         
-        <div className="p-8 overflow-y-auto max-h-[70vh]">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
-            {/* Left Column */}
-            <div className="space-y-5">
-              {[
-                { label: 'Name of Borrower', value: assignment.borrowerName },
-                { label: 'Mobile Number', value: assignment.mobileNumber, placeholder: 'e.g. 09123456789' },
-                { label: 'Location', value: assignment.location },
-                { label: 'Business Pin.', value: assignment.businessPin || '-' },
-                { label: 'Requested Loan Amount', value: `₱${assignment.requestedAmount.toLocaleString()}` },
-                { label: 'Int. Rate (%)', value: `${assignment.intRate}%` },
-                { label: 'TOP', value: assignment.top },
-              ].map((field, idx) => (
-                <div key={idx} className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{field.label}</label>
-                  <div className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-100 rounded-lg text-xs font-bold text-gray-800 uppercase">
-                    {field.value || field.placeholder}
+        {/* Main Content Pane */}
+        <div className="p-8 overflow-y-auto flex-1 text-left bg-gray-50/30">
+          {activeTab === 'general' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
+              {/* Left Column */}
+              <div className="space-y-5">
+                {[
+                  { label: 'Name of Borrower', value: assignment.borrowerName },
+                  { label: 'Mobile Number', value: assignment.mobileNumber, placeholder: 'e.g. 09123456789' },
+                  { label: 'Location', value: assignment.location },
+                  { label: 'Business Pin.', value: assignment.businessPin || '-' },
+                  { label: 'Requested Loan Amount', value: `₱${assignment.requestedAmount.toLocaleString()}` },
+                  { label: 'Int. Rate (%)', value: `${assignment.intRate}%` },
+                  { label: 'TOP', value: assignment.top },
+                ].map((field, idx) => (
+                  <div key={idx} className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{field.label}</label>
+                    <div className="w-full px-4 py-2.5 bg-white border border-gray-100 rounded-lg text-xs font-bold text-gray-800 uppercase shadow-xs">
+                      {field.value || field.placeholder}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Right Column */}
-            <div className="space-y-5">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Account Type</label>
-                <div className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-100 rounded-lg text-xs font-bold text-gray-800 uppercase flex justify-between items-center">
-                  <span>{assignment.accountType}</span>
-                  <ChevronRight size={14} className="rotate-90 text-gray-400" />
-                </div>
+                ))}
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Tribe</label>
-                <div className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-100 rounded-lg text-xs font-bold text-gray-800 uppercase flex justify-between items-center">
-                  <span>{assignment.tribe}</span>
-                  <ChevronRight size={14} className="rotate-90 text-gray-400" />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Loan Category</label>
-                <div className="w-full px-4 py-2.5 bg-emerald-50/30 border border-emerald-100 rounded-lg text-xs font-black text-emerald-800 uppercase flex justify-between items-center">
-                  <span>{assignment.loanCategory}</span>
-                  <ChevronRight size={14} className="rotate-90 text-emerald-600" />
-                </div>
-              </div>
-
-              <div className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-xl flex items-center gap-3">
-                <div className={cn(
-                  "w-5 h-5 rounded border flex items-center justify-center transition-colors shadow-sm",
-                  assignment.isMCLReferral ? "bg-emerald-600 border-emerald-600" : "bg-white border-gray-200"
-                )}>
-                  {assignment.isMCLReferral && <Check size={12} className="text-white" />}
-                </div>
-                <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">
-                  MCL Referral (Points: 2)
-                </span>
-              </div>
-
-              {[
-                { label: 'Address Pin.', value: assignment.addressPin || '-' },
-                { label: 'Term', value: `${assignment.term} Months`, placeholder: 'e.g. 12 Months' },
-                { label: 'MOP', value: assignment.mop },
-                { label: 'CI Officer', value: assignment.ciOfficerName },
-              ].map((field, idx) => (
-                <div key={idx} className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{field.label}</label>
-                  <div className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-100 rounded-lg text-xs font-bold text-gray-800 uppercase flex justify-between items-center">
-                    <span>{field.value || field.placeholder}</span>
-                    {field.label === 'MOP' || field.label === 'CI Officer' ? <ChevronRight size={14} className="rotate-90 text-gray-400" /> : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Crecom Comments Section */}
-          <div className="mt-8 border-t border-gray-100 pt-8">
-            <div className="bg-slate-50 rounded-[2rem] p-6 lg:p-8 border border-slate-200/60 text-left relative overflow-hidden">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-200/80 pb-5">
+              {/* Right Column */}
+              <div className="space-y-5">
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 size={14} className="text-emerald-700" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-800">
-                      Credit Committee (CreCom) Evaluation
-                    </span>
-                    {assignment.status === 'Approved' ? (
-                      <span className="px-2 py-0.5 bg-green-600 text-[8px] font-black text-white uppercase rounded-md tracking-wider">
-                        Approved
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Account Type</label>
+                  <div className="w-full px-4 py-2.5 bg-white border border-gray-100 rounded-lg text-xs font-bold text-gray-800 uppercase flex justify-between items-center shadow-xs">
+                    <span>{assignment.accountType}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Tribe</label>
+                  <div className="w-full px-4 py-2.5 bg-white border border-gray-100 rounded-lg text-xs font-bold text-gray-800 uppercase flex justify-between items-center shadow-xs">
+                    <span>{assignment.tribe}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Loan Category</label>
+                  <div className="w-full px-4 py-2.5 bg-emerald-50/50 border border-emerald-100 rounded-lg text-xs font-black text-emerald-800 uppercase flex justify-between items-center shadow-xs">
+                    <span>{assignment.loanCategory}</span>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-emerald-50/40 border border-emerald-100/80 rounded-xl flex items-center gap-3">
+                  <div className={cn(
+                    "w-5 h-5 rounded border flex items-center justify-center transition-colors shadow-sm",
+                    assignment.isMCLReferral ? "bg-emerald-600 border-emerald-600" : "bg-white border-gray-200"
+                  )}>
+                    {assignment.isMCLReferral && <Check size={12} className="text-white animate-bounce-short" />}
+                  </div>
+                  <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">
+                    MCL Referral (Points: 2)
+                  </span>
+                </div>
+
+                {[
+                  { label: 'Address Pin.', value: assignment.addressPin || '-' },
+                  { label: 'Term', value: `${assignment.term} Months`, placeholder: 'e.g. 12 Months' },
+                  { label: 'MOP', value: assignment.mop },
+                  { label: 'CI Officer', value: assignment.ciOfficerName },
+                ].map((field, idx) => (
+                  <div key={idx} className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{field.label}</label>
+                    <div className="w-full px-4 py-2.5 bg-white border border-gray-100 rounded-lg text-xs font-bold text-gray-800 uppercase flex justify-between items-center shadow-xs">
+                      <span>{field.value || field.placeholder}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'scoring' && (
+            <div className="space-y-6">
+              {hasScoring ? (
+                <>
+                  {/* Scoring Summary Badge */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-white p-6 border border-gray-100 rounded-2xl flex flex-col justify-between shadow-xs">
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Risk Classification</span>
+                      <span className={cn(
+                        "text-2xl font-black uppercase tracking-tight block mt-1",
+                        (assignment.creditScore?.riskClassification || assignment.mclCreditScore?.riskClassification || 'N/A').toLowerCase().includes('low') 
+                          ? "text-emerald-700" 
+                          : (assignment.creditScore?.riskClassification || assignment.mclCreditScore?.riskClassification || 'N/A').toLowerCase().includes('high')
+                          ? "text-red-600"
+                          : "text-amber-600"
+                      )}>
+                        {assignment.creditScore?.riskClassification || assignment.mclCreditScore?.riskClassification || 'N/A'}
                       </span>
-                    ) : assignment.status === 'Denied' ? (
-                      <span className="px-2 py-0.5 bg-red-600 text-[8px] font-black text-white uppercase rounded-md tracking-wider">
-                        Denied
+                    </div>
+
+                    <div className="bg-white p-6 border border-gray-100 rounded-2xl flex flex-col justify-between shadow-xs">
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Total Score / Grade</span>
+                      <span className="text-2xl font-black text-emerald-800 block mt-1">
+                        {assignment.creditScore?.totalGrade !== undefined 
+                          ? `${assignment.creditScore.totalGrade.toFixed(1)} / 100` 
+                          : assignment.mclCreditScore?.totalScore !== undefined
+                          ? `${assignment.mclCreditScore.totalScore} Pts`
+                          : 'N/A'}
                       </span>
+                    </div>
+
+                    <div className="bg-white p-6 border border-gray-100 rounded-2xl flex flex-col justify-between shadow-xs">
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">CI Verification Recommendation</span>
+                      <span className="text-xl font-black text-gray-700 uppercase tracking-tight block mt-1">
+                        {assignment.creditScore?.recommendation || 'APPROVED'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Section Grades Breakdown */}
+                  <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-xs">
+                    <h4 className="text-xs font-black text-gray-800 uppercase tracking-[0.2em] mb-4">Detailed Criteria Weights</h4>
+                    
+                    {assignment.creditScore?.sectionGrades ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-4">
+                        {Object.entries(assignment.creditScore.sectionGrades).map(([key, grade]) => (
+                          <div key={key} className="space-y-1.5 py-2 border-b border-gray-50 last:border-0">
+                            <div className="flex justify-between items-center text-xs font-bold text-gray-700">
+                              <span className="uppercase">{key.replace(/([A-Z])/g, ' $1')}</span>
+                              <span className="text-emerald-800">{Number(grade).toFixed(1)} Pts</span>
+                            </div>
+                            <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                              <div 
+                                className="bg-emerald-600 h-full rounded-full transition-all" 
+                                style={{ width: `${Math.min(100, Number(grade) * 5)}%` }} 
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : assignment.mclCreditScore ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-4">
+                        {[
+                          { name: 'Character Criteria', score: Object.values(assignment.mclCreditScore.character || {}).reduce((s: any, v: any) => s + v, 0) },
+                          { name: 'Income Capacity', score: Object.values(assignment.mclCreditScore.incomeCapacity || {}).reduce((s: any, v: any) => s + v, 0) },
+                          { name: 'Employment / Business', score: Object.values(assignment.mclCreditScore.employmentBusiness || {}).reduce((s: any, v: any) => s + v, 0) },
+                          { name: 'Residence Status', score: Object.values(assignment.mclCreditScore.residence || {}).reduce((s: any, v: any) => s + v, 0) },
+                          { name: 'Loan Factors', score: Object.values(assignment.mclCreditScore.loanFactors || {}).reduce((s: any, v: any) => s + v, 0) },
+                        ].map((sect, idx) => (
+                          <div key={idx} className="space-y-1.5 py-2 border-b border-gray-50 last:border-0">
+                            <div className="flex justify-between items-center text-xs font-bold text-gray-700">
+                              <span>{sect.name}</span>
+                              <span className="text-emerald-800">{sect.score} Pts</span>
+                            </div>
+                            <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                              <div 
+                                className="bg-emerald-600 h-full rounded-full transition-all" 
+                                style={{ width: `${Math.min(100, (sect.score / 20) * 100)}%` }} 
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     ) : (
-                      <span className="px-2 py-0.5 bg-amber-600 text-[8px] font-black text-white uppercase rounded-md tracking-wider">
-                        Pending Decision
-                      </span>
+                      <p className="text-xs text-gray-400 italic">No breakdown available for this score format.</p>
                     )}
                   </div>
-                  <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight">
-                    Committee Verdict & Directives
-                  </h4>
-                </div>
-              </div>
 
-              {assignment.crecomComments ? (
-                <div className="space-y-6">
-                  <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-xs">
-                    <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-2">CreCom Comments & Remarks</span>
-                    <p className="text-xs font-bold text-slate-700 whitespace-pre-wrap leading-relaxed select-text">
-                      {assignment.crecomComments}
+                  {/* Comments from CIBI Process */}
+                  <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-xs">
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">CI Officers Remarks</span>
+                    <p className="text-xs font-bold text-gray-700 whitespace-pre-wrap leading-relaxed select-text bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      {assignment.creditScore?.ciRemarks || assignment.mclCreditScore?.ciRemarks || 'No qualitative remarks were left during credit scoring.'}
                     </p>
                   </div>
-
-                  {assignment.status === 'Approved' && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                      {[
-                        { label: 'Approved Amount', value: assignment.approvedAmount ? `₱${assignment.approvedAmount.toLocaleString()}` : '-' },
-                        { label: 'Approved Term', value: assignment.approvedTerm || '-' },
-                        { label: 'Approved Rate', value: assignment.approvedIntRate ? `${assignment.approvedIntRate}%` : '-' },
-                        { label: 'MOP', value: assignment.approvedMop || '-' },
-                        { label: 'TOP', value: assignment.approvedTop || '-' },
-                      ].map((metric, idx) => (
-                        <div key={idx} className="bg-white px-4 py-3 border border-slate-100 rounded-xl space-y-1">
-                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider block leading-none">{metric.label}</span>
-                          <span className="text-xs font-black text-emerald-800 uppercase block leading-none">{metric.value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                </>
               ) : (
-                <div className="bg-white rounded-2xl p-8 border border-dashed border-slate-200 text-center space-y-2">
-                  <p className="text-xs font-bold text-slate-600 uppercase tracking-tight">No Committee Comments Found</p>
-                  <p className="text-[10px] text-slate-400 font-semibold tracking-wider">
-                    This account has not been processed by the Credit Committee, or no remarks were left.
+                <div className="bg-white border border-dashed border-gray-200 rounded-3xl p-12 text-center space-y-3">
+                  <AlertCircle size={32} className="mx-auto text-gray-300 animate-pulse" />
+                  <p className="text-sm font-bold text-gray-600 uppercase tracking-wider">No Scoring Profile Recorded</p>
+                  <p className="text-xs text-gray-400 max-w-md mx-auto">
+                    The Field CIBI Scoring Module has not been finalized yet for this applicant. Complete the Field CIBI task step to trigger scoring.
                   </p>
                 </div>
               )}
             </div>
-          </div>
+          )}
 
-          {/* AI Assessment Segment directly inside primary dossier repository view */}
-          <div className="mt-8 border-t border-gray-100 pt-8">
-            <AiAccountAnalysis assignment={assignment} />
-          </div>
+          {activeTab === 'cashflow' && (
+            <div className="space-y-6">
+              {hasCashflow ? (
+                <>
+                  {/* Cashflow Core Diagnostcs */}
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    {[
+                      { label: 'Gross Income', value: `₱${assignment.cashflowReport?.analysis?.grossBusinessIncome?.toLocaleString() || '0'}` },
+                      { label: 'Business Expenses', value: `₱${assignment.cashflowReport?.analysis?.businessExpenses?.toLocaleString() || '0'}`, isNegative: true },
+                      { label: 'Household Exp.', value: `₱${assignment.cashflowReport?.analysis?.totalHouseholdExpenses?.toLocaleString() || '0'}`, isNegative: true },
+                      { label: 'Net Income (NDI)', value: `₱${assignment.cashflowReport?.analysis?.netIncome?.toLocaleString() || '0'}`, highlight: true },
+                      { label: 'Target MPC (NDI)', value: `₱${assignment.cashflowReport?.analysis?.monthlyNdi?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || '0'}`, highlightEmerald: true },
+                    ].map((card, idx) => (
+                      <div key={idx} className="bg-white p-4 border border-gray-100 rounded-2xl shadow-xs text-center flex flex-col justify-between">
+                        <span className="text-[8px] font-black text-gray-400 uppercase tracking-wider block leading-none mb-2">{card.label}</span>
+                        <span className={cn(
+                          "text-sm font-black tracking-tight",
+                          card.highlight ? "text-emerald-800" : card.highlightEmerald ? "text-green-700 text-base" : card.isNegative ? "text-red-500" : "text-gray-800"
+                        )}>
+                          {card.isNegative ? `-${card.value}` : card.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Policy Calibration Indicator */}
+                  <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-xs grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                    <div>
+                      <h4 className="text-xs font-black text-gray-800 uppercase tracking-[0.2em] mb-1">NDI Calibration Percentage</h4>
+                      <p className="text-xs text-gray-400 leading-relaxed">
+                        Policy-set threshold limits of the borrower's Net Disposable Income (NDI) allocated to serve the monthly paying capacity.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4 justify-end">
+                      <div className="text-right">
+                        <span className="text-xs font-bold text-gray-400 uppercase block">Configured Calibration</span>
+                        <span className="text-xl font-black text-emerald-800">{assignment.cashflowReport?.analysis?.ndiPercentage || 30}% of Disposable Income</span>
+                      </div>
+                      <div className="w-16 h-16 rounded-full border-4 border-emerald-800/20 flex items-center justify-center text-xs font-black text-emerald-800">
+                        {assignment.cashflowReport?.analysis?.ndiPercentage}%
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Household Expenses list */}
+                  <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-xs">
+                    <h4 className="text-xs font-black text-gray-800 uppercase tracking-[0.2em] mb-4">Household Expenses Breakdown</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                      {assignment.cashflowReport?.householdExpenses && 
+                        Object.entries(assignment.cashflowReport.householdExpenses)
+                          .filter(([key, value]) => key !== 'total' && Number(value) > 0)
+                          .map(([key, value]) => (
+                            <div key={key} className="flex justify-between items-center bg-gray-50/50 border border-gray-100 px-4 py-2 rounded-xl text-xs font-bold text-gray-700">
+                              <span className="truncate max-w-[150px]">{expenseLabels[key] || key}</span>
+                              <span className="text-gray-900 font-extrabold">₱{Number(value).toLocaleString()}</span>
+                            </div>
+                          ))}
+                    </div>
+                  </div>
+
+                  {/* Liabilities Table */}
+                  <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-xs">
+                    <h4 className="text-xs font-black text-gray-800 uppercase tracking-[0.2em] mb-4">Outstanding External Liabilities</h4>
+                    
+                    {assignment.cashflowReport?.liabilities && assignment.cashflowReport.liabilities.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="border-b border-gray-100 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                              <th className="pb-3">Creditor Source</th>
+                              <th className="pb-3">Loan Type</th>
+                              <th className="pb-3 text-right">Amortization</th>
+                              <th className="pb-3 text-right">Loan Amount</th>
+                              <th className="pb-3 text-right">Outstanding Bal.</th>
+                              <th className="pb-3 text-center">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-50">
+                            {assignment.cashflowReport.liabilities.map((lia: Liability, idx: number) => (
+                              <tr key={idx} className="text-gray-700 font-semibold hover:bg-gray-50/40">
+                                <td className="py-3 font-extrabold text-gray-900 uppercase">{lia.source || '-'}</td>
+                                <td className="py-3 uppercase text-[10px] text-gray-500 font-black">{lia.loanType || '-'}</td>
+                                <td className="py-3 text-right text-red-500">₱{Number(lia.amortization || 0).toLocaleString()} <span className="text-[9px] text-gray-400">/{lia.periodicity}</span></td>
+                                <td className="py-3 text-right">₱{Number(lia.loanAmount || 0).toLocaleString()}</td>
+                                <td className="py-3 text-right font-bold text-gray-900">₱{Number(lia.balance || 0).toLocaleString()}</td>
+                                <td className="py-3 text-center">
+                                  <span className={cn(
+                                    "px-2 py-0.5 text-[8px] font-black rounded-md uppercase tracking-wider",
+                                    (lia.status || '').toLowerCase().includes('current') ? "bg-green-50 text-green-700 border border-green-200/50" : "bg-red-50 text-red-700 border border-red-200/50"
+                                  )}>
+                                    {lia.status || 'Active'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="p-8 border border-dashed border-gray-100 rounded-xl text-center">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">No outstanding liabilities declared</p>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="bg-white border border-dashed border-gray-200 rounded-3xl p-12 text-center space-y-3">
+                  <BarChart2 size={32} className="mx-auto text-gray-300 animate-pulse" />
+                  <p className="text-sm font-bold text-gray-600 uppercase tracking-wider">No Cashflow Report Compiled</p>
+                  <p className="text-xs text-gray-400 max-w-md mx-auto">
+                    The detailed Cashflow Diagnostic sheet and liabilities ledger have not been recorded yet. Complete the cashflowing step to trigger reporting.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'recommendation' && (
+            <div className="space-y-6">
+              {hasRecommendation ? (
+                <>
+                  {/* CI Recommended parameters */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                      { label: 'Recommended Loan', value: `₱${assignment.cashflowReport?.ciRecommendation?.loanAmount?.toLocaleString() || '0'}` },
+                      { label: 'Term Approved', value: `${assignment.cashflowReport?.ciRecommendation?.term || '0'} Months` },
+                      { label: 'Interest Rate', value: `${assignment.cashflowReport?.ciRecommendation?.rate || '0'}% Flat` },
+                      { label: 'Monthly Amortization', value: `₱${assignment.cashflowReport?.ciRecommendation?.monthlyAmort?.toLocaleString() || '0'}`, highlight: true },
+                    ].map((card, idx) => (
+                      <div key={idx} className="bg-white p-5 border border-gray-100 rounded-2xl shadow-xs text-center flex flex-col justify-between">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider block leading-none mb-2">{card.label}</span>
+                        <span className={cn(
+                          "text-base font-black tracking-tight",
+                          card.highlight ? "text-emerald-800 text-lg" : "text-gray-800"
+                        )}>
+                          {card.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Qualitative Recommendation justification */}
+                  <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-xs">
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">CI Investigator Recommendation Justification</span>
+                    <p className="text-xs font-bold text-gray-700 whitespace-pre-wrap leading-relaxed select-text bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      {assignment.cashflowReport?.ciRecommendation?.remarks || 'No qualitative justifications were recorded during CI proposal creation.'}
+                    </p>
+                  </div>
+
+                  {/* Collateral evaluation */}
+                  <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-xs">
+                    <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-50">
+                      <h4 className="text-xs font-black text-gray-800 uppercase tracking-[0.2em]">Collateral Evaluation & Risk Cover</h4>
+                      <span className={cn(
+                        "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider shadow-xs",
+                        assignment.cashflowReport?.ciRecommendation?.hasCollateral ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-gray-100 text-gray-400"
+                      )}>
+                        {assignment.cashflowReport?.ciRecommendation?.hasCollateral ? "Collateralized Obligation" : "Clean / Unsecured Loan"}
+                      </span>
+                    </div>
+
+                    {assignment.cashflowReport?.ciRecommendation?.hasCollateral ? (
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                          <div className="bg-gray-50/50 p-4 rounded-xl border border-gray-100">
+                            <span className="text-[8px] font-black text-gray-400 uppercase block tracking-wider leading-none mb-1">Collateral Class</span>
+                            <span className="text-xs font-black text-gray-800 uppercase block">{assignment.cashflowReport?.ciRecommendation?.collateralType || 'N/A'}</span>
+                          </div>
+                          
+                          <div className="bg-gray-50/50 p-4 rounded-xl border border-gray-100">
+                            <span className="text-[8px] font-black text-gray-400 uppercase block tracking-wider leading-none mb-1">Total Valuation (100%)</span>
+                            <span className="text-xs font-black text-gray-900 block">
+                              ₱{(assignment.cashflowReport?.ciRecommendation?.collaterals && assignment.cashflowReport.ciRecommendation.collaterals.length > 0 
+                                ? assignment.cashflowReport.ciRecommendation.collaterals.reduce((sum: number, c: any) => sum + Number(c.value100 || 0), 0) 
+                                : (assignment.cashflowReport?.ciRecommendation?.collateralValue100 || 0)).toLocaleString()}
+                            </span>
+                          </div>
+
+                          <div className="bg-gray-50/50 p-4 rounded-xl border border-gray-100">
+                            <span className="text-[8px] font-black text-gray-400 uppercase block tracking-wider leading-none mb-1">Loan-to-Value Cap ({assignment.cashflowReport?.ciRecommendation?.ltvPercentage || 70}%)</span>
+                            <span className="text-xs font-black text-gray-900 block">
+                              ₱{(assignment.cashflowReport?.ciRecommendation?.collaterals && assignment.cashflowReport.ciRecommendation.collaterals.length > 0 
+                                ? assignment.cashflowReport.ciRecommendation.collaterals.reduce((sum: number, c: any) => sum + Number(c.value70 || 0), 0) 
+                                : (assignment.cashflowReport?.ciRecommendation?.collateralValue70 || 0)).toLocaleString()}
+                            </span>
+                          </div>
+
+                          {/* Calculated Amount at Risk */}
+                          {(() => {
+                            const recomLoanAmount = Number(assignment.cashflowReport?.ciRecommendation?.loanAmount || 0);
+                            const collateralsValue70 = Number(
+                              assignment.cashflowReport?.ciRecommendation?.collaterals && assignment.cashflowReport.ciRecommendation.collaterals.length > 0
+                                ? assignment.cashflowReport.ciRecommendation.collaterals.reduce((sum: number, c: any) => sum + Number(c.value70 || 0), 0)
+                                : (assignment.cashflowReport?.ciRecommendation?.collateralValue70 || 0)
+                            );
+                            const amtAtRisk = recomLoanAmount - collateralsValue70;
+
+                            return (
+                              <div className={cn(
+                                "p-4 rounded-xl border",
+                                amtAtRisk > 0 ? "bg-red-50 border-red-100" : "bg-emerald-50 border-emerald-100"
+                              )}>
+                                <span className="text-[8px] font-black text-gray-400 uppercase block tracking-wider leading-none mb-1">Amount at Risk</span>
+                                <span className={cn(
+                                  "text-sm font-black block",
+                                  amtAtRisk > 0 ? "text-red-600" : "text-emerald-700"
+                                )}>
+                                  {amtAtRisk > 0 ? `₱${amtAtRisk.toLocaleString()}` : 'Fully Covered (₱0)'}
+                                </span>
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Collateral lists table if exists */}
+                        {assignment.cashflowReport?.ciRecommendation?.collaterals && assignment.cashflowReport.ciRecommendation.collaterals.length > 0 && (
+                          <div className="border border-gray-100 rounded-xl overflow-hidden mt-4">
+                            <table className="w-full text-left text-xs border-collapse">
+                              <thead>
+                                <tr className="bg-gray-50 border-b border-gray-100 text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                                  <th className="px-4 py-2">Asset Description / Type</th>
+                                  <th className="px-4 py-2 text-right">Market Value (100%)</th>
+                                  <th className="px-4 py-2 text-right">LTV Coverage (70%)</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-50">
+                                {assignment.cashflowReport.ciRecommendation.collaterals.map((item: any) => (
+                                  <tr key={item.id} className="font-semibold text-gray-700">
+                                    <td className="px-4 py-2.5 font-extrabold text-gray-900 uppercase">{item.type || 'N/A'}</td>
+                                    <td className="px-4 py-2.5 text-right">₱{Number(item.value100 || 0).toLocaleString()}</td>
+                                    <td className="px-4 py-2.5 text-right font-bold text-emerald-800">₱{Number(item.value70 || 0).toLocaleString()}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-gray-50 text-center rounded-xl text-xs text-gray-400 font-bold">
+                        Unsecured/Signature loan with zero indicated collateral. Risk exposure is equal to 100% of the loan amount.
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="bg-white border border-dashed border-gray-200 rounded-3xl p-12 text-center space-y-3">
+                  <ClipboardCheck size={32} className="mx-auto text-gray-300 animate-pulse" />
+                  <p className="text-sm font-bold text-gray-600 uppercase tracking-wider">No CI Recommendation Filed</p>
+                  <p className="text-xs text-gray-400 max-w-md mx-auto">
+                    A formal recommendation by the assigned Credit Investigator (CI) has not been drafted yet. Ensure the Cashflow and Recommendation module is saved.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'committee' && (
+            <div className="space-y-6">
+              <div className="bg-slate-50 rounded-[2rem] p-6 lg:p-8 border border-slate-200/60 text-left relative overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-200/80 pb-5">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={14} className="text-emerald-700" />
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-800">
+                        Credit Committee (CreCom) Evaluation
+                      </span>
+                      {assignment.status === 'Approved' ? (
+                        <span className="px-2 py-0.5 bg-green-600 text-[8px] font-black text-white uppercase rounded-md tracking-wider animate-bounce-short">
+                          Approved
+                        </span>
+                      ) : assignment.status === 'Denied' ? (
+                        <span className="px-2 py-0.5 bg-red-600 text-[8px] font-black text-white uppercase rounded-md tracking-wider">
+                          Denied
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-amber-600 text-[8px] font-black text-white uppercase rounded-md tracking-wider">
+                          Pending Decision
+                        </span>
+                      )}
+                    </div>
+                    <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight mt-1">
+                      Committee Verdict & Directives
+                    </h4>
+                  </div>
+                </div>
+
+                {assignment.crecomComments ? (
+                  <div className="space-y-6">
+                    <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-xs">
+                      <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-2">CreCom Comments & Remarks</span>
+                      <p className="text-xs font-bold text-slate-700 whitespace-pre-wrap leading-relaxed select-text">
+                        {assignment.crecomComments}
+                      </p>
+                    </div>
+
+                    {assignment.status === 'Approved' && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                        {[
+                          { label: 'Approved Amount', value: assignment.approvedAmount ? `₱${assignment.approvedAmount.toLocaleString()}` : '-' },
+                          { label: 'Approved Term', value: assignment.approvedTerm ? `${assignment.approvedTerm} Mos` : '-' },
+                          { label: 'Approved Rate', value: assignment.approvedIntRate ? `${assignment.approvedIntRate}%` : '-' },
+                          { label: 'MOP', value: assignment.approvedMop || '-' },
+                          { label: 'TOP', value: assignment.approvedTop || '-' },
+                        ].map((metric, idx) => (
+                          <div key={idx} className="bg-white px-4 py-3 border border-slate-100 rounded-xl space-y-1 shadow-xs">
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider block leading-none">{metric.label}</span>
+                            <span className="text-xs font-black text-emerald-800 uppercase block leading-none">{metric.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-2xl p-8 border border-dashed border-slate-200 text-center space-y-2">
+                    <p className="text-xs font-bold text-slate-600 uppercase tracking-tight">No Committee Comments Found</p>
+                    <p className="text-[10px] text-slate-400 font-semibold tracking-wider">
+                      This account has not been processed by the Credit Committee yet, or no remarks were left.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'ai' && (
+            <div className="space-y-6">
+              <AiAccountAnalysis assignment={assignment} />
+            </div>
+          )}
         </div>
 
+        {/* Dossier Footer */}
         <div className="p-6 bg-gray-50/50 border-t border-gray-100 flex justify-end gap-3 shrink-0">
           <button 
             onClick={onClose}
@@ -7859,11 +8300,14 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
               <button
                 type="button"
                 disabled={!isCiRecommendationEditable}
-                onClick={() => setCiRecommendation({ 
-                  ...ciRecommendation, 
-                  hasCollateral: !ciRecommendation.hasCollateral,
-                  ...(!ciRecommendation.hasCollateral ? {} : { collateralType: '', collateralValue100: 0, collateralValue70: 0 })
-                })}
+                onClick={() => {
+                  const nextHasCollateral = !ciRecommendation.hasCollateral;
+                  setCiRecommendation({ 
+                    ...ciRecommendation, 
+                    hasCollateral: nextHasCollateral,
+                    ...(!nextHasCollateral ? { collateralType: '', collateralValue100: 0, collateralValue70: 0, collaterals: [] } : {})
+                  });
+                }}
                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${ciRecommendation.hasCollateral ? 'bg-emerald-600' : 'bg-gray-200'} disabled:opacity-50`}
               >
                 <span
@@ -9629,97 +10073,13 @@ function DataStorage({ user }: { user: UserProfile }) {
       )}
 
       {isViewing && selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-emerald-950/40 backdrop-blur-sm">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl border border-emerald-100"
-          >
-            <div className="bg-linear-to-r from-emerald-800 to-emerald-900 p-8 text-white flex justify-between items-center">
-               <div>
-                 <h3 className="text-xl font-black uppercase tracking-tight">Client Account Dossier</h3>
-                 <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mt-1">Repository Registry ID: {selected.id.slice(0, 16)}</p>
-               </div>
-               <button onClick={() => { setIsViewing(false); setSelected(null); }} className="hover:rotate-90 transition-transform bg-white/10 p-2 rounded-xl">
-                 <X size={20} />
-               </button>
-            </div>
-            
-            <div className="p-8 grid grid-cols-2 gap-8">
-               <div className="space-y-6">
-                 <div className="space-y-1">
-                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">Full Legal Name</p>
-                    <p className="text-sm font-black text-emerald-800 uppercase">{selected.borrowerName}</p>
-                 </div>
-                 <div className="space-y-1">
-                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">Contact Protocol</p>
-                    <p className="text-sm font-bold text-gray-700">{selected.mobileNumber || 'N/A'}</p>
-                 </div>
-                 <div className="space-y-1">
-                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">Geographic Deployment</p>
-                    <p className="text-sm font-bold text-gray-700">{selected.location} <span className="text-[10px] text-gray-400">({selected.tribe})</span></p>
-                 </div>
-                 <div className="space-y-1">
-                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">Registration Metadata</p>
-                    <p className="text-xs font-mono text-gray-500 italic">{format(new Date(selected.createdAt), 'MMMM dd, yyyy | hh:mm a')}</p>
-                 </div>
-               </div>
-
-               <div className="space-y-6">
-                 <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
-                    <p className="text-[9px] font-black text-emerald-800 uppercase tracking-widest mb-3">Financial Specifications</p>
-                    <div className="space-y-3">
-                       <div className="flex justify-between items-center bg-white px-3 py-2 rounded-lg border border-emerald-100">
-                          <span className="text-[9px] font-bold text-gray-400 uppercase">Requirement</span>
-                          <span className="text-xs font-black text-emerald-900 border-b-2 border-emerald-500/20 px-1">₱{selected.requestedAmount.toLocaleString()}</span>
-                       </div>
-                       <div className="flex justify-between items-center bg-white px-3 py-2 rounded-lg border border-emerald-100">
-                          <span className="text-[9px] font-bold text-gray-400 uppercase">Configuration</span>
-                          <span className="text-[10px] font-black text-emerald-900 uppercase tracking-tighter bg-emerald-50/50 px-2 rounded-md">{selected.accountType}</span>
-                       </div>
-                       <div className="flex justify-between items-center bg-white px-3 py-2 rounded-lg border border-emerald-100">
-                          <span className="text-[9px] font-bold text-gray-400 uppercase">Duration</span>
-                          <span className="text-[10px] font-black text-emerald-900">{selected.term} STAGES</span>
-                       </div>
-                    </div>
-                 </div>
-
-                 <div className="space-y-1 px-2">
-                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Assigned Personnel</p>
-                    <div className="flex items-center gap-3">
-                       <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-xs font-black text-emerald-700">
-                          {selected.ciOfficerName.charAt(0)}
-                       </div>
-                       <div>
-                         <p className="text-xs font-black text-gray-700 uppercase leading-none">{selected.ciOfficerName}</p>
-                         <p className="text-[8px] text-emerald-600 font-bold uppercase tracking-widest mt-1">Field CI Officer</p>
-                       </div>
-                    </div>
-                 </div>
-               </div>
-            </div>
-            
-            {selected.status === 'Archived' && (
-              <div className="mx-8 mb-6 p-4 bg-amber-50 border border-amber-200/50 rounded-2xl flex items-start gap-3 select-text text-left">
-                <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5 animate-pulse" />
-                <div className="space-y-1">
-                  <h4 className="text-[10px] font-black text-amber-950 uppercase tracking-widest">Archived Account Specification</h4>
-                  <p className="text-[9px] text-amber-600 font-extrabold uppercase tracking-wider">Reason / Remarks for Discontinuation:</p>
-                  <p className="text-xs text-slate-800 font-semibold italic">"{selected.archiveReason || 'No specific remarks were entered during archive.'}"</p>
-                </div>
-              </div>
-            )}
-
-            <div className="p-6 bg-gray-50 flex justify-end gap-3 border-t border-gray-100">
-               <button 
-                 onClick={() => { setIsViewing(false); setSelected(null); }}
-                 className="px-6 py-2.5 bg-emerald-800 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-emerald-900 transition-all shadow-lg shadow-emerald-900/20"
-               >
-                 Acknowledge Repository Entry
-               </button>
-            </div>
-          </motion.div>
-        </div>
+        <AccountDossierModal 
+          assignment={selected} 
+          onClose={() => {
+            setIsViewing(false);
+            setSelected(null);
+          }} 
+        />
       )}
     </div>
   );
