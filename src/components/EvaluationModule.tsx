@@ -207,6 +207,9 @@ const CRITERIA: Criterion[] = [
 
 export default function EvaluationModule({ user }: { user: UserProfile }) {
   const isAdmin = user.role === 'admin';
+  const isSupervisor = user.role === 'supervisor';
+  const isCoordinator = user.role === 'coordinator';
+  const canManageEvals = isAdmin || isSupervisor || isCoordinator;
   
   // Lists & data
   const [evaluations, setEvaluations] = useState<EvaluationRecord[]>([]);
@@ -214,8 +217,17 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
   const [loading, setLoading] = useState(true);
   
   // View states
-  const [currentTab, setCurrentTab] = useState<'list' | 'create_self' | 'create_superior'>('list');
+  const [currentTab, setCurrentTab] = useState<'list' | 'create_self' | 'create_superior'>(
+    isSupervisor ? 'create_self' : 'list'
+  );
   const [selectedEval, setSelectedEval] = useState<EvaluationRecord | null>(null);
+
+  // Safety check: supervisor should not stay on list/surveys & history tab
+  useEffect(() => {
+    if (isSupervisor && currentTab === 'list') {
+      setCurrentTab('create_self');
+    }
+  }, [isSupervisor, currentTab]);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'self' | 'superior'>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
@@ -356,15 +368,20 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
   useEffect(() => {
     if (currentTab === 'create_self') {
       setSelectedEmployeeId(user.id);
-      setPosition(user.role === 'admin' ? 'Administrator' : user.role === 'coordinator' ? 'CI Coordinator' : 'CIBI Officer');
-      // Set default classification
+      let defaultPos = 'CIBI Officer';
+      let defaultClass = 'Office Staff';
       if (user.role === 'admin') {
-        setClassification('Manager');
+        defaultPos = 'Administrator';
+        defaultClass = 'Manager';
+      } else if (user.role === 'supervisor') {
+        defaultPos = 'CI Supervisor';
+        defaultClass = 'Supervisor / Head';
       } else if (user.role === 'coordinator') {
-        setClassification('Supervisor / Head');
-      } else {
-        setClassification('Office Staff');
+        defaultPos = 'CI Coordinator';
+        defaultClass = 'Supervisor / Head';
       }
+      setPosition(defaultPos);
+      setClassification(defaultClass);
       
       // Pre-fill rating dictionary with 0s
       const initial: Record<string, number> = {};
@@ -399,9 +416,9 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
   // Load real data from Firestore
   useEffect(() => {
     setLoading(true);
-    // Listen to all evaluations if admin, else only own evaluations
+    // Listen to all evaluations if privileged (admin, supervisor, coordinator), else only own evaluations
     const evaluationsCol = collection(db, 'evaluations');
-    const qEval = isAdmin 
+    const qEval = canManageEvals 
       ? query(evaluationsCol, orderBy('createdAt', 'desc'))
       : query(evaluationsCol, where('employeeId', '==', user.id), orderBy('createdAt', 'desc'));
       
@@ -417,9 +434,9 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
       handleFirestoreError(error, OperationType.LIST, 'evaluations');
     });
 
-    // If admin, load system users to allow superior evaluations
+    // If privileged, load system users to allow superior evaluations
     let unsubUsers = () => {};
-    if (isAdmin) {
+    if (canManageEvals) {
       const qUsers = collection(db, 'users');
       unsubUsers = onSnapshot(qUsers, (snapshot) => {
         const userList = snapshot.docs.map(doc => ({
@@ -436,21 +453,27 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
       unsubEval();
       unsubUsers();
     };
-  }, [isAdmin, user.id]);
+  }, [canManageEvals, user.id]);
 
-  // When admin selects a user to evaluate
+  // When evaluator selects a user to evaluate
   const handleEmployeeSelection = (empId: string) => {
     setSelectedEmployeeId(empId);
     const targetUser = users.find(u => u.id === empId);
     if (targetUser) {
-      setPosition(targetUser.role === 'admin' ? 'Administrator' : targetUser.role === 'coordinator' ? 'CI Coordinator' : 'CIBI Officer');
+      let defaultPos = 'CIBI Officer';
+      let defaultClass = 'Office Staff';
       if (targetUser.role === 'admin') {
-        setClassification('Manager');
+        defaultPos = 'Administrator';
+        defaultClass = 'Manager';
+      } else if (targetUser.role === 'supervisor') {
+        defaultPos = 'CI Supervisor';
+        defaultClass = 'Supervisor / Head';
       } else if (targetUser.role === 'coordinator') {
-        setClassification('Supervisor / Head');
-      } else {
-        setClassification('Office Staff');
+        defaultPos = 'CI Coordinator';
+        defaultClass = 'Supervisor / Head';
       }
+      setPosition(defaultPos);
+      setClassification(defaultClass);
     }
     
     // Reset points
@@ -565,11 +588,11 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
         strongPoints,
         weakPoints,
         trainingRecommendation,
-        absences: isAdmin ? absences : 'To be filled by HR',
-        tardiness: isAdmin ? tardiness : 'To be filled by HR',
-        undertime: isAdmin ? undertime : 'To be filled by HR',
-        disciplinaryActions: isAdmin ? disciplinaryActions : 'To be filled by HR',
-        typeOfViolation: isAdmin ? typeOfViolation : 'To be filled by HR',
+        absences: canManageEvals ? absences : 'To be filled by HR',
+        tardiness: canManageEvals ? tardiness : 'To be filled by HR',
+        undertime: canManageEvals ? undertime : 'To be filled by HR',
+        disciplinaryActions: canManageEvals ? disciplinaryActions : 'To be filled by HR',
+        typeOfViolation: canManageEvals ? typeOfViolation : 'To be filled by HR',
         preparedByName,
         preparedByTitle,
         reviewedByName,
@@ -584,7 +607,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
 
       await addDoc(collection(db, 'evaluations'), evaluationPayload);
       toast.success("Performance Evaluation successfully submitted!");
-      setCurrentTab('list');
+      setCurrentTab(isSupervisor ? 'create_self' : 'list');
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, 'evaluations');
     }
@@ -1172,19 +1195,21 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
           </div>
 
           <div className="flex flex-wrap gap-2.5">
-            <button
-              onClick={() => {
-                setCurrentTab('list');
-                setSelectedEval(null);
-              }}
-              className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest cursor-pointer transition-all ${
-                currentTab === 'list' && !selectedEval
-                  ? 'bg-emerald-600 text-white shadow-md'
-                  : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
-              }`}
-            >
-              Surveys & History
-            </button>
+            {!isSupervisor && (
+              <button
+                onClick={() => {
+                  setCurrentTab('list');
+                  setSelectedEval(null);
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest cursor-pointer transition-all ${
+                  currentTab === 'list' && !selectedEval
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                }`}
+              >
+                Surveys & History
+              </button>
+            )}
             <button
               onClick={() => {
                 setCurrentTab('create_self');
@@ -1198,7 +1223,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
             >
               New Self Evaluation
             </button>
-            {isAdmin && (
+            {canManageEvals && (
               <button
                 onClick={() => {
                   setCurrentTab('create_superior');
@@ -1749,7 +1774,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
                           View Sheet
                         </button>
 
-                        {isAdmin && (
+                        {canManageEvals && (
                           <button
                             onClick={() => openHrEdit(evalRec)}
                             title="Update HR Metrics"
@@ -1759,7 +1784,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
                           </button>
                         )}
 
-                        {isAdmin && (
+                        {(isAdmin || isSupervisor) && (
                           <button
                             onClick={() => handleDeleteEval(evalRec.id || '')}
                             title="Delete Permanently"
@@ -2057,11 +2082,11 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
               </div>
             </div>
 
-            {/* Step 4: HR-specific fields (Only if filled by Admin) */}
-            {isAdmin && (
+            {/* Step 4: HR-specific fields (Only if filled by Admin / Supervisor) */}
+            {canManageEvals && (
               <div className="bg-slate-900 text-white rounded-3xl p-6 space-y-4 shadow-md">
                 <h3 className="text-xs font-black uppercase text-emerald-400 tracking-widest border-b border-white/10 pb-2">
-                  4. HR Direct Record Filling (Admin / HR Use Only)
+                  4. HR Direct Record Filling (Admin / Supervisor / HR Use)
                 </h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2226,7 +2251,7 @@ export default function EvaluationModule({ user }: { user: UserProfile }) {
             <div className="flex border-t border-gray-100 pt-6 gap-3">
               <button
                 type="button"
-                onClick={() => setCurrentTab('list')}
+                onClick={() => setCurrentTab(isSupervisor ? 'create_self' : 'list')}
                 className="flex-1 py-3 bg-gray-50 hover:bg-gray-100 text-gray-500 font-black text-xs uppercase tracking-widest rounded-xl transition-all cursor-pointer"
               >
                 Cancel
