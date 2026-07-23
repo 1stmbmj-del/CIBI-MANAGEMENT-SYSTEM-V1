@@ -1461,14 +1461,21 @@ function Dashboard({
           {/* Header/Profile Section */}
           <div className={cn(
             "p-6 flex items-center transition-all duration-300",
-            sidebarOpen ? "space-x-4 mb-8" : "justify-center mb-10"
+            sidebarOpen ? "space-x-4 mb-6" : "justify-center mb-8"
           )}>
             <div className={cn(
-              "bg-white/20 rounded-full flex items-center justify-center overflow-hidden border-2 border-white/40 transition-all",
+              "bg-white/20 rounded-full flex items-center justify-center overflow-hidden border-2 border-white/40 transition-all shadow-md relative group",
               sidebarOpen ? "w-12 h-12" : "w-10 h-10"
             )}>
               {user.photoURL ? (
                 <img src={user.photoURL} alt="User" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              ) : isSupervisor ? (
+                <img 
+                  src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200" 
+                  alt="Supervisor Sample Profile" 
+                  className="w-full h-full object-cover" 
+                  referrerPolicy="no-referrer" 
+                />
               ) : (
                 <User className="text-white" size={sidebarOpen ? 24 : 20} />
               )}
@@ -1484,6 +1491,25 @@ function Dashboard({
               </motion.div>
             )}
           </div>
+
+          {/* Supervisor Menu Sample Picture Banner */}
+          {isSupervisor && sidebarOpen && (
+            <div className="mx-4 mb-4 p-3 rounded-2xl bg-white/10 border border-white/20 backdrop-blur-md flex items-center gap-3 shadow-lg">
+              <img 
+                src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200" 
+                alt="Supervisor Menu Sample" 
+                className="w-12 h-12 rounded-xl object-cover border-2 border-emerald-300/60 shadow-md shrink-0" 
+                referrerPolicy="no-referrer"
+              />
+              <div className="overflow-hidden">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <p className="text-[10px] font-black uppercase text-emerald-200 tracking-wider">Supervisor Menu</p>
+                </div>
+                <p className="text-[9px] text-white/90 font-bold truncate mt-0.5">Field & Operations Portal</p>
+              </div>
+            </div>
+          )}
 
           {/* Navigation */}
           <nav className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar">
