@@ -483,6 +483,84 @@ const CollateralRiskAnalysisCard = ({
   );
 };
 
+interface AdjustmentInputCellProps {
+  price: number;
+  adjValue: number;
+  onUpdateAdj: (newAdjInPeso: number) => void;
+  adjMode: 'percent' | 'peso';
+  fmt: (num: number) => string;
+}
+
+function AdjustmentInputCell({ price, adjValue, onUpdateAdj, adjMode, fmt }: AdjustmentInputCellProps) {
+  const currentPct = price > 0 ? (adjValue / price) * 100 : 0;
+  const [localVal, setLocalVal] = useState<string>('');
+  const [isFocused, setIsFocused] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!isFocused) {
+      if (adjMode === 'percent') {
+        setLocalVal(price > 0 ? (Math.round(currentPct * 100) / 100).toString() : '0');
+      } else {
+        setLocalVal(adjValue.toString());
+      }
+    }
+  }, [adjValue, price, adjMode, isFocused, currentPct]);
+
+  if (adjMode === 'percent') {
+    return (
+      <div className="space-y-1">
+        <div className="relative flex items-center">
+          <input
+            type="number"
+            step="0.5"
+            placeholder="0"
+            value={localVal}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            onChange={(e) => {
+              setLocalVal(e.target.value);
+              const pct = parseFloat(e.target.value) || 0;
+              const peso = Math.round(price * (pct / 100));
+              onUpdateAdj(peso);
+            }}
+            className="w-full bg-white border border-slate-300 focus:border-emerald-500 pr-6 pl-2.5 py-1 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+          />
+          <span className="absolute right-2 text-xs font-black text-slate-400 pointer-events-none">%</span>
+        </div>
+        <div className="text-[10px] font-bold text-slate-500 flex items-center justify-between px-0.5">
+          <span>Amount:</span>
+          <span className={adjValue < 0 ? 'text-red-600 font-extrabold' : adjValue > 0 ? 'text-emerald-700 font-extrabold' : 'text-slate-500'}>
+            {adjValue > 0 ? `+${fmt(adjValue)}` : fmt(adjValue)}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      <input
+        type="number"
+        value={localVal}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        onChange={(e) => {
+          setLocalVal(e.target.value);
+          const peso = parseFloat(e.target.value) || 0;
+          onUpdateAdj(peso);
+        }}
+        className="w-full bg-white border border-slate-300 focus:border-emerald-500 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+      />
+      <div className="text-[10px] font-bold text-slate-500 flex items-center justify-between px-0.5">
+        <span>Equiv %:</span>
+        <span className={currentPct < 0 ? 'text-red-600 font-extrabold' : currentPct > 0 ? 'text-emerald-700 font-extrabold' : 'text-slate-500'}>
+          {currentPct > 0 ? `+${currentPct.toFixed(2)}%` : `${currentPct.toFixed(2)}%`}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) {
   const [activeTab, setActiveTab] = useState<'real_property' | 'vehicle' | 'history'>('real_property');
   const [appraisals, setAppraisals] = useState<AppraisalRecord[]>([]);
@@ -595,12 +673,13 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
     opinionRemarks: 'Subject property possesses sound structural integrity and favorable marketability.',
     recommendedLoanAmount: 0,
 
-    photoChecklist: REAL_PROPERTY_CHECKLIST.reduce((acc, item) => ({ ...acc, [item]: true }), {})
+    photoChecklist: REAL_PROPERTY_CHECKLIST.reduce((acc, item) => ({ ...acc, [item]: false }), {})
   };
 
   const [realProp, setRealProp] = useState<RealPropertyAppraisal>(initialRealPropertyState);
   const [realTargetLtv, setRealTargetLtv] = useState<number>(70);
   const [appliedRealLoanAmount, setAppliedRealLoanAmount] = useState<number>(2000000);
+  const [realPropAdjMode, setRealPropAdjMode] = useState<'percent' | 'peso'>('percent');
 
   // ==========================================
   // VEHICLE STATE
@@ -661,12 +740,13 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
 
     recommendedLoanAmount: 0,
 
-    photoChecklist: VEHICLE_CHECKLIST.reduce((acc, item) => ({ ...acc, [item]: true }), {})
+    photoChecklist: VEHICLE_CHECKLIST.reduce((acc, item) => ({ ...acc, [item]: false }), {})
   };
 
   const [vehicle, setVehicle] = useState<VehicleAppraisal>(initialVehicleState);
   const [vehicleTargetLtv, setVehicleTargetLtv] = useState<number>(70);
   const [appliedVehicleLoanAmount, setAppliedVehicleLoanAmount] = useState<number>(750000);
+  const [vehicleAdjMode, setVehicleAdjMode] = useState<'percent' | 'peso'>('percent');
 
   // Status Filter State for Saved Reports Database
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('ALL');
@@ -1320,17 +1400,38 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
             </div>
 
             {/* IV. Comparable Adjustments */}
-            <div>
-              <h2 className="text-sm font-black text-emerald-900 uppercase tracking-widest border-b border-slate-100 pb-3 flex items-center justify-between">
-                <span className="flex items-center gap-2">
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <h2 className="text-sm font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
                   <Calculator className="w-4 h-4 text-emerald-600" /> IV. Comparable Adjustments
-                </span>
-                <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                  Real-time Valuation Engine
-                </span>
-              </h2>
+                </h2>
+                <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setRealPropAdjMode('percent')}
+                    className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                      realPropAdjMode === 'percent'
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    % Percentage Mode
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRealPropAdjMode('peso')}
+                    className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                      realPropAdjMode === 'peso'
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    ₱ Peso Mode
+                  </button>
+                </div>
+              </div>
 
-              <table className="w-full mt-4 text-left border-collapse min-w-[700px]">
+              <table className="w-full text-left border-collapse min-w-[700px]">
                 <thead>
                   <tr className="bg-slate-50 text-[10px] font-black uppercase text-slate-500 tracking-wider">
                     <th className="p-3 border-b border-slate-200">Adjustment Item</th>
@@ -1348,39 +1449,39 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Location Adjustment</td>
-                    <td className="p-3"><input type="number" value={realProp.comp1LocationAdj} onChange={e => setRealProp({ ...realProp, comp1LocationAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
-                    <td className="p-3"><input type="number" value={realProp.comp2LocationAdj} onChange={e => setRealProp({ ...realProp, comp2LocationAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
-                    <td className="p-3"><input type="number" value={realProp.comp3LocationAdj} onChange={e => setRealProp({ ...realProp, comp3LocationAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
+                    <td className="p-3"><AdjustmentInputCell price={realProp.comp1Price} adjValue={realProp.comp1LocationAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp1LocationAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
+                    <td className="p-3"><AdjustmentInputCell price={realProp.comp2Price} adjValue={realProp.comp2LocationAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp2LocationAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
+                    <td className="p-3"><AdjustmentInputCell price={realProp.comp3Price} adjValue={realProp.comp3LocationAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp3LocationAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Lot Size Adjustment</td>
-                    <td className="p-3"><input type="number" value={realProp.comp1LotSizeAdj} onChange={e => setRealProp({ ...realProp, comp1LotSizeAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
-                    <td className="p-3"><input type="number" value={realProp.comp2LotSizeAdj} onChange={e => setRealProp({ ...realProp, comp2LotSizeAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
-                    <td className="p-3"><input type="number" value={realProp.comp3LotSizeAdj} onChange={e => setRealProp({ ...realProp, comp3LotSizeAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
+                    <td className="p-3"><AdjustmentInputCell price={realProp.comp1Price} adjValue={realProp.comp1LotSizeAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp1LotSizeAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
+                    <td className="p-3"><AdjustmentInputCell price={realProp.comp2Price} adjValue={realProp.comp2LotSizeAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp2LotSizeAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
+                    <td className="p-3"><AdjustmentInputCell price={realProp.comp3Price} adjValue={realProp.comp3LotSizeAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp3LotSizeAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Building Size Adjustment</td>
-                    <td className="p-3"><input type="number" value={realProp.comp1BuildingSizeAdj} onChange={e => setRealProp({ ...realProp, comp1BuildingSizeAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
-                    <td className="p-3"><input type="number" value={realProp.comp2BuildingSizeAdj} onChange={e => setRealProp({ ...realProp, comp2BuildingSizeAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
-                    <td className="p-3"><input type="number" value={realProp.comp3BuildingSizeAdj} onChange={e => setRealProp({ ...realProp, comp3BuildingSizeAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
+                    <td className="p-3"><AdjustmentInputCell price={realProp.comp1Price} adjValue={realProp.comp1BuildingSizeAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp1BuildingSizeAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
+                    <td className="p-3"><AdjustmentInputCell price={realProp.comp2Price} adjValue={realProp.comp2BuildingSizeAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp2BuildingSizeAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
+                    <td className="p-3"><AdjustmentInputCell price={realProp.comp3Price} adjValue={realProp.comp3BuildingSizeAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp3BuildingSizeAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Property Condition</td>
-                    <td className="p-3"><input type="number" value={realProp.comp1ConditionAdj} onChange={e => setRealProp({ ...realProp, comp1ConditionAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
-                    <td className="p-3"><input type="number" value={realProp.comp2ConditionAdj} onChange={e => setRealProp({ ...realProp, comp2ConditionAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
-                    <td className="p-3"><input type="number" value={realProp.comp3ConditionAdj} onChange={e => setRealProp({ ...realProp, comp3ConditionAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
+                    <td className="p-3"><AdjustmentInputCell price={realProp.comp1Price} adjValue={realProp.comp1ConditionAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp1ConditionAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
+                    <td className="p-3"><AdjustmentInputCell price={realProp.comp2Price} adjValue={realProp.comp2ConditionAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp2ConditionAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
+                    <td className="p-3"><AdjustmentInputCell price={realProp.comp3Price} adjValue={realProp.comp3ConditionAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp3ConditionAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Road Access</td>
-                    <td className="p-3"><input type="number" value={realProp.comp1RoadAccessAdj} onChange={e => setRealProp({ ...realProp, comp1RoadAccessAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
-                    <td className="p-3"><input type="number" value={realProp.comp2RoadAccessAdj} onChange={e => setRealProp({ ...realProp, comp2RoadAccessAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
-                    <td className="p-3"><input type="number" value={realProp.comp3RoadAccessAdj} onChange={e => setRealProp({ ...realProp, comp3RoadAccessAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
+                    <td className="p-3"><AdjustmentInputCell price={realProp.comp1Price} adjValue={realProp.comp1RoadAccessAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp1RoadAccessAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
+                    <td className="p-3"><AdjustmentInputCell price={realProp.comp2Price} adjValue={realProp.comp2RoadAccessAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp2RoadAccessAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
+                    <td className="p-3"><AdjustmentInputCell price={realProp.comp3Price} adjValue={realProp.comp3RoadAccessAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp3RoadAccessAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Other Adjustments</td>
-                    <td className="p-3"><input type="number" value={realProp.comp1OtherAdj} onChange={e => setRealProp({ ...realProp, comp1OtherAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
-                    <td className="p-3"><input type="number" value={realProp.comp2OtherAdj} onChange={e => setRealProp({ ...realProp, comp2OtherAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
-                    <td className="p-3"><input type="number" value={realProp.comp3OtherAdj} onChange={e => setRealProp({ ...realProp, comp3OtherAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
+                    <td className="p-3"><AdjustmentInputCell price={realProp.comp1Price} adjValue={realProp.comp1OtherAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp1OtherAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
+                    <td className="p-3"><AdjustmentInputCell price={realProp.comp2Price} adjValue={realProp.comp2OtherAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp2OtherAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
+                    <td className="p-3"><AdjustmentInputCell price={realProp.comp3Price} adjValue={realProp.comp3OtherAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp3OtherAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                   </tr>
                   <tr className="bg-emerald-900 text-white font-black text-xs">
                     <td className="p-3.5 uppercase tracking-wider">Adjusted Market Value</td>
@@ -1503,9 +1604,33 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
 
             {/* Photo Documentation Checklist */}
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
-              <h2 className="text-sm font-black text-emerald-900 uppercase tracking-widest border-b border-slate-100 pb-3 flex items-center gap-2">
-                <CheckSquare className="w-4 h-4 text-emerald-600" /> Real Property Photo Documentation Checklist
-              </h2>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h2 className="text-sm font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
+                  <CheckSquare className="w-4 h-4 text-emerald-600" /> Real Property Photo Documentation Checklist
+                </h2>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setRealProp({
+                      ...realProp,
+                      photoChecklist: REAL_PROPERTY_CHECKLIST.reduce((acc, item) => ({ ...acc, [item]: true }), {})
+                    })}
+                    className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200 transition-all cursor-pointer"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRealProp({
+                      ...realProp,
+                      photoChecklist: REAL_PROPERTY_CHECKLIST.reduce((acc, item) => ({ ...acc, [item]: false }), {})
+                    })}
+                    className="text-[10px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </div>
 
               <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1">
                 {REAL_PROPERTY_CHECKLIST.map((item) => {
@@ -1739,17 +1864,45 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
             </div>
 
             {/* Vehicle Adjustments */}
-            <div>
-              <h2 className="text-sm font-black text-emerald-900 uppercase tracking-widest border-b border-slate-100 pb-3 flex items-center justify-between">
-                <span className="flex items-center gap-2">
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <h2 className="text-sm font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
                   <Calculator className="w-4 h-4 text-emerald-600" /> Vehicle Adjustments
-                </span>
-                <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                  Auto Calculates Adjusted Value
-                </span>
-              </h2>
+                </h2>
+                <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setVehicleAdjMode('percent')}
+                    className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                      vehicleAdjMode === 'percent'
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    % Percentage Mode
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVehicleAdjMode('peso')}
+                    className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                      vehicleAdjMode === 'peso'
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    ₱ Peso Mode
+                  </button>
+                </div>
+              </div>
 
-              <table className="w-full mt-4 text-left border-collapse min-w-[700px]">
+              <div className="p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-xl text-xs text-emerald-900 flex items-start gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                <p className="font-medium leading-relaxed">
+                  <strong>Percentage Mode:</strong> Enter adjustment % (+/-) based on how similar the comparable vehicle is to the subject vehicle. Negative % decreases price (e.g., higher mileage or older model), Positive % increases price.
+                </p>
+              </div>
+
+              <table className="w-full text-left border-collapse min-w-[700px]">
                 <thead>
                   <tr className="bg-slate-50 text-[10px] font-black uppercase text-slate-500 tracking-wider">
                     <th className="p-3 border-b border-slate-200">Item</th>
@@ -1767,27 +1920,27 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Mileage Adjustment</td>
-                    <td className="p-3"><input type="number" value={vehicle.comp1MileageAdj} onChange={e => setVehicle({ ...vehicle, comp1MileageAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
-                    <td className="p-3"><input type="number" value={vehicle.comp2MileageAdj} onChange={e => setVehicle({ ...vehicle, comp2MileageAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
-                    <td className="p-3"><input type="number" value={vehicle.comp3MileageAdj} onChange={e => setVehicle({ ...vehicle, comp3MileageAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
+                    <td className="p-3"><AdjustmentInputCell price={vehicle.comp1Price} adjValue={vehicle.comp1MileageAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp1MileageAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
+                    <td className="p-3"><AdjustmentInputCell price={vehicle.comp2Price} adjValue={vehicle.comp2MileageAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp2MileageAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
+                    <td className="p-3"><AdjustmentInputCell price={vehicle.comp3Price} adjValue={vehicle.comp3MileageAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp3MileageAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Condition Adjustment</td>
-                    <td className="p-3"><input type="number" value={vehicle.comp1ConditionAdj} onChange={e => setVehicle({ ...vehicle, comp1ConditionAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
-                    <td className="p-3"><input type="number" value={vehicle.comp2ConditionAdj} onChange={e => setVehicle({ ...vehicle, comp2ConditionAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
-                    <td className="p-3"><input type="number" value={vehicle.comp3ConditionAdj} onChange={e => setVehicle({ ...vehicle, comp3ConditionAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
+                    <td className="p-3"><AdjustmentInputCell price={vehicle.comp1Price} adjValue={vehicle.comp1ConditionAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp1ConditionAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
+                    <td className="p-3"><AdjustmentInputCell price={vehicle.comp2Price} adjValue={vehicle.comp2ConditionAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp2ConditionAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
+                    <td className="p-3"><AdjustmentInputCell price={vehicle.comp3Price} adjValue={vehicle.comp3ConditionAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp3ConditionAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Accessories Adjustment</td>
-                    <td className="p-3"><input type="number" value={vehicle.comp1AccessoriesAdj} onChange={e => setVehicle({ ...vehicle, comp1AccessoriesAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
-                    <td className="p-3"><input type="number" value={vehicle.comp2AccessoriesAdj} onChange={e => setVehicle({ ...vehicle, comp2AccessoriesAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
-                    <td className="p-3"><input type="number" value={vehicle.comp3AccessoriesAdj} onChange={e => setVehicle({ ...vehicle, comp3AccessoriesAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
+                    <td className="p-3"><AdjustmentInputCell price={vehicle.comp1Price} adjValue={vehicle.comp1AccessoriesAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp1AccessoriesAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
+                    <td className="p-3"><AdjustmentInputCell price={vehicle.comp2Price} adjValue={vehicle.comp2AccessoriesAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp2AccessoriesAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
+                    <td className="p-3"><AdjustmentInputCell price={vehicle.comp3Price} adjValue={vehicle.comp3AccessoriesAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp3AccessoriesAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Year Model Adjustment</td>
-                    <td className="p-3"><input type="number" value={vehicle.comp1YearModelAdj} onChange={e => setVehicle({ ...vehicle, comp1YearModelAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
-                    <td className="p-3"><input type="number" value={vehicle.comp2YearModelAdj} onChange={e => setVehicle({ ...vehicle, comp2YearModelAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
-                    <td className="p-3"><input type="number" value={vehicle.comp3YearModelAdj} onChange={e => setVehicle({ ...vehicle, comp3YearModelAdj: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
+                    <td className="p-3"><AdjustmentInputCell price={vehicle.comp1Price} adjValue={vehicle.comp1YearModelAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp1YearModelAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
+                    <td className="p-3"><AdjustmentInputCell price={vehicle.comp2Price} adjValue={vehicle.comp2YearModelAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp2YearModelAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
+                    <td className="p-3"><AdjustmentInputCell price={vehicle.comp3Price} adjValue={vehicle.comp3YearModelAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp3YearModelAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
                   </tr>
                   <tr className="bg-slate-900 text-white font-black text-xs">
                     <td className="p-3.5 uppercase tracking-wider">Adjusted Value</td>
@@ -1846,9 +1999,33 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
 
             {/* Vehicle Photo Checklist */}
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
-              <h2 className="text-sm font-black text-emerald-900 uppercase tracking-widest border-b border-slate-100 pb-3 flex items-center gap-2">
-                <CheckSquare className="w-4 h-4 text-emerald-600" /> Vehicle Photo Documentation Checklist
-              </h2>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h2 className="text-sm font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
+                  <CheckSquare className="w-4 h-4 text-emerald-600" /> Vehicle Photo Documentation Checklist
+                </h2>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setVehicle({
+                      ...vehicle,
+                      photoChecklist: VEHICLE_CHECKLIST.reduce((acc, item) => ({ ...acc, [item]: true }), {})
+                    })}
+                    className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200 transition-all cursor-pointer"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVehicle({
+                      ...vehicle,
+                      photoChecklist: VEHICLE_CHECKLIST.reduce((acc, item) => ({ ...acc, [item]: false }), {})
+                    })}
+                    className="text-[10px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </div>
 
               <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1">
                 {VEHICLE_CHECKLIST.map((item) => {
