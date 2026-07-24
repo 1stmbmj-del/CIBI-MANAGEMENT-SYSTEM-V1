@@ -522,14 +522,20 @@ export interface VehicleAppraisal {
 export interface AppraisalRecord {
   id?: string;
   userId: string;
+  reportNumber?: string;
   appraiserName: string;
   title: string;
   reportType: 'real_property' | 'vehicle';
   borrowerName: string;
   marketValue: number;
   recommendedLoan: number;
+  appliedLoanAmount?: number;
+  targetLtv?: number;
+  riskLevel?: 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
+  status?: 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'ARCHIVED';
   data: RealPropertyAppraisal | VehicleAppraisal;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface AppNotification {

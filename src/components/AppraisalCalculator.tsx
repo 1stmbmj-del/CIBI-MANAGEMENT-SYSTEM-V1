@@ -28,11 +28,15 @@ import {
   Scale,
   ArrowUpRight,
   Info,
-  BarChart3
+  BarChart3,
+  Edit3,
+  Clock,
+  Database,
+  FileJson
 } from 'lucide-react';
 import { UserProfile, RealPropertyAppraisal, VehicleAppraisal, AppraisalRecord } from '../types';
 import { db } from '../firebase';
-import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 
 interface AppraisalCalculatorProps {
   user: UserProfile;
@@ -664,24 +668,57 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
   const [vehicleTargetLtv, setVehicleTargetLtv] = useState<number>(70);
   const [appliedVehicleLoanAmount, setAppliedVehicleLoanAmount] = useState<number>(750000);
 
-  // Load history from Firestore
+  // Status Filter State for Saved Reports Database
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('ALL');
+
+  // Load reports from dedicated Firestore collections ('appraisal_reports' & 'appraisals')
   useEffect(() => {
     setLoading(true);
-    const q = query(collection(db, 'appraisals'), orderBy('createdAt', 'desc'));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const records = snapshot.docs.map(doc => ({
+    const qReports = query(collection(db, 'appraisal_reports'), orderBy('createdAt', 'desc'));
+    const qAppraisals = query(collection(db, 'appraisals'), orderBy('createdAt', 'desc'));
+
+    let reportsList: AppraisalRecord[] = [];
+    let appraisalsList: AppraisalRecord[] = [];
+
+    const unsubReports = onSnapshot(qReports, (snapshot) => {
+      reportsList = snapshot.docs.map(doc => ({
         id: doc.id,
+        status: 'PENDING_REVIEW',
         ...doc.data()
       })) as AppraisalRecord[];
-      setAppraisals(records);
+      mergeAndSetRecords();
+    }, (e) => console.log('appraisal_reports listener notice:', e));
+
+    const unsubAppraisals = onSnapshot(qAppraisals, (snapshot) => {
+      appraisalsList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        status: 'PENDING_REVIEW',
+        ...doc.data()
+      })) as AppraisalRecord[];
+      mergeAndSetRecords();
+    }, (e) => console.log('appraisals listener notice:', e));
+
+    const mergeAndSetRecords = () => {
+      const map = new Map<string, AppraisalRecord>();
+      [...reportsList, ...appraisalsList].forEach(item => {
+        if (item.id && !map.has(item.id)) {
+          map.set(item.id, item);
+        }
+      });
+      const combined = Array.from(map.values()).sort((a, b) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      setAppraisals(combined);
       setLoading(false);
-    }, () => {
-      setLoading(false);
-    });
-    return () => unsub();
+    };
+
+    return () => {
+      unsubReports();
+      unsubAppraisals();
+    };
   }, []);
 
-  // Format currency helpers
+  // Format currency helper
   const fmt = (num: number) => `₱${(num || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   // ==========================================
@@ -736,13 +773,26 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
     }
   }, [vehicleAverageMarketValue]);
 
-  // Save handlers
+  // Calculate Risk Level Helper
+  const calculateRiskLevel = (applied: number, market: number, targetLtv: number): 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL' => {
+    if (market <= 0) return 'LOW';
+    const ltvRatio = (applied / market) * 100;
+    if (ltvRatio <= 50) return 'LOW';
+    if (ltvRatio <= targetLtv) return 'MODERATE';
+    if (ltvRatio <= 85) return 'HIGH';
+    return 'CRITICAL';
+  };
+
+  // Dedicated Database Save Handlers
   const handleSaveRealProperty = async () => {
     if (!realProp.borrower) {
       alert("Please enter Borrower Name first!");
       return;
     }
     try {
+      const reportNum = `REP-RP-${Date.now().toString().slice(-6)}`;
+      const risk = calculateRiskLevel(appliedRealLoanAmount, realAverageMarketValue, realTargetLtv);
+
       const realDataToSave: RealPropertyAppraisal = {
         ...realProp,
         appliedLoanAmount: appliedRealLoanAmount,
@@ -751,22 +801,31 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
 
       const payload: Omit<AppraisalRecord, 'id'> = {
         userId: user.id,
-        appraiserName: user.fullName || realProp.appraiser,
+        reportNumber: reportNum,
+        appraiserName: user.fullName || realProp.appraiser || 'Certified Appraiser',
         title: `Real Property Appraisal - ${realProp.borrower}`,
         reportType: 'real_property',
         borrowerName: realProp.borrower,
         marketValue: realAverageMarketValue,
         recommendedLoan: realProp.recommendedLoanAmount,
+        appliedLoanAmount: appliedRealLoanAmount,
+        targetLtv: realTargetLtv,
+        riskLevel: risk,
+        status: 'PENDING_REVIEW',
         data: realDataToSave,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
 
+      // Save to dedicated 'appraisal_reports' collection & legacy 'appraisals' table
+      await addDoc(collection(db, 'appraisal_reports'), payload);
       await addDoc(collection(db, 'appraisals'), payload);
-      alert("Real Property Appraisal saved successfully!");
+
+      alert(`✅ Report #${reportNum} successfully saved to Appraisal Reports Database!`);
       setActiveTab('history');
     } catch (e) {
-      console.error("Error saving real property appraisal:", e);
-      alert("Saved locally! (Database synchronization error)");
+      console.error("Error saving real property appraisal report:", e);
+      alert("Saved locally! (Database sync error)");
     }
   };
 
@@ -776,6 +835,9 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
       return;
     }
     try {
+      const reportNum = `REP-VH-${Date.now().toString().slice(-6)}`;
+      const risk = calculateRiskLevel(appliedVehicleLoanAmount, vehicleAverageMarketValue, vehicleTargetLtv);
+
       const vehicleDataToSave: VehicleAppraisal = {
         ...vehicle,
         appliedLoanAmount: appliedVehicleLoanAmount,
@@ -784,41 +846,125 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
 
       const payload: Omit<AppraisalRecord, 'id'> = {
         userId: user.id,
-        appraiserName: user.fullName || vehicle.registeredOwner || 'Appraiser',
+        reportNumber: reportNum,
+        appraiserName: user.fullName || vehicle.registeredOwner || 'Certified Appraiser',
         title: `Vehicle Appraisal - ${vehicle.borrower}`,
         reportType: 'vehicle',
         borrowerName: vehicle.borrower,
         marketValue: vehicleAverageMarketValue,
         recommendedLoan: vehicle.recommendedLoanAmount,
+        appliedLoanAmount: appliedVehicleLoanAmount,
+        targetLtv: vehicleTargetLtv,
+        riskLevel: risk,
+        status: 'PENDING_REVIEW',
         data: vehicleDataToSave,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
 
+      await addDoc(collection(db, 'appraisal_reports'), payload);
       await addDoc(collection(db, 'appraisals'), payload);
-      alert("Vehicle Appraisal saved successfully!");
+
+      alert(`✅ Vehicle Appraisal Report #${reportNum} successfully saved to Database!`);
       setActiveTab('history');
     } catch (e) {
-      console.error("Error saving vehicle appraisal:", e);
-      alert("Saved locally! (Database synchronization error)");
+      console.error("Error saving vehicle appraisal report:", e);
+      alert("Saved locally! (Database sync error)");
     }
   };
 
-  const handleDeleteAppraisal = async (id?: string) => {
-    if (!id) return;
-    if (confirm("Are you sure you want to delete this appraisal record?")) {
+  // Load Saved Report back into Calculator
+  const handleLoadReportIntoCalculator = (rec: AppraisalRecord) => {
+    if (rec.reportType === 'real_property') {
+      const data = rec.data as RealPropertyAppraisal;
+      setRealProp(data);
+      if (rec.appliedLoanAmount || data.appliedLoanAmount) {
+        setAppliedRealLoanAmount(rec.appliedLoanAmount || data.appliedLoanAmount || 0);
+      }
+      if (rec.targetLtv || data.targetLtv) {
+        setRealTargetLtv(rec.targetLtv || data.targetLtv || 70);
+      }
+      setActiveTab('real_property');
+      alert(`Loaded Real Property Appraisal for "${rec.borrowerName}" into Calculator!`);
+    } else {
+      const data = rec.data as VehicleAppraisal;
+      setVehicle(data);
+      if (rec.appliedLoanAmount || data.appliedLoanAmount) {
+        setAppliedVehicleLoanAmount(rec.appliedLoanAmount || data.appliedLoanAmount || 0);
+      }
+      if (rec.targetLtv || data.targetLtv) {
+        setVehicleTargetLtv(rec.targetLtv || data.targetLtv || 70);
+      }
+      setActiveTab('vehicle');
+      alert(`Loaded Vehicle Appraisal for "${rec.borrowerName}" into Calculator!`);
+    }
+  };
+
+  // Update Status Handler
+  const handleUpdateReportStatus = async (id?: string, newStatus?: AppraisalRecord['status']) => {
+    if (!id || !newStatus) return;
+    try {
+      await updateDoc(doc(db, 'appraisal_reports', id), {
+        status: newStatus,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (e) {
       try {
-        await deleteDoc(doc(db, 'appraisals', id));
-      } catch (e) {
-        console.error("Error deleting appraisal:", e);
+        await updateDoc(doc(db, 'appraisals', id), {
+          status: newStatus,
+          updatedAt: new Date().toISOString()
+        });
+      } catch (err) {
+        console.error("Error updating status:", err);
       }
     }
   };
 
-  const filteredHistory = appraisals.filter(a => 
-    a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    a.borrowerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    a.appraiserName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Delete Handler
+  const handleDeleteAppraisal = async (id?: string) => {
+    if (!id) return;
+    if (confirm("Are you sure you want to delete this report from the database?")) {
+      try {
+        await deleteDoc(doc(db, 'appraisal_reports', id));
+      } catch (e) {
+        console.log(e);
+      }
+      try {
+        await deleteDoc(doc(db, 'appraisals', id));
+      } catch (e) {
+        console.log(e);
+      }
+    }
+  };
+
+  // Export JSON Report
+  const handleExportJson = (rec: AppraisalRecord) => {
+    const jsonStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(rec, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", jsonStr);
+    downloadAnchor.setAttribute("download", `${rec.reportNumber || 'appraisal'}_${rec.borrowerName.replace(/\s+/g, '_')}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
+  const filteredHistory = appraisals.filter(a => {
+    const matchesSearch = 
+      a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      a.borrowerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      a.appraiserName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (a.reportNumber && a.reportNumber.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    const matchesStatus = selectedStatusFilter === 'ALL' || a.status === selectedStatusFilter || (selectedStatusFilter === 'PENDING_REVIEW' && !a.status);
+
+    return matchesSearch && matchesStatus;
+  });
+
+  // Calculate Report Database Metrics
+  const totalReportsCount = appraisals.length;
+  const totalAppraisedValueSum = appraisals.reduce((acc, r) => acc + (r.marketValue || 0), 0);
+  const totalCreditExposureSum = appraisals.reduce((acc, r) => acc + (r.appliedLoanAmount || r.recommendedLoan || 0), 0);
+  const pendingReviewCount = appraisals.filter(r => !r.status || r.status === 'PENDING_REVIEW').length;
 
   return (
     <div className="space-y-6 pb-20">
@@ -1734,101 +1880,240 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
       )}
 
       {/* ========================================================= */}
-      {/* SAVED HISTORY TAB                                        */}
+      {/* SAVED HISTORY / APPRAISAL REPORTS DATABASE TAB            */}
       {/* ========================================================= */}
       {activeTab === 'history' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-6">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-            <div>
-              <h2 className="text-base font-black text-emerald-900 uppercase tracking-wider">
-                Saved Appraisal Dossiers
-              </h2>
-              <p className="text-xs text-slate-500 font-medium mt-0.5">
-                Archived Real Property and Vehicle Appraisal Reports.
-              </p>
+        <div className="space-y-6">
+          {/* Database Summary Dashboard Metrics */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-gradient-to-br from-emerald-900 to-teal-950 text-white rounded-2xl p-4 shadow-lg border border-emerald-500/20">
+              <div className="flex items-center justify-between text-emerald-300 mb-1">
+                <span className="text-[10px] font-black uppercase tracking-wider">Database Total Reports</span>
+                <Database className="w-4 h-4 text-emerald-400" />
+              </div>
+              <p className="text-xl sm:text-2xl font-black text-white">{totalReportsCount}</p>
+              <span className="text-[10px] text-emerald-200/80 font-bold">Synchronized in Firestore</span>
             </div>
 
-            <div className="relative w-full md:w-72">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search borrower or title..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-              />
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
+              <div className="flex items-center justify-between text-slate-500 mb-1">
+                <span className="text-[10px] font-black uppercase tracking-wider">Total Appraised Value</span>
+                <Building2 className="w-4 h-4 text-emerald-600" />
+              </div>
+              <p className="text-base sm:text-lg font-black text-slate-900">{fmt(totalAppraisedValueSum)}</p>
+              <span className="text-[10px] text-slate-400 font-bold">Portfolio Collateral Baseline</span>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
+              <div className="flex items-center justify-between text-slate-500 mb-1">
+                <span className="text-[10px] font-black uppercase tracking-wider">Total Applied Exposure</span>
+                <DollarSign className="w-4 h-4 text-teal-600" />
+              </div>
+              <p className="text-base sm:text-lg font-black text-teal-900">{fmt(totalCreditExposureSum)}</p>
+              <span className="text-[10px] text-slate-400 font-bold">Credit Limit Commitment</span>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
+              <div className="flex items-center justify-between text-slate-500 mb-1">
+                <span className="text-[10px] font-black uppercase tracking-wider">Pending CreCom Review</span>
+                <Clock className="w-4 h-4 text-amber-500" />
+              </div>
+              <p className="text-xl sm:text-2xl font-black text-amber-600">{pendingReviewCount}</p>
+              <span className="text-[10px] text-amber-600/80 font-bold">Awaiting Final Approval</span>
             </div>
           </div>
 
-          {loading ? (
-            <div className="py-12 text-center text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">
-              Loading saved appraisal records...
-            </div>
-          ) : filteredHistory.length === 0 ? (
-            <div className="py-12 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
-              No saved appraisal reports found.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredHistory.map((rec) => (
-                <div key={rec.id} className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 hover:border-emerald-300 transition-all flex flex-col justify-between space-y-4">
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                        rec.reportType === 'real_property' 
-                          ? 'bg-emerald-100 text-emerald-800' 
-                          : 'bg-teal-100 text-teal-800'
-                      }`}>
-                        {rec.reportType === 'real_property' ? 'Real Property' : 'Vehicle'}
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-medium">
-                        {new Date(rec.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-
-                    <h3 className="text-sm font-black text-slate-900 tracking-tight leading-snug">
-                      {rec.title}
-                    </h3>
-                    <p className="text-xs font-medium text-slate-500 mt-1">
-                      Borrower: <strong className="text-slate-800">{rec.borrowerName}</strong>
-                    </p>
-                    <p className="text-xs font-medium text-slate-500">
-                      Appraiser: {rec.appraiserName}
-                    </p>
-
-                    <div className="mt-3 pt-3 border-t border-slate-200/60 grid grid-cols-2 gap-2">
-                      <div>
-                        <span className="text-[9px] font-black uppercase text-slate-400">Market Value</span>
-                        <p className="text-xs font-black text-emerald-900">{fmt(rec.marketValue)}</p>
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-black uppercase text-slate-400">Rec. Loan</span>
-                        <p className="text-xs font-black text-teal-800">{fmt(rec.recommendedLoan)}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60">
-                    <button
-                      onClick={() => setPrintModalRecord(rec)}
-                      className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
-                    >
-                      <Printer className="w-3.5 h-3.5" /> View / Print Report
-                    </button>
-                    {user.role === 'admin' && (
-                      <button
-                        onClick={() => handleDeleteAppraisal(rec.id)}
-                        className="p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl transition-all cursor-pointer"
-                        title="Delete Appraisal"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-6">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-emerald-100 border border-emerald-200 rounded-full text-emerald-800 text-[10px] font-black uppercase tracking-wider mb-1">
+                  <Database className="w-3 h-3 text-emerald-600" /> Dedicated Cloud Firestore Storage
                 </div>
+                <h2 className="text-base font-black text-emerald-900 uppercase tracking-wider">
+                  Saved Appraisal Reports Database
+                </h2>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Official database repository for Real Property & Vehicle Valuation Reports.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+                {/* Search Bar */}
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search report #, borrower..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Status Filter Chips */}
+            <div className="flex flex-wrap gap-2 pt-1 border-b border-slate-100 pb-4">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider self-center mr-2">Filter Status:</span>
+              {[
+                { id: 'ALL', label: 'All Reports' },
+                { id: 'PENDING_REVIEW', label: 'Pending Review' },
+                { id: 'APPROVED', label: 'Approved' },
+                { id: 'DRAFT', label: 'Drafts' }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setSelectedStatusFilter(tab.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer transition-all border ${
+                    selectedStatusFilter === tab.id
+                      ? 'bg-emerald-600 text-white border-emerald-500 shadow-md'
+                      : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
               ))}
             </div>
-          )}
+
+            {loading ? (
+              <div className="py-12 text-center text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">
+                Loading saved appraisal database records...
+              </div>
+            ) : filteredHistory.length === 0 ? (
+              <div className="py-12 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
+                No saved appraisal reports found matching your search.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {filteredHistory.map((rec) => {
+                  const appliedLoan = rec.appliedLoanAmount || rec.recommendedLoan || 0;
+                  const ltv = rec.targetLtv || 70;
+                  const risk = rec.riskLevel || 'LOW';
+
+                  const riskColor = 
+                    risk === 'LOW' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                    risk === 'MODERATE' ? 'bg-teal-100 text-teal-800 border-teal-300' :
+                    risk === 'HIGH' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-red-100 text-red-800 border-red-300';
+
+                  const currentStatus = rec.status || 'PENDING_REVIEW';
+                  const statusColor = 
+                    currentStatus === 'APPROVED' ? 'bg-emerald-500 text-white' :
+                    currentStatus === 'DRAFT' ? 'bg-slate-500 text-white' : 'bg-amber-500 text-white';
+
+                  return (
+                    <div key={rec.id} className="bg-slate-50 border border-slate-200/90 rounded-2xl p-5 hover:border-emerald-400 transition-all flex flex-col justify-between space-y-4 shadow-sm hover:shadow-md">
+                      <div>
+                        {/* Header Badge Row */}
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                            rec.reportType === 'real_property' 
+                              ? 'bg-emerald-100 text-emerald-800' 
+                              : 'bg-teal-100 text-teal-800'
+                          }`}>
+                            {rec.reportType === 'real_property' ? 'Real Property' : 'Vehicle'}
+                          </span>
+
+                          <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${statusColor}`}>
+                            {currentStatus.replace('_', ' ')}
+                          </span>
+
+                          <span className="text-[10px] text-slate-400 font-bold ml-auto">
+                            {new Date(rec.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+
+                        {/* Report Number & Title */}
+                        <div className="flex items-center justify-between gap-2 border-b border-slate-200/60 pb-2 mb-2">
+                          <span className="text-[11px] font-black text-emerald-800 uppercase tracking-wider">
+                            {rec.reportNumber || `#${rec.id?.substring(0, 8)}`}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded border text-[9px] font-black uppercase tracking-wider ${riskColor}`}>
+                            {risk} RISK
+                          </span>
+                        </div>
+
+                        <h3 className="text-sm font-black text-slate-900 tracking-tight leading-snug">
+                          {rec.title}
+                        </h3>
+                        <p className="text-xs font-semibold text-slate-600 mt-1">
+                          Borrower: <strong className="text-slate-900">{rec.borrowerName}</strong>
+                        </p>
+                        <p className="text-[11px] font-medium text-slate-500">
+                          Appraiser: {rec.appraiserName}
+                        </p>
+
+                        {/* Financial Metrics */}
+                        <div className="mt-3 pt-3 border-t border-slate-200/80 grid grid-cols-2 gap-2 bg-white p-3 rounded-xl border border-slate-200/60">
+                          <div>
+                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Market Value</span>
+                            <p className="text-xs font-black text-emerald-900">{fmt(rec.marketValue)}</p>
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Applied Loan</span>
+                            <p className="text-xs font-black text-teal-800">{fmt(appliedLoan)}</p>
+                          </div>
+                        </div>
+
+                        {/* Status Change Selector */}
+                        <div className="mt-3 flex items-center justify-between gap-2">
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Update Status:</span>
+                          <select
+                            value={currentStatus}
+                            onChange={(e) => handleUpdateReportStatus(rec.id, e.target.value as AppraisalRecord['status'])}
+                            className="text-[10px] font-bold px-2 py-1 bg-white border border-slate-200 rounded-lg text-slate-700 cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                          >
+                            <option value="PENDING_REVIEW">Pending Review</option>
+                            <option value="APPROVED">Approved</option>
+                            <option value="DRAFT">Draft</option>
+                            <option value="ARCHIVED">Archived</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="space-y-2 pt-2 border-t border-slate-200/80">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleLoadReportIntoCalculator(rec)}
+                            className="flex-1 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-black text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                            title="Load report back into calculator form"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-emerald-600" /> Load & Edit
+                          </button>
+
+                          <button
+                            onClick={() => setPrintModalRecord(rec)}
+                            className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                          >
+                            <Printer className="w-3.5 h-3.5" /> Formal PDF
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            onClick={() => handleExportJson(rec)}
+                            className="text-[10px] font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <FileJson className="w-3 h-3 text-slate-600" /> Export JSON
+                          </button>
+
+                          {user.role === 'admin' && (
+                            <button
+                              onClick={() => handleDeleteAppraisal(rec.id)}
+                              className="text-[10px] font-bold text-red-600 hover:text-red-800 flex items-center gap-1 px-2 py-1 bg-red-50 hover:bg-red-100 rounded-lg transition-colors cursor-pointer"
+                              title="Delete Report from Database"
+                            >
+                              <Trash2 className="w-3 h-3 text-red-600" /> Delete
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

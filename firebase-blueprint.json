@@ -249,9 +249,40 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["employeeId", "employeeName", "evaluatorId", "evaluatorName", "type", "ratings", "createdAt"]
+    },
+    "AppraisalReport": {
+      "title": "AppraisalReport",
+      "description": "Saved Real Property or Vehicle Appraisal Report",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "reportNumber": { "type": "string" },
+        "appraiserName": { "type": "string" },
+        "title": { "type": "string" },
+        "reportType": { "type": "string", "enum": ["real_property", "vehicle"] },
+        "borrowerName": { "type": "string" },
+        "marketValue": { "type": "number" },
+        "recommendedLoan": { "type": "number" },
+        "appliedLoanAmount": { "type": "number" },
+        "targetLtv": { "type": "number" },
+        "riskLevel": { "type": "string" },
+        "status": { "type": "string" },
+        "data": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "appraiserName", "title", "reportType", "borrowerName", "marketValue", "recommendedLoan", "data", "createdAt"]
     }
   },
   "firestore": {
+    "/appraisal_reports/{reportId}": {
+      "schema": "AppraisalReport",
+      "description": "Appraisal report records database"
+    },
+    "/appraisals/{appraisalId}": {
+      "schema": "AppraisalReport",
+      "description": "Appraisal report records database (legacy)"
+    },
     "/evaluations/{evaluationId}": {
       "schema": "Evaluation",
       "description": "Employee performance evaluations"

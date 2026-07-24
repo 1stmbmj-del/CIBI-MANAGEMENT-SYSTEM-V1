@@ -153,9 +153,38 @@ service cloud.firestore {
              data.createdAt is string;
     }
 
+    function isValidAppraisalReport(data) {
+      let requiredFields = ['userId', 'appraiserName', 'title', 'reportType', 'borrowerName', 'marketValue', 'recommendedLoan', 'data', 'createdAt'];
+      return data.keys().hasAll(requiredFields) &&
+             data.userId is string &&
+             data.appraiserName is string &&
+             data.title is string &&
+             data.reportType in ['real_property', 'vehicle'] &&
+             data.borrowerName is string &&
+             (data.marketValue is number || data.marketValue is int) &&
+             (data.recommendedLoan is number || data.recommendedLoan is int) &&
+             data.createdAt is string;
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
+
+    match /appraisal_reports/{reportId} {
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && isValidAppraisalReport(request.resource.data);
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn() && (isPrivileged() || resource.data.userId == request.auth.uid);
+    }
+
+    match /appraisals/{appraisalId} {
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && isValidAppraisalReport(request.resource.data);
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn() && (isPrivileged() || resource.data.userId == request.auth.uid);
+    }
 
     match /attendance/{attendanceId} {
       allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
