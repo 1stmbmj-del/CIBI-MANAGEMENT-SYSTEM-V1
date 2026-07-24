@@ -64,7 +64,8 @@ import {
   CalendarRange,
   XCircle,
   Plus,
-  Archive
+  Archive,
+  Calculator
 } from 'lucide-react';
 import pptxgen from "pptxgenjs";
 import { motion, AnimatePresence } from 'framer-motion';
@@ -75,6 +76,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { auth, db } from './firebase';
 import EvaluationModule from './components/EvaluationModule';
+import AppraisalCalculator from './components/AppraisalCalculator';
 import { 
   onAuthStateChanged, 
   signInWithEmailAndPassword, 
@@ -1386,6 +1388,7 @@ function Dashboard({
     { id: 'DATA STORAGE', icon: Database },
     { id: 'SCORING CONFIG', icon: Settings2 },
     { id: 'ADMIN KEYS', icon: Key },
+    { id: 'APPRAISAL CALCULATOR', icon: Calculator },
     { id: 'PROFILE', icon: User },
   ] : (isCoordinator || isSupervisor) ? [
     { id: 'DASHBOARD', icon: LayoutDashboard },
@@ -1404,6 +1407,7 @@ function Dashboard({
     { id: 'EVALUATION', icon: Star },
     { id: 'DATA STORAGE', icon: Database },
     { id: 'SCORING CONFIG', icon: Settings2 },
+    { id: 'APPRAISAL CALCULATOR', icon: Calculator },
     { id: 'PROFILE', icon: User },
   ] : [
     { id: 'DASHBOARD', icon: LayoutDashboard },
@@ -1416,6 +1420,7 @@ function Dashboard({
     { id: 'FOR VALIDATION & SURVEY', icon: CheckCircle2 },
     { id: 'EVALUATION', icon: Star },
     { id: 'REPORTS', icon: FileText },
+    { id: 'APPRAISAL CALCULATOR', icon: Calculator },
     { id: 'PROFILE', icon: User },
   ];
 
@@ -1761,6 +1766,7 @@ function Dashboard({
               {activeTab === 'SCORING CONFIG' && <AdminScoringSettings />}
               {activeTab === 'ADMIN KEYS' && <AdminKeys user={user} />}
               {activeTab === 'FOR VALIDATION & SURVEY' && <ValidationSurvey user={user} />}
+              {activeTab === 'APPRAISAL CALCULATOR' && <AppraisalCalculator user={user} />}
               {activeTab === 'PROFILE' && <ProfileSettings user={user} setUser={setUser} />}
             </AnimatePresence>
           </div>

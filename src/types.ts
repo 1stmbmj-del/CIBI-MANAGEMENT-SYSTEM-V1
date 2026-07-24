@@ -344,6 +344,194 @@ export interface OBRequest {
   createdAt: string;
 }
 
+export interface RealPropertyAppraisal {
+  type: 'real_property';
+  borrower: string;
+  propertyOwner: string;
+  propertyAddress: string;
+  inspectionDate: string;
+  appraiser: string;
+  titleNo: string;
+  taxDecNo: string;
+  lotArea: number;
+  floorArea: number;
+  propertyType: 'Residential' | 'Commercial' | 'Agricultural' | 'Industrial' | 'Mixed-Use';
+  
+  // Description
+  terrain: string;
+  roadAccess: string;
+  floodCondition: string;
+  utilitiesAvailable: string[];
+  neighborhoodClassification: string;
+  highestAndBestUse: string;
+  descriptionRemarks: string;
+
+  // Comparables
+  subjectLocation: string;
+  comp1Location: string;
+  comp2Location: string;
+  comp3Location: string;
+  
+  comp1Distance: string;
+  comp2Distance: string;
+  comp3Distance: string;
+
+  comp1DateSold: string;
+  comp2DateSold: string;
+  comp3DateSold: string;
+
+  subjectLotArea: number;
+  comp1LotArea: number;
+  comp2LotArea: number;
+  comp3LotArea: number;
+
+  subjectFloorArea: number;
+  comp1FloorArea: number;
+  comp2FloorArea: number;
+  comp3FloorArea: number;
+
+  comp1Price: number;
+  comp2Price: number;
+  comp3Price: number;
+
+  subjectRoadCondition: string;
+  comp1RoadCondition: string;
+  comp2RoadCondition: string;
+  comp3RoadCondition: string;
+
+  subjectCornerLot: boolean;
+  comp1CornerLot: boolean;
+  comp2CornerLot: boolean;
+  comp3CornerLot: boolean;
+
+  subjectPropertyCondition: string;
+  comp1PropertyCondition: string;
+  comp2PropertyCondition: string;
+  comp3PropertyCondition: string;
+
+  subjectImprovements: string;
+  comp1Improvements: string;
+  comp2Improvements: string;
+  comp3Improvements: string;
+
+  subjectBuildingAge: number;
+  comp1BuildingAge: number;
+  comp2BuildingAge: number;
+  comp3BuildingAge: number;
+
+  // Adjustments
+  comp1LocationAdj: number;
+  comp2LocationAdj: number;
+  comp3LocationAdj: number;
+
+  comp1LotSizeAdj: number;
+  comp2LotSizeAdj: number;
+  comp3LotSizeAdj: number;
+
+  comp1BuildingSizeAdj: number;
+  comp2BuildingSizeAdj: number;
+  comp3BuildingSizeAdj: number;
+
+  comp1ConditionAdj: number;
+  comp2ConditionAdj: number;
+  comp3ConditionAdj: number;
+
+  comp1RoadAccessAdj: number;
+  comp2RoadAccessAdj: number;
+  comp3RoadAccessAdj: number;
+
+  comp1OtherAdj: number;
+  comp2OtherAdj: number;
+  comp3OtherAdj: number;
+
+  // Results
+  opinion: 'Highly Acceptable' | 'Acceptable' | 'Acceptable with Conditions' | 'Not Recommended';
+  opinionRemarks: string;
+  recommendedLoanAmount: number;
+  appliedLoanAmount?: number;
+  targetLtv?: number;
+
+  // Photos checklist
+  photoChecklist: Record<string, boolean>;
+}
+
+export interface VehicleAppraisal {
+  type: 'vehicle';
+  borrower: string;
+  registeredOwner: string;
+  make: string;
+  model: string;
+  variant: string;
+  yearModel: string;
+  plateNumber: string;
+  engineNumber: string;
+  chassisNumber: string;
+  mileage: number;
+
+  // Comparables
+  comp1Year: string;
+  comp2Year: string;
+  comp3Year: string;
+
+  comp1Mileage: number;
+  comp2Mileage: number;
+  comp3Mileage: number;
+
+  comp1Condition: string;
+  comp2Condition: string;
+  comp3Condition: string;
+
+  comp1Transmission: string;
+  comp2Transmission: string;
+  comp3Transmission: string;
+
+  comp1Price: number;
+  comp2Price: number;
+  comp3Price: number;
+
+  comp1Source: string;
+  comp2Source: string;
+  comp3Source: string;
+
+  // Adjustments
+  comp1MileageAdj: number;
+  comp2MileageAdj: number;
+  comp3MileageAdj: number;
+
+  comp1ConditionAdj: number;
+  comp2ConditionAdj: number;
+  comp3ConditionAdj: number;
+
+  comp1AccessoriesAdj: number;
+  comp2AccessoriesAdj: number;
+  comp3AccessoriesAdj: number;
+
+  comp1YearModelAdj: number;
+  comp2YearModelAdj: number;
+  comp3YearModelAdj: number;
+
+  // Final Valuation
+  recommendedLoanAmount: number;
+  appliedLoanAmount?: number;
+  targetLtv?: number;
+
+  // Photos checklist
+  photoChecklist: Record<string, boolean>;
+}
+
+export interface AppraisalRecord {
+  id?: string;
+  userId: string;
+  appraiserName: string;
+  title: string;
+  reportType: 'real_property' | 'vehicle';
+  borrowerName: string;
+  marketValue: number;
+  recommendedLoan: number;
+  data: RealPropertyAppraisal | VehicleAppraisal;
+  createdAt: string;
+}
+
 export interface AppNotification {
   id: string;
   userId: string;
