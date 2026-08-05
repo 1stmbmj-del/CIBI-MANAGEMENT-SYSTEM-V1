@@ -272,6 +272,7 @@ export interface Assignment {
   isMCLReferral?: boolean;
   aiAnalysis?: string;
   createdAt: string;
+  assignedDate?: string;
   cashflowHistory?: CashflowReport[];
   survey?: {
     satisfaction: number;

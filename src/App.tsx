@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, UserRole, Assignment, AssignmentStatus, TimelineStep, Liability, CashflowReport, MOP, TOP, LoanCategory, AttendanceRecord, LeaveRequest, OvertimeRequest, LeaveType, OBRequest } from './types';
+import { UserProfile, UserRole, Assignment, AssignmentStatus, TimelineStep, Liability, CashflowReport, MOP, TOP, LoanCategory, AccountType, Tribe, AttendanceRecord, LeaveRequest, OvertimeRequest, LeaveType, OBRequest } from './types';
 import { 
   LineChart,
   Line,
@@ -5059,43 +5059,130 @@ function StatCard({ label, value, icon }: { label: string, value: number | strin
 function AssignAccount() {
   const [loading, setLoading] = useState(false);
   const [ciOfficers, setCiOfficers] = useState<UserProfile[]>([]);
+  const [existingAssignments, setExistingAssignments] = useState<Assignment[]>([]);
+  const [autoFilledNotice, setAutoFilledNotice] = useState<string | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+
   const [formData, setFormData] = useState({
+    assignmentDate: new Date().toISOString().split('T')[0],
     borrowerName: '',
     mobileNumber: '',
-    accountType: 'New',
+    accountType: 'New' as AccountType,
     location: '',
-    tribe: 'NCR',
+    tribe: 'NCR' as Tribe,
     businessPin: '',
     addressPin: '',
     requestedAmount: '',
     term: '',
     intRate: '',
-    mop: 'Weekly',
-    top: 'Collection',
+    mop: 'Weekly' as MOP,
+    top: 'Collection' as TOP,
     ciOfficerId: '',
     isMCLReferral: false,
     loanCategory: 'SME' as LoanCategory
   });
 
   useEffect(() => {
-    const q = query(collection(db, 'users'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const qUsers = query(collection(db, 'users'));
+    const unsubUsers = onSnapshot(qUsers, (snapshot) => {
       const officers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as UserProfile[];
       setCiOfficers(officers);
     }, (err) => {
       console.error('Firestore AssignAccount listener error:', err);
     });
 
-    return () => unsubscribe();
+    const qAssign = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
+    const unsubAssign = onSnapshot(qAssign, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
+      setExistingAssignments(list);
+    }, (err) => {
+      console.error('Firestore assignments listener error:', err);
+    });
+
+    return () => {
+      unsubUsers();
+      unsubAssign();
+    };
   }, []);
+
+  // Map of unique existing borrowers
+  const uniqueBorrowers = useMemo(() => {
+    const map = new Map<string, Assignment>();
+    existingAssignments.forEach(a => {
+      if (a.borrowerName) {
+        const key = a.borrowerName.trim().toUpperCase();
+        if (!map.has(key)) map.set(key, a);
+      }
+    });
+    return Array.from(map.values());
+  }, [existingAssignments]);
+
+  // Filter matching borrowers for auto-complete dropdown
+  const matchingBorrowers = useMemo(() => {
+    if (!formData.borrowerName || formData.borrowerName.trim().length < 2) return [];
+    const search = formData.borrowerName.trim().toLowerCase();
+    return uniqueBorrowers.filter(b => b.borrowerName.toLowerCase().includes(search));
+  }, [uniqueBorrowers, formData.borrowerName]);
+
+  const autoFillBorrowerInfo = (selected: Assignment) => {
+    setFormData(prev => ({
+      ...prev,
+      borrowerName: selected.borrowerName,
+      mobileNumber: selected.mobileNumber || prev.mobileNumber,
+      location: selected.location || prev.location,
+      businessPin: selected.businessPin || prev.businessPin,
+      addressPin: selected.addressPin || prev.addressPin,
+      tribe: selected.tribe || prev.tribe,
+      accountType: 'Renewal'
+    }));
+    setAutoFilledNotice(`Existing Borrower Record Found! Auto-filled Mobile (${selected.mobileNumber || 'N/A'}), Business Pin (${selected.businessPin || 'N/A'}), Address Pin (${selected.addressPin || 'N/A'}), Location (${selected.location || 'N/A'}), and Tribe (${selected.tribe || 'NCR'}).`);
+    setShowDropdown(false);
+  };
+
+  const handleBorrowerNameChange = (val: string) => {
+    setFormData(prev => ({ ...prev, borrowerName: val }));
+    setShowDropdown(true);
+
+    if (!val.trim()) {
+      setAutoFilledNotice(null);
+      return;
+    }
+
+    // Check exact match (case-insensitive)
+    const exactMatch = uniqueBorrowers.find(
+      b => b.borrowerName.trim().toUpperCase() === val.trim().toUpperCase()
+    );
+
+    if (exactMatch) {
+      setFormData(prev => ({
+        ...prev,
+        borrowerName: exactMatch.borrowerName,
+        mobileNumber: exactMatch.mobileNumber || prev.mobileNumber,
+        location: exactMatch.location || prev.location,
+        businessPin: exactMatch.businessPin || prev.businessPin,
+        addressPin: exactMatch.addressPin || prev.addressPin,
+        tribe: exactMatch.tribe || prev.tribe,
+        accountType: 'Renewal'
+      }));
+      setAutoFilledNotice(`Existing Borrower Record Matched! Auto-filled Mobile (${exactMatch.mobileNumber || 'N/A'}), Business Pin (${exactMatch.businessPin || 'N/A'}), Address Pin (${exactMatch.addressPin || 'N/A'}), Location (${exactMatch.location || 'N/A'}), and Tribe (${exactMatch.tribe || 'NCR'}).`);
+    } else {
+      setAutoFilledNotice(null);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
       const officer = ciOfficers.find(o => o.id === formData.ciOfficerId);
+      const assignIsoDate = formData.assignmentDate 
+        ? new Date(formData.assignmentDate + 'T12:00:00').toISOString() 
+        : new Date().toISOString();
+
       const res = await api.post('/api/assignments', {
         ...formData,
+        assignedDate: formData.assignmentDate,
+        createdAt: assignIsoDate,
         requestedAmount: Number(formData.requestedAmount),
         intRate: Number(formData.intRate),
         ciOfficerName: officer?.fullName || 'Unknown',
@@ -5103,8 +5190,8 @@ function AssignAccount() {
         loanCategory: formData.loanCategory,
         timeline: [{
           status: 'Assigned',
-          note: `Account assigned to ${officer?.fullName || 'Officer'}`,
-          timestamp: new Date().toISOString()
+          note: `Account assigned to ${officer?.fullName || 'Officer'} on ${formData.assignmentDate}`,
+          timestamp: assignIsoDate
         }]
       });
       
@@ -5118,7 +5205,9 @@ function AssignAccount() {
         );
       }
       alert('Account assigned successfully!');
+      setAutoFilledNotice(null);
       setFormData({
+        assignmentDate: new Date().toISOString().split('T')[0],
         borrowerName: '',
         mobileNumber: '',
         accountType: 'New',
@@ -5143,80 +5232,149 @@ function AssignAccount() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-      <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-6">
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-left">
+      <div className="mb-6 p-4 bg-emerald-50/60 border border-emerald-100 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h3 className="text-base font-extrabold text-emerald-900 uppercase tracking-tight flex items-center gap-2">
+            <ClipboardList size={18} className="text-emerald-600" /> Account Assignment Form
+          </h3>
+          <p className="text-xs text-emerald-700 font-medium">Select assignment date & enter borrower credentials. Existing borrower data will auto-populate.</p>
+        </div>
+        <div className="w-full sm:w-auto">
+          <label className="text-[10px] font-black text-emerald-800 uppercase tracking-widest block mb-1">
+            Date of Assignment
+          </label>
+          <input 
+            type="date" 
+            className="px-3.5 py-2 bg-white border border-emerald-300 rounded-xl text-xs font-black text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs cursor-pointer"
+            value={formData.assignmentDate}
+            onChange={e => setFormData({...formData, assignmentDate: e.target.value})}
+            required
+          />
+        </div>
+      </div>
+
+      {autoFilledNotice && (
+        <div className="mb-6 p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-xs font-bold flex items-start gap-2.5 animate-fadeIn">
+          <Sparkles size={16} className="text-blue-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <span className="font-black uppercase tracking-wider block text-[10px] text-blue-700">Auto-fill Activated</span>
+            {autoFilledNotice}
+          </div>
+          <button 
+            type="button" 
+            onClick={() => setAutoFilledNotice(null)} 
+            className="text-blue-400 hover:text-blue-600 font-bold text-xs"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Name of Borrower</label>
+          <div className="space-y-1 relative">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex justify-between items-center">
+              <span>Name of Borrower</span>
+              {matchingBorrowers.length > 0 && showDropdown && (
+                <span className="text-[9px] text-emerald-600 font-black uppercase">
+                  {matchingBorrowers.length} Existing Match(es)
+                </span>
+              )}
+            </label>
             <input 
               type="text" 
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold focus:outline-none focus:border-emerald-500 focus:bg-white transition-all"
               value={formData.borrowerName}
-              onChange={e => setFormData({...formData, borrowerName: e.target.value})}
+              onChange={e => handleBorrowerNameChange(e.target.value)}
+              onFocus={() => setShowDropdown(true)}
+              placeholder="e.g. Juan Dela Cruz"
               required
             />
+
+            {/* Auto-suggest dropdown */}
+            {showDropdown && matchingBorrowers.length > 0 && (
+              <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-emerald-100 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-100">
+                <div className="px-3 py-1.5 bg-emerald-50 text-[10px] font-black text-emerald-800 uppercase tracking-wider">
+                  Select Existing Borrower to Auto-Fill Data:
+                </div>
+                {matchingBorrowers.map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => autoFillBorrowerInfo(b)}
+                    className="w-full text-left p-3 hover:bg-emerald-50/50 transition-colors flex flex-col gap-0.5 cursor-pointer"
+                  >
+                    <span className="font-extrabold text-xs text-gray-900 uppercase">{b.borrowerName}</span>
+                    <span className="text-[10px] text-gray-500 font-medium">
+                      Mobile: {b.mobileNumber || '-'} • Location: {b.location || '-'} • Tribe: {b.tribe || 'NCR'}
+                    </span>
+                    {b.businessPin && (
+                      <span className="text-[9px] text-emerald-700 font-bold">
+                        Business PIN: {b.businessPin}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Mobile Number</label>
             <input 
               type="text" 
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold"
               value={formData.mobileNumber}
               onChange={e => setFormData({...formData, mobileNumber: e.target.value})}
               placeholder="e.g. 09123456789"
               required
             />
           </div>
+
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Location</label>
             <input 
               type="text" 
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold"
               value={formData.location}
               onChange={e => setFormData({...formData, location: e.target.value})}
+              placeholder="e.g. Quezon City"
               required
             />
           </div>
+
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Business Pin.</label>
             <input 
               type="text" 
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold"
               value={formData.businessPin}
               onChange={e => setFormData({...formData, businessPin: e.target.value})}
+              placeholder="Google Maps PIN or GPS link"
             />
           </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Address Pin.</label>
+            <input 
+              type="text" 
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold"
+              value={formData.addressPin}
+              onChange={e => setFormData({...formData, addressPin: e.target.value})}
+              placeholder="Home or Residential Address PIN"
+            />
+          </div>
+
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Requested Loan Amount</label>
             <input 
               type="number" 
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold"
               value={formData.requestedAmount}
               onChange={e => setFormData({...formData, requestedAmount: e.target.value})}
               required
             />
-          </div>
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Int. Rate (%)</label>
-            <input 
-              type="number" 
-              step="0.01"
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm"
-              value={formData.intRate}
-              onChange={e => setFormData({...formData, intRate: e.target.value})}
-              required
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">TOP</label>
-            <select 
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm"
-              value={formData.top}
-              onChange={e => setFormData({...formData, top: e.target.value as any})}
-            >
-              <option value="Collection">Collection</option>
-              <option value="PDC">PDC</option>
-            </select>
           </div>
         </div>
 
@@ -5224,7 +5382,7 @@ function AssignAccount() {
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Account Type</label>
             <select 
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold"
               value={formData.accountType}
               onChange={e => setFormData({...formData, accountType: e.target.value as any})}
             >
@@ -5234,10 +5392,11 @@ function AssignAccount() {
               <option value="Additional">Additional</option>
             </select>
           </div>
+
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Tribe</label>
             <select 
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold"
               value={formData.tribe}
               onChange={e => setFormData({...formData, tribe: e.target.value as any})}
             >
@@ -5247,10 +5406,11 @@ function AssignAccount() {
               <option value="Cavite">Cavite</option>
             </select>
           </div>
+
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Loan Category</label>
             <select 
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm font-black text-emerald-800"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-black text-emerald-800"
               value={formData.loanCategory}
               onChange={e => setFormData({...formData, loanCategory: e.target.value as LoanCategory})}
             >
@@ -5259,44 +5419,35 @@ function AssignAccount() {
               <option value="Seaman">Seaman's Loan</option>
             </select>
           </div>
-          <div className="space-y-4 pt-4">
-            <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-xl border-2 border-emerald-100/50">
-              <input 
-                type="checkbox" 
-                id="isMCLReferral"
-                className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                checked={formData.isMCLReferral}
-                onChange={e => setFormData({...formData, isMCLReferral: e.target.checked})}
-              />
-              <label htmlFor="isMCLReferral" className="text-[10px] font-black text-emerald-800 uppercase tracking-widest cursor-pointer select-none">
-                MCL Referral (Points: 2)
-              </label>
-            </div>
-          </div>
+
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Address Pin.</label>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Int. Rate (%)</label>
             <input 
-              type="text" 
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm"
-              value={formData.addressPin}
-              onChange={e => setFormData({...formData, addressPin: e.target.value})}
+              type="number" 
+              step="0.01"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold"
+              value={formData.intRate}
+              onChange={e => setFormData({...formData, intRate: e.target.value})}
+              required
             />
           </div>
+
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Term</label>
             <input 
               type="text" 
               placeholder="e.g. 12 Months"
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold"
               value={formData.term}
               onChange={e => setFormData({...formData, term: e.target.value})}
               required
             />
           </div>
+
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">MOP</label>
             <select 
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold"
               value={formData.mop}
               onChange={e => setFormData({...formData, mop: e.target.value as any})}
             >
@@ -5306,10 +5457,23 @@ function AssignAccount() {
               <option value="Monthly">Monthly</option>
             </select>
           </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">TOP</label>
+            <select 
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold"
+              value={formData.top}
+              onChange={e => setFormData({...formData, top: e.target.value as any})}
+            >
+              <option value="Collection">Collection</option>
+              <option value="PDC">PDC</option>
+            </select>
+          </div>
+
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">CI Officer</label>
             <select 
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold"
               value={formData.ciOfficerId}
               onChange={e => setFormData({...formData, ciOfficerId: e.target.value})}
               required
@@ -5320,13 +5484,28 @@ function AssignAccount() {
               ))}
             </select>
           </div>
+
+          <div className="pt-2">
+            <div className="flex items-center gap-3 p-3.5 bg-emerald-50 rounded-xl border border-emerald-100">
+              <input 
+                type="checkbox" 
+                id="isMCLReferral"
+                className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                checked={formData.isMCLReferral}
+                onChange={e => setFormData({...formData, isMCLReferral: e.target.checked})}
+              />
+              <label htmlFor="isMCLReferral" className="text-[10px] font-black text-emerald-800 uppercase tracking-widest cursor-pointer select-none">
+                MCL Referral (Points: 2)
+              </label>
+            </div>
+          </div>
         </div>
 
-        <div className="col-span-2 pt-4">
+        <div className="md:col-span-2 pt-2">
           <button 
             type="submit"
             disabled={loading}
-            className="w-full py-4 bg-emerald-600 text-white font-black rounded-xl hover:bg-emerald-700 transition-all uppercase tracking-widest text-xs shadow-lg shadow-emerald-900/10"
+            className="w-full py-4 bg-emerald-600 text-white font-black rounded-xl hover:bg-emerald-700 transition-all uppercase tracking-widest text-xs shadow-lg shadow-emerald-900/10 cursor-pointer"
           >
             {loading ? 'Assigning...' : 'Confirm Assignment'}
           </button>
