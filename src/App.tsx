@@ -65,7 +65,15 @@ import {
   XCircle,
   Plus,
   Archive,
-  Calculator
+  Calculator,
+  Layers,
+  Building2,
+  MapPin,
+  ArrowUpRight,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
+  BadgeCheck
 } from 'lucide-react';
 import pptxgen from "pptxgenjs";
 import { motion, AnimatePresence } from 'framer-motion';
@@ -6977,6 +6985,673 @@ function AccountDossierModal({ assignment, onClose }: { assignment: Assignment, 
   );
 }
 
+interface ConsolidatedBorrowerModalProps {
+  borrowerName: string;
+  assignments: Assignment[];
+  onClose: () => void;
+  onViewSingleAssignment?: (assignment: Assignment) => void;
+}
+
+function ConsolidatedBorrowerModal({
+  borrowerName,
+  assignments,
+  onClose,
+  onViewSingleAssignment
+}: ConsolidatedBorrowerModalProps) {
+  const [activeTab, setActiveTab] = useState<'approval' | 'sales' | 'cashflow' | 'scoring' | 'ci_recommendation' | 'all_dossiers'>('approval');
+
+  // Chronologically sorted (newest first)
+  const sortedRecords = useMemo(() => {
+    return [...assignments].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [assignments]);
+
+  const latestRecord = sortedRecords[0];
+
+  // Helper function to extract approval date
+  const getApprovalDate = (assignment: Assignment): string | null => {
+    const approvedStep = assignment.timeline?.find(s => s.step === 'Approved');
+    if (approvedStep) return approvedStep.timestamp;
+    if (assignment.status === 'Approved') return assignment.createdAt;
+    return null;
+  };
+
+  // Compute key highlights
+  const approvedRecords = useMemo(() => {
+    return sortedRecords.filter(a => a.status === 'Approved' || a.timeline?.some(s => s.step === 'Approved'));
+  }, [sortedRecords]);
+
+  const totalApprovedAmount = useMemo(() => {
+    return approvedRecords.reduce((sum, a) => sum + (a.approvedAmount || a.requestedAmount || 0), 0);
+  }, [approvedRecords]);
+
+  const latestApprovalDate = useMemo(() => {
+    if (approvedRecords.length === 0) return null;
+    const dates = approvedRecords.map(a => getApprovalDate(a)).filter(Boolean) as string[];
+    if (dates.length === 0) return null;
+    dates.sort((d1, d2) => new Date(d2).getTime() - new Date(d1).getTime());
+    return dates[0];
+  }, [approvedRecords]);
+
+  return (
+    <div className="fixed inset-0 bg-emerald-950/50 backdrop-blur-md z-[100] flex items-center justify-center p-3 sm:p-4 select-none">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-white w-full max-w-6xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-emerald-100 flex flex-col h-[92vh]"
+      >
+        {/* Header */}
+        <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-900 p-6 text-white flex justify-between items-center shrink-0">
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-2.5 py-0.5 bg-emerald-700/80 rounded-md text-[9px] font-black uppercase tracking-widest border border-emerald-400/30 text-emerald-100">
+                Consolidated Borrower Dossier
+              </span>
+              <span className="px-2.5 py-0.5 bg-white/20 rounded-md text-[9px] font-black uppercase tracking-widest text-white">
+                {sortedRecords.length} {sortedRecords.length === 1 ? 'Account Record' : 'Account Records'}
+              </span>
+              {approvedRecords.length > 0 && (
+                <span className="px-2.5 py-0.5 bg-green-500/90 text-white rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1">
+                  <BadgeCheck size={12} /> Approved Borrower
+                </span>
+              )}
+            </div>
+            <h3 className="text-2xl font-black uppercase tracking-tight mt-1.5 text-white flex items-center gap-2">
+              {borrowerName}
+            </h3>
+            <p className="text-[10px] text-emerald-200/80 font-bold uppercase tracking-[0.25em] mt-0.5 flex items-center gap-3">
+              <span>Mobile: {latestRecord?.mobileNumber || '-'}</span>
+              <span>•</span>
+              <span>Location: {latestRecord?.location || '-'}</span>
+              <span>•</span>
+              <span>Tribe: {latestRecord?.tribe || 'NCR'}</span>
+            </p>
+          </div>
+          <button 
+            onClick={onClose} 
+            className="hover:rotate-90 transition-transform bg-white/10 hover:bg-white/20 p-2.5 rounded-2xl cursor-pointer"
+          >
+            <X size={22} />
+          </button>
+        </div>
+
+        {/* Highlight KPI Bar */}
+        <div className="bg-emerald-50/60 border-b border-emerald-100/80 px-6 py-3.5 grid grid-cols-2 md:grid-cols-4 gap-4 shrink-0 text-left">
+          <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-xs">
+            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-0.5">Total Applications</span>
+            <span className="text-base font-black text-emerald-900">{sortedRecords.length} Accounts</span>
+          </div>
+          <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-xs">
+            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-0.5">Most Recent Approval Date</span>
+            <span className="text-sm font-black text-emerald-700">
+              {latestApprovalDate ? format(new Date(latestApprovalDate), 'MMM d, yyyy') : 'No Approvals Yet'}
+            </span>
+          </div>
+          <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-xs">
+            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-0.5">Total Approved Loan</span>
+            <span className="text-base font-black text-emerald-900">₱{totalApprovedAmount.toLocaleString()}</span>
+          </div>
+          <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-xs">
+            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-0.5">Account Life Progression</span>
+            <div className="flex items-center gap-1 mt-0.5 overflow-x-auto">
+              {sortedRecords.slice().reverse().map((r) => (
+                <span key={r.id} className="text-[9px] font-extrabold uppercase px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded">
+                  {r.accountType}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="bg-gray-50/90 border-b border-gray-200/80 px-6 py-2.5 flex items-center gap-1.5 overflow-x-auto shrink-0 scrollbar-none">
+          {[
+            { id: 'approval', label: '1. Date Approved & Status', icon: <Calendar size={15} /> },
+            { id: 'sales', label: '2. History of Sales', icon: <TrendingUp size={15} /> },
+            { id: 'cashflow', label: '3. History of Cashflow', icon: <FileBarChart size={15} /> },
+            { id: 'scoring', label: '4. History of Credit Score', icon: <ListChecks size={15} /> },
+            { id: 'ci_recommendation', label: '5. History of CI Recommendation', icon: <ClipboardCheck size={15} /> },
+            { id: 'all_dossiers', label: 'All Raw Records', icon: <Layers size={15} /> },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 shrink-0 select-none cursor-pointer",
+                activeTab === tab.id 
+                  ? "bg-emerald-800 text-white shadow-md shadow-emerald-800/15" 
+                  : "bg-white border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300"
+              )}
+            >
+              {tab.icon}
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Content Pane */}
+        <div className="p-6 md:p-8 overflow-y-auto flex-1 text-left bg-slate-50/50 space-y-6">
+          {/* TAB 1: DATE APPROVED & APPROVAL HISTORY */}
+          {activeTab === 'approval' && (
+            <div className="space-y-6">
+              <div className="bg-white p-6 rounded-2xl border border-gray-200/80 shadow-xs space-y-4">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                  <div>
+                    <h4 className="text-sm font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-emerald-600" /> Account Approval Dates & Status Timeline
+                    </h4>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                      Chronological history of loan approval dates, terms, and committee verdicts
+                    </p>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[750px]">
+                    <thead>
+                      <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-200">
+                        <th className="p-3">Application / CID</th>
+                        <th className="p-3">Account Type</th>
+                        <th className="p-3">Application Date</th>
+                        <th className="p-3 text-emerald-900">Date Approved</th>
+                        <th className="p-3 text-right">Requested / Approved</th>
+                        <th className="p-3">Terms & Rates</th>
+                        <th className="p-3">Status</th>
+                        <th className="p-3">Committee Verdict / Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 text-xs font-semibold">
+                      {sortedRecords.map((r) => {
+                        const appDate = getApprovalDate(r);
+                        return (
+                          <tr key={r.id} className="hover:bg-emerald-50/30 transition-colors">
+                            <td className="p-3">
+                              <span className="font-mono font-bold text-gray-800 block">CID: {r.id.slice(0, 8)}</span>
+                              <span className="text-[10px] text-gray-400 font-bold uppercase">{r.loanCategory}</span>
+                            </td>
+                            <td className="p-3">
+                              <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-black text-[10px] uppercase rounded">
+                                {r.accountType}
+                              </span>
+                            </td>
+                            <td className="p-3 text-gray-600">
+                              {r.createdAt ? format(new Date(r.createdAt), 'MMM d, yyyy') : '-'}
+                            </td>
+                            <td className="p-3">
+                              {appDate ? (
+                                <div className="space-y-0.5">
+                                  <span className="px-2 py-1 bg-green-100 text-green-800 font-black text-[11px] rounded-lg inline-flex items-center gap-1 border border-green-200">
+                                    <CheckCircle2 size={12} className="text-green-600" />
+                                    {format(new Date(appDate), 'MMM d, yyyy')}
+                                  </span>
+                                  <span className="text-[9px] text-gray-400 block font-mono">
+                                    {format(new Date(appDate), 'h:mm a')}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] font-bold text-gray-400 uppercase italic">
+                                  {r.status === 'Denied' ? 'Not Approved (Denied)' : 'Pending Approval'}
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-3 text-right">
+                              <p className="font-extrabold text-emerald-900">
+                                ₱{(r.approvedAmount || r.requestedAmount).toLocaleString()}
+                              </p>
+                              {r.approvedAmount && r.approvedAmount !== r.requestedAmount && (
+                                <p className="text-[9px] text-gray-400 line-through">
+                                  Req: ₱{r.requestedAmount.toLocaleString()}
+                                </p>
+                              )}
+                            </td>
+                            <td className="p-3 text-gray-700 font-bold">
+                              <p>{r.approvedTerm || r.term} Mos @ {r.approvedIntRate || r.intRate}%</p>
+                              <p className="text-[9px] text-gray-400 uppercase">{r.approvedMop || r.mop} • {r.approvedTop || r.top}</p>
+                            </td>
+                            <td className="p-3">
+                              <span className={cn(
+                                "px-2.5 py-1 text-[9px] font-black uppercase rounded-full border",
+                                r.status === 'Approved' ? "bg-green-100 text-green-700 border-green-200" :
+                                r.status === 'Denied' ? "bg-red-100 text-red-700 border-red-200" :
+                                r.status === 'Archived' ? "bg-amber-100 text-amber-800 border-amber-200" :
+                                r.status === 'Completed' ? "bg-blue-100 text-blue-700 border-blue-200" : "bg-amber-50 text-amber-700 border-amber-200"
+                              )}>
+                                {r.status}
+                              </span>
+                            </td>
+                            <td className="p-3 text-gray-600 max-w-xs text-[11px] leading-relaxed">
+                              {r.crecomComments ? (
+                                <p className="bg-gray-50 p-2 rounded-lg border border-gray-100 font-medium">
+                                  "{r.crecomComments}"
+                                </p>
+                              ) : r.deniedComments ? (
+                                <p className="bg-red-50 p-2 rounded-lg border border-red-100 font-medium text-red-800">
+                                  "{r.deniedComments}"
+                                </p>
+                              ) : (
+                                <span className="text-gray-400 italic">No committee remarks logged</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: HISTORY OF SALES */}
+          {activeTab === 'sales' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs">
+                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Latest Monthly Sales</span>
+                  <span className="text-2xl font-black text-emerald-900 block mt-1">
+                    ₱{(latestRecord?.cashflowReport?.analysis?.grossBusinessIncome || latestRecord?.cashflowReport?.businessIncome?.gross || 0).toLocaleString()}
+                  </span>
+                  <span className="text-[10px] text-gray-500 font-bold uppercase mt-1 block">From most recent evaluation</span>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs">
+                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Peak Sales Recorded</span>
+                  <span className="text-2xl font-black text-emerald-700 block mt-1">
+                    ₱{Math.max(...sortedRecords.map(r => r.cashflowReport?.analysis?.grossBusinessIncome || r.cashflowReport?.businessIncome?.gross || 0)).toLocaleString()}
+                  </span>
+                  <span className="text-[10px] text-gray-500 font-bold uppercase mt-1 block">Across all historical reports</span>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs">
+                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Evaluated Sales Reports</span>
+                  <span className="text-2xl font-black text-gray-800 block mt-1">
+                    {sortedRecords.filter(r => !!r.cashflowReport).length} Reports
+                  </span>
+                  <span className="text-[10px] text-gray-500 font-bold uppercase mt-1 block">With documented cashflow</span>
+                </div>
+              </div>
+
+              {/* Detailed Sales History Table */}
+              <div className="bg-white p-6 rounded-2xl border border-gray-200/80 shadow-xs space-y-4">
+                <h4 className="text-sm font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2 border-b border-gray-100 pb-3">
+                  <TrendingUp className="w-4 h-4 text-emerald-600" /> Historical Sales & Gross Business Revenue Ledger
+                </h4>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[700px]">
+                    <thead>
+                      <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-200">
+                        <th className="p-3">Evaluation Date</th>
+                        <th className="p-3">Account Type / CID</th>
+                        <th className="p-3 text-right">Gross Sales / Revenue</th>
+                        <th className="p-3 text-right text-red-500">Business Expenses</th>
+                        <th className="p-3 text-right text-emerald-900">Net Business Income</th>
+                        <th className="p-3">Inventory vs Sales Rating</th>
+                        <th className="p-3">CI Business Assessment Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 text-xs font-semibold">
+                      {sortedRecords.map((r) => {
+                        const grossSales = r.cashflowReport?.analysis?.grossBusinessIncome || r.cashflowReport?.businessIncome?.gross || 0;
+                        const expenses = r.cashflowReport?.analysis?.businessExpenses || r.cashflowReport?.businessIncome?.expenses || 0;
+                        const netInc = r.cashflowReport?.analysis?.businessNetIncome || r.cashflowReport?.businessIncome?.net || (grossSales - expenses);
+                        const invVsSales = r.creditScore?.inventoryVsSales || 'N/A';
+
+                        return (
+                          <tr key={r.id} className="hover:bg-emerald-50/30 transition-colors">
+                            <td className="p-3 text-gray-800 font-bold">
+                              {r.createdAt ? format(new Date(r.createdAt), 'MMM d, yyyy') : '-'}
+                            </td>
+                            <td className="p-3">
+                              <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-black text-[10px] uppercase rounded">
+                                {r.accountType}
+                              </span>
+                              <span className="text-[10px] font-mono text-gray-400 block mt-0.5">CID: {r.id.slice(0, 8)}</span>
+                            </td>
+                            <td className="p-3 text-right font-black text-gray-900">
+                              ₱{grossSales.toLocaleString()}
+                            </td>
+                            <td className="p-3 text-right font-bold text-red-500">
+                              -₱{expenses.toLocaleString()}
+                            </td>
+                            <td className="p-3 text-right font-black text-emerald-800">
+                              ₱{netInc.toLocaleString()}
+                            </td>
+                            <td className="p-3">
+                              <span className={cn(
+                                "px-2 py-0.5 text-[10px] font-black uppercase rounded",
+                                invVsSales === 'Good' ? "bg-green-100 text-green-800" :
+                                invVsSales === 'Minimal' ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-600"
+                              )}>
+                                {invVsSales}
+                              </span>
+                            </td>
+                            <td className="p-3 text-gray-600 max-w-xs text-[11px] leading-relaxed">
+                              {r.cashflowReport?.ciRecommendation?.remarks || r.creditScore?.ciRemarks || 'No business remarks documented.'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: HISTORY OF CASHFLOW */}
+          {activeTab === 'cashflow' && (
+            <div className="space-y-6">
+              <div className="bg-white p-6 rounded-2xl border border-gray-200/80 shadow-xs space-y-4">
+                <h4 className="text-sm font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2 border-b border-gray-100 pb-3">
+                  <FileBarChart className="w-4 h-4 text-emerald-600" /> Cashflow Diagnostic & Net Disposable Income (NDI) History
+                </h4>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[750px]">
+                    <thead>
+                      <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-200">
+                        <th className="p-3">Assessment Date</th>
+                        <th className="p-3">Account Type</th>
+                        <th className="p-3 text-right">Gross Income</th>
+                        <th className="p-3 text-right text-red-500">Household Expenses</th>
+                        <th className="p-3 text-right text-amber-600">Debt Liabilities</th>
+                        <th className="p-3 text-right text-emerald-900">Net Income</th>
+                        <th className="p-3 text-center">NDI Calibration %</th>
+                        <th className="p-3 text-right text-green-700">Target Paying Capacity</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 text-xs font-semibold">
+                      {sortedRecords.map((r) => {
+                        const grossInc = r.cashflowReport?.analysis?.grossBusinessIncome || 0;
+                        const householdExp = r.cashflowReport?.analysis?.totalHouseholdExpenses || r.cashflowReport?.householdExpenses?.total || 0;
+                        const debtAmort = r.cashflowReport?.liabilities?.reduce((sum: number, l: any) => sum + Number(l.amortization || 0), 0) || 0;
+                        const netInc = r.cashflowReport?.analysis?.netIncome || 0;
+                        const ndiPct = r.cashflowReport?.analysis?.ndiPercentage || 30;
+                        const targetMpc = r.cashflowReport?.analysis?.monthlyNdi || (netInc * (ndiPct / 100));
+
+                        return (
+                          <tr key={r.id} className="hover:bg-emerald-50/30 transition-colors">
+                            <td className="p-3 text-gray-800 font-bold">
+                              {r.createdAt ? format(new Date(r.createdAt), 'MMM d, yyyy') : '-'}
+                            </td>
+                            <td className="p-3">
+                              <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-black text-[10px] uppercase rounded">
+                                {r.accountType}
+                              </span>
+                            </td>
+                            <td className="p-3 text-right font-black text-gray-900">
+                              ₱{grossInc.toLocaleString()}
+                            </td>
+                            <td className="p-3 text-right font-bold text-red-500">
+                              -₱{householdExp.toLocaleString()}
+                            </td>
+                            <td className="p-3 text-right font-bold text-amber-600">
+                              -₱{debtAmort.toLocaleString()}
+                            </td>
+                            <td className="p-3 text-right font-black text-emerald-800">
+                              ₱{netInc.toLocaleString()}
+                            </td>
+                            <td className="p-3 text-center">
+                              <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 font-black text-[10px] rounded-full border border-emerald-200">
+                                {ndiPct}% NDI
+                              </span>
+                            </td>
+                            <td className="p-3 text-right font-black text-green-700 text-sm">
+                              ₱{Math.round(targetMpc).toLocaleString()}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Outstanding Liabilities Ledger across applications */}
+              <div className="bg-white p-6 rounded-2xl border border-gray-200/80 shadow-xs space-y-4">
+                <h4 className="text-xs font-black text-gray-800 uppercase tracking-[0.2em]">Historical External Liabilities & Creditors</h4>
+                
+                {sortedRecords.some(r => r.cashflowReport?.liabilities && r.cashflowReport.liabilities.length > 0) ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-100 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                          <th className="p-3">Recorded On</th>
+                          <th className="p-3">Creditor Source</th>
+                          <th className="p-3">Loan Type</th>
+                          <th className="p-3 text-right">Monthly Amortization</th>
+                          <th className="p-3 text-right">Outstanding Balance</th>
+                          <th className="p-3 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
+                        {sortedRecords.flatMap((r) => 
+                          (r.cashflowReport?.liabilities || []).map((lia: any, idx: number) => (
+                            <tr key={`${r.id}-${idx}`} className="hover:bg-gray-50">
+                              <td className="p-3 text-gray-500 font-mono text-[10px]">
+                                {format(new Date(r.createdAt), 'MMM d, yyyy')} ({r.accountType})
+                              </td>
+                              <td className="p-3 font-extrabold text-gray-900 uppercase">{lia.source || '-'}</td>
+                              <td className="p-3 uppercase text-[10px] text-gray-500 font-bold">{lia.loanType || '-'}</td>
+                              <td className="p-3 text-right font-bold text-red-500">₱{Number(lia.amortization || 0).toLocaleString()}</td>
+                              <td className="p-3 text-right font-black text-gray-900">₱{Number(lia.balance || 0).toLocaleString()}</td>
+                              <td className="p-3 text-center">
+                                <span className={cn(
+                                  "px-2 py-0.5 text-[8px] font-black rounded-md uppercase",
+                                  (lia.status || '').toLowerCase().includes('current') ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"
+                                )}>
+                                  {lia.status || 'Active'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-6 border border-dashed border-gray-200 rounded-xl text-center text-xs text-gray-400 font-bold">
+                    No external debt liabilities logged across all account evaluations.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: HISTORY OF CREDIT SCORE */}
+          {activeTab === 'scoring' && (
+            <div className="space-y-6">
+              <div className="bg-white p-6 rounded-2xl border border-gray-200/80 shadow-xs space-y-4">
+                <h4 className="text-sm font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2 border-b border-gray-100 pb-3">
+                  <ListChecks className="w-4 h-4 text-emerald-600" /> Credit Scoring & Risk Classification History
+                </h4>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[700px]">
+                    <thead>
+                      <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-200">
+                        <th className="p-3">Scoring Date</th>
+                        <th className="p-3">Account Type</th>
+                        <th className="p-3">Scoring System</th>
+                        <th className="p-3 text-right">Total Score / Grade</th>
+                        <th className="p-3 text-center">Risk Classification</th>
+                        <th className="p-3">Recommendation</th>
+                        <th className="p-3">CI Qualitative Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 text-xs font-semibold">
+                      {sortedRecords.map((r) => {
+                        const cs = r.creditScore;
+                        const mcl = r.mclCreditScore;
+
+                        const riskClass = cs?.riskClassification || mcl?.riskClassification || (cs?.riskScore ? (cs.riskScore < 30 ? 'Low Risk' : cs.riskScore < 60 ? 'Medium Risk' : 'High Risk') : 'Unscored');
+                        const scoreVal = cs?.totalGrade !== undefined ? `${cs.totalGrade.toFixed(1)} / 100` : mcl?.totalScore !== undefined ? `${mcl.totalScore} Pts` : 'N/A';
+                        const recom = cs?.recommendation || 'Approved';
+                        const remarks = cs?.ciRemarks || mcl?.ciRemarks || 'No qualitative remarks logged';
+
+                        return (
+                          <tr key={r.id} className="hover:bg-emerald-50/30 transition-colors">
+                            <td className="p-3 text-gray-800 font-bold">
+                              {r.createdAt ? format(new Date(r.createdAt), 'MMM d, yyyy') : '-'}
+                            </td>
+                            <td className="p-3">
+                              <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-black text-[10px] uppercase rounded">
+                                {r.accountType}
+                              </span>
+                            </td>
+                            <td className="p-3">
+                              <span className="text-[10px] font-bold uppercase text-gray-600">
+                                {mcl ? 'MCL Credit Engine' : 'Standard CIBI Score'}
+                              </span>
+                            </td>
+                            <td className="p-3 text-right font-black text-emerald-800 text-sm">
+                              {scoreVal}
+                            </td>
+                            <td className="p-3 text-center">
+                              <span className={cn(
+                                "px-2.5 py-1 text-[10px] font-black uppercase rounded-full border",
+                                riskClass.toLowerCase().includes('low') ? "bg-emerald-100 text-emerald-800 border-emerald-200" :
+                                riskClass.toLowerCase().includes('high') ? "bg-red-100 text-red-800 border-red-200" : "bg-amber-100 text-amber-800 border-amber-200"
+                              )}>
+                                {riskClass}
+                              </span>
+                            </td>
+                            <td className="p-3 font-extrabold text-gray-800 uppercase">
+                              {recom}
+                            </td>
+                            <td className="p-3 text-gray-600 max-w-xs text-[11px] leading-relaxed">
+                              {remarks}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: HISTORY OF CI RECOMMENDATION */}
+          {activeTab === 'ci_recommendation' && (
+            <div className="space-y-6">
+              <div className="bg-white p-6 rounded-2xl border border-gray-200/80 shadow-xs space-y-4">
+                <h4 className="text-sm font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2 border-b border-gray-100 pb-3">
+                  <ClipboardCheck className="w-4 h-4 text-emerald-600" /> Credit Investigator (CI) Recommendations History
+                </h4>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[750px]">
+                    <thead>
+                      <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-200">
+                        <th className="p-3">Proposal Date</th>
+                        <th className="p-3">Account Type</th>
+                        <th className="p-3">CI Investigator</th>
+                        <th className="p-3 text-right">Recommended Loan</th>
+                        <th className="p-3">Term & Rate</th>
+                        <th className="p-3 text-right">Monthly Amort.</th>
+                        <th className="p-3">CI Remarks & Justification</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 text-xs font-semibold">
+                      {sortedRecords.map((r) => {
+                        const ciRec = r.cashflowReport?.ciRecommendation;
+                        return (
+                          <tr key={r.id} className="hover:bg-emerald-50/30 transition-colors">
+                            <td className="p-3 text-gray-800 font-bold">
+                              {r.createdAt ? format(new Date(r.createdAt), 'MMM d, yyyy') : '-'}
+                            </td>
+                            <td className="p-3">
+                              <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-black text-[10px] uppercase rounded">
+                                {r.accountType}
+                              </span>
+                            </td>
+                            <td className="p-3 text-gray-700 font-bold">
+                              {r.ciOfficerName}
+                            </td>
+                            <td className="p-3 text-right font-black text-emerald-900 text-sm">
+                              ₱{(ciRec?.loanAmount || r.requestedAmount).toLocaleString()}
+                            </td>
+                            <td className="p-3 text-gray-800 font-bold">
+                              {ciRec?.term || r.term} Mos @ {ciRec?.rate || r.intRate}%
+                            </td>
+                            <td className="p-3 text-right font-black text-emerald-800">
+                              ₱{(ciRec?.monthlyAmort || 0).toLocaleString()}
+                            </td>
+                            <td className="p-3 text-gray-600 max-w-xs text-[11px] leading-relaxed">
+                              {ciRec?.remarks || 'No qualitative justification logged.'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 6: RAW RECORDS */}
+          {activeTab === 'all_dossiers' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {sortedRecords.map((r) => (
+                <div key={r.id} className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col justify-between space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="text-[10px] font-mono text-gray-400 font-bold">CID: {r.id}</span>
+                      <h5 className="text-sm font-black text-gray-900 uppercase mt-0.5">{r.accountType} Application</h5>
+                      <p className="text-[10px] text-gray-400 font-bold">Created: {format(new Date(r.createdAt), 'MMM d, yyyy h:mm a')}</p>
+                    </div>
+                    <span className={cn(
+                      "px-2.5 py-1 text-[9px] font-black uppercase rounded-full border",
+                      r.status === 'Approved' ? "bg-green-100 text-green-700 border-green-200" : "bg-amber-100 text-amber-800 border-amber-200"
+                    )}>
+                      {r.status}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-gray-50 p-3 rounded-xl border border-gray-100">
+                    <div>
+                      <span className="text-[9px] font-black text-gray-400 uppercase block">Requested</span>
+                      <span className="font-extrabold text-emerald-900">₱{r.requestedAmount.toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-black text-gray-400 uppercase block">Term & Rate</span>
+                      <span className="font-extrabold text-gray-800">{r.term} Mos @ {r.intRate}%</span>
+                    </div>
+                  </div>
+
+                  {onViewSingleAssignment && (
+                    <button
+                      onClick={() => onViewSingleAssignment(r)}
+                      className="w-full py-2.5 bg-emerald-800 text-white font-black text-xs uppercase tracking-wider rounded-xl hover:bg-emerald-900 transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <FileText size={14} /> Open Single Account Dossier
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-5 bg-gray-50 border-t border-gray-200 flex justify-between items-center shrink-0">
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+            Showing Consolidated Records for {borrowerName}
+          </p>
+          <button 
+            onClick={onClose}
+            className="px-8 py-2.5 bg-emerald-800 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-emerald-900 transition-all cursor-pointer shadow-sm"
+          >
+            Close Consolidated Dossier
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { assignment: Assignment, user: UserProfile, isReadOnly?: boolean }) {
   const isMCL = assignment.loanCategory === 'MCL';
   const isSeaman = assignment.loanCategory === 'Seaman';
@@ -9792,7 +10467,9 @@ function DataStorage({ user }: { user: UserProfile }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isViewing, setIsViewing] = useState(false);
   const [selected, setSelected] = useState<Assignment | null>(null);
+  const [viewingConsolidated, setViewingConsolidated] = useState<{ borrowerName: string; assignments: Assignment[] } | null>(null);
   const [ciOfficers, setCiOfficers] = useState<UserProfile[]>([]);
+  const [expandedBorrower, setExpandedBorrower] = useState<string | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, 'users'));
@@ -9837,6 +10514,54 @@ function DataStorage({ user }: { user: UserProfile }) {
     return matchesSearch && matchesStatus && matchesType && matchesCI;
   });
 
+  // Consolidate records by Borrower Name
+  const consolidatedBorrowers = useMemo(() => {
+    const map = new Map<string, Assignment[]>();
+
+    filtered.forEach(a => {
+      const key = (a.borrowerName || 'UNNAMED').trim().toUpperCase();
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(a);
+    });
+
+    return Array.from(map.entries()).map(([normKey, list]) => {
+      const sorted = [...list].sort((x, y) => new Date(y.createdAt).getTime() - new Date(x.createdAt).getTime());
+      const latest = sorted[0];
+
+      // Extract approval date if any
+      let latestApprovalDate: string | null = null;
+      sorted.forEach(r => {
+        const approvedStep = r.timeline?.find(s => s.step === 'Approved');
+        if (approvedStep) {
+          if (!latestApprovalDate || new Date(approvedStep.timestamp).getTime() > new Date(latestApprovalDate).getTime()) {
+            latestApprovalDate = approvedStep.timestamp;
+          }
+        } else if (r.status === 'Approved') {
+          if (!latestApprovalDate || new Date(r.createdAt).getTime() > new Date(latestApprovalDate).getTime()) {
+            latestApprovalDate = r.createdAt;
+          }
+        }
+      });
+
+      const accountTypes = Array.from(new Set(sorted.map(s => s.accountType).filter(Boolean)));
+      const ciOfficersList = Array.from(new Set(sorted.map(s => s.ciOfficerName).filter(Boolean)));
+
+      return {
+        borrowerName: latest.borrowerName,
+        records: sorted,
+        latestRecord: latest,
+        mobileNumber: latest.mobileNumber || sorted.find(s => s.mobileNumber)?.mobileNumber || '-',
+        location: latest.location || sorted.find(s => s.location)?.location || '-',
+        tribe: latest.tribe || sorted.find(s => s.tribe)?.tribe || 'NCR',
+        accountTypes,
+        ciOfficersList,
+        latestApprovalDate,
+        totalRequested: sorted.reduce((sum, s) => sum + (s.requestedAmount || 0), 0),
+        totalApproved: sorted.reduce((sum, s) => sum + (s.approvedAmount || (s.status === 'Approved' ? s.requestedAmount : 0)), 0),
+      };
+    });
+  }, [filtered]);
+
   if (loading) return (
     <div className="h-64 flex items-center justify-center">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
@@ -9845,19 +10570,19 @@ function DataStorage({ user }: { user: UserProfile }) {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
-      <div className="flex flex-col gap-6 bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+      <div className="flex flex-col gap-6 bg-white p-8 rounded-3xl border border-gray-100 shadow-sm text-left">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
           <div className="space-y-1">
             <h2 className="text-2xl font-black text-emerald-800 uppercase tracking-tight">Main Data Storage</h2>
             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] flex items-center gap-2">
-              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" /> Comprehensive Archive
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" /> Consolidated Borrower Archive ({consolidatedBorrowers.length} Unique Clients)
             </p>
           </div>
           <div className="relative w-full lg:w-96">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input 
               type="text" 
-              placeholder="Search all records..."
+              placeholder="Search by borrower name or CI officer..."
               className="w-full pl-12 pr-6 py-3.5 bg-gray-50 border-2 border-transparent rounded-2xl text-sm focus:outline-none focus:border-emerald-500/20 font-medium transition-all"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -9906,159 +10631,226 @@ function DataStorage({ user }: { user: UserProfile }) {
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden">
+      {/* Main Consolidated Table */}
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden text-left">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
-                <th className="px-6 py-5">Client Identifier</th>
-                <th className="px-6 py-5">Account Spec</th>
-                <th className="px-6 py-5">Financials</th>
-                <th className="px-6 py-5">Geography</th>
-                <th className="px-6 py-5">Field Staff</th>
-                <th className="px-6 py-5">Lifecycle</th>
-                <th className="px-6 py-5">Turn Around Time</th>
+                <th className="px-6 py-5">Consolidated Borrower Name</th>
+                <th className="px-6 py-5">Account Progression</th>
+                <th className="px-6 py-5">Total Financials</th>
+                <th className="px-6 py-5">Location & Tribe</th>
+                <th className="px-6 py-5">Assigned CI Officers</th>
+                <th className="px-6 py-5">Date Approved & Status</th>
                 <th className="px-6 py-5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filtered.map((a) => (
-                <tr key={a.id} className="hover:bg-gray-50 group transition-colors">
-                  <td className="px-6 py-5">
-                    <div 
-                      className="cursor-pointer group/name" 
-                      onClick={() => {
-                        setSelected(a);
-                        setIsViewing(true);
-                      }}
-                    >
-                      <p className="font-bold text-gray-900 uppercase text-sm group-hover/name:text-emerald-600 transition-colors">{a.borrowerName}</p>
-                      <p className="text-[10px] text-gray-400 flex items-center gap-1 mt-1">
-                        <Phone size={10} /> {a.mobileNumber}
-                      </p>
-                      {a.status === 'Archived' && (
-                        <div className="mt-2 text-[10px] bg-amber-50 border border-amber-200/50 rounded-lg p-2 text-amber-800 max-w-xs font-semibold leading-relaxed">
-                          <span className="font-extrabold uppercase text-[8px] tracking-widest text-amber-600 block mb-0.5">Archive Reason:</span>
-                          "{a.archiveReason || 'No specific reason logged.'}"
+            <tbody className="divide-y divide-gray-100">
+              {consolidatedBorrowers.map((b) => {
+                const isExpanded = expandedBorrower === b.borrowerName;
+
+                return (
+                  <React.Fragment key={b.borrowerName}>
+                    <tr className="hover:bg-emerald-50/20 group transition-colors">
+                      <td className="px-6 py-5">
+                        <div 
+                          className="cursor-pointer group/name" 
+                          onClick={() => setViewingConsolidated({ borrowerName: b.borrowerName, assignments: b.records })}
+                        >
+                          <div className="flex items-center gap-2">
+                            <p className="font-extrabold text-gray-900 uppercase text-sm group-hover/name:text-emerald-700 transition-colors">
+                              {b.borrowerName}
+                            </p>
+                            <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full border border-emerald-200">
+                              {b.records.length} {b.records.length === 1 ? 'Record' : 'Records'}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-gray-400 font-bold flex items-center gap-1 mt-1">
+                            <Phone size={11} className="text-gray-400" /> {b.mobileNumber}
+                          </p>
                         </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-5">
-                    <span className="text-[10px] font-black uppercase px-2 py-1 bg-blue-50 text-blue-600 rounded">
-                      {a.accountType}
-                    </span>
-                    <p className="text-[9px] text-gray-400 mt-2 font-bold uppercase tracking-tighter">
-                      CID: {a.id.slice(0, 8)}
-                    </p>
-                  </td>
-                  <td className="px-6 py-5">
-                    <div>
-                      <p className="text-xs font-black text-emerald-800">₱{a.requestedAmount.toLocaleString()}</p>
-                      <p className="text-[9px] text-gray-400 font-bold uppercase mt-1">{a.term} Mos @ {a.intRate}%</p>
-                    </div>
-                  </td>
-                  <td className="px-6 py-5">
-                    <div>
-                      <p className="text-xs font-bold text-gray-700">{a.location}</p>
-                      <p className="text-[10px] text-gray-400 uppercase font-black">{a.tribe}</p>
-                    </div>
-                  </td>
-                  <td className="px-6 py-5">
-                    <div className="flex items-center gap-2">
-                       <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-[8px] font-black">
-                         {a.ciOfficerName.charAt(0)}
-                       </div>
-                       <span className="text-xs font-bold text-gray-600">{a.ciOfficerName}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-5">
-                    <span className={cn(
-                      "text-[9px] font-black uppercase px-3 py-1 rounded-full",
-                      a.status === 'Approved' ? "bg-green-100 text-green-600" :
-                      a.status === 'Denied' ? "bg-red-100 text-red-600" :
-                      a.status === 'Archived' ? "bg-amber-100 text-amber-700 border border-amber-200" :
-                      a.status === 'Completed' ? "bg-blue-100 text-blue-600" : "bg-amber-100 text-amber-600"
-                    )}>
-                      {a.status}
-                    </span>
-                    <p className="text-[8px] text-gray-300 mt-2 font-mono">
-                      {format(new Date(a.createdAt), 'MMM d, yyyy')}
-                    </p>
-                  </td>
-                  <td className="px-6 py-5">
-                    <div className="flex flex-col">
-                      <p className="text-[10px] font-black text-emerald-800 uppercase tracking-tighter">
-                        {(() => {
-                          try {
-                            const assignedStep = a.timeline.find(s => s.step === 'Assigned');
-                            const preApprovedStep = a.timeline.find(s => s.step === 'Pre-approved');
-                            
-                            const start = assignedStep ? parseISO(assignedStep.timestamp) : parseISO(a.createdAt);
-                            let end = new Date();
-                            
-                            if (preApprovedStep) {
-                              end = parseISO(preApprovedStep.timestamp);
-                            } else {
-                              // If already beyond pre-approved, use the first step that reached that level
-                              const targetStatuses = ['Pre-approved', 'Approved', 'Denied', 'Completed'];
-                              const completedStep = a.timeline.find(s => targetStatuses.includes(s.step));
-                              if (completedStep) {
-                                end = parseISO(completedStep.timestamp);
-                              }
-                            }
-                            
-                            const diffMs = Math.max(0, end.getTime() - start.getTime());
-                            const diffMins = Math.floor(diffMs / (1000 * 60));
-                            
-                            const d = Math.floor(diffMins / (24 * 60));
-                            const h = Math.floor((diffMins % (24 * 60)) / 60);
-                            const m = diffMins % 60;
-                            
-                            return `${d}D(Days), ${h}H(Hours), ${m}M(minutes)`;
-                          } catch {
-                            return "--";
-                          }
-                        })()}
-                      </p>
-                      {['Pre-approved', 'Approved', 'Denied', 'Completed'].includes(a.status) ? (
-                        <p className="text-[8px] text-emerald-600 font-bold uppercase mt-1">Final TAT (Pre-app)</p>
-                      ) : (
-                        <p className="text-[8px] text-amber-500 font-bold uppercase mt-1 animate-pulse">In Progress</p>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-5 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button 
-                        onClick={() => {
-                          setSelected(a);
-                          setIsEditing(true);
-                        }}
-                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button 
-                        onClick={() => generateAssignmentPPT(a)}
-                        className="p-2 text-gray-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl transition-all"
-                        title="Export PPT"
-                      >
-                        <Presentation size={16} />
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(a.id)}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="flex flex-wrap gap-1">
+                          {b.accountTypes.map((type) => (
+                            <span key={type} className="text-[9px] font-black uppercase px-2 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-100">
+                              {type}
+                            </span>
+                          ))}
+                        </div>
+                        <p className="text-[9px] text-gray-400 mt-1.5 font-mono">
+                          Latest CID: {b.latestRecord.id.slice(0, 8)}
+                        </p>
+                      </td>
+                      <td className="px-6 py-5">
+                        <div>
+                          <p className="text-xs font-black text-emerald-900">
+                            Approved: ₱{b.totalApproved.toLocaleString()}
+                          </p>
+                          <p className="text-[9px] text-gray-400 font-bold uppercase mt-0.5">
+                            Total Requested: ₱{b.totalRequested.toLocaleString()}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <div>
+                          <p className="text-xs font-bold text-gray-700">{b.location}</p>
+                          <p className="text-[10px] text-gray-400 uppercase font-black">{b.tribe}</p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="flex flex-wrap gap-1">
+                          {b.ciOfficersList.map(ci => (
+                            <span key={ci} className="text-[10px] font-extrabold text-gray-700 bg-gray-100 px-2 py-0.5 rounded-md">
+                              {ci}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        {b.latestApprovalDate ? (
+                          <div>
+                            <span className="px-2.5 py-1 bg-green-100 text-green-800 text-[10px] font-black rounded-lg inline-flex items-center gap-1 border border-green-200">
+                              <BadgeCheck size={12} className="text-green-600" />
+                              Approved {format(new Date(b.latestApprovalDate), 'MMM d, yyyy')}
+                            </span>
+                            <span className="text-[9px] text-gray-400 block font-mono mt-1">
+                              {format(new Date(b.latestApprovalDate), 'h:mm a')}
+                            </span>
+                          </div>
+                        ) : (
+                          <div>
+                            <span className={cn(
+                              "text-[9px] font-black uppercase px-3 py-1 rounded-full",
+                              b.latestRecord.status === 'Denied' ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"
+                            )}>
+                              {b.latestRecord.status}
+                            </span>
+                            <p className="text-[8px] text-gray-400 mt-1 font-mono">
+                              {format(new Date(b.latestRecord.createdAt), 'MMM d, yyyy')}
+                            </p>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-5 text-right">
+                        <div className="flex justify-end items-center gap-2">
+                          <button
+                            onClick={() => setViewingConsolidated({ borrowerName: b.borrowerName, assignments: b.records })}
+                            className="px-3 py-2 bg-emerald-800 text-white rounded-xl hover:bg-emerald-900 transition-all font-black text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"
+                            title="Open Consolidated Borrower History"
+                          >
+                            <Sparkles size={14} /> Full History
+                          </button>
+                          <button
+                            onClick={() => setExpandedBorrower(isExpanded ? null : b.borrowerName)}
+                            className="p-2 text-gray-500 hover:text-emerald-800 hover:bg-emerald-50 rounded-xl transition-all border border-gray-200 cursor-pointer"
+                            title={isExpanded ? "Collapse Account Sub-list" : "Expand Individual Accounts"}
+                          >
+                            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Expandable Sub-list for Individual Applications */}
+                    {isExpanded && (
+                      <tr className="bg-slate-50/80 border-b border-gray-200">
+                        <td colSpan={7} className="p-4 sm:p-6">
+                          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-emerald-100 shadow-sm space-y-3">
+                            <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                              <h5 className="text-xs font-black text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
+                                <Layers size={14} className="text-emerald-600" /> Individual Application Records ({b.records.length})
+                              </h5>
+                              <button
+                                onClick={() => setViewingConsolidated({ borrowerName: b.borrowerName, assignments: b.records })}
+                                className="text-[10px] text-emerald-700 font-extrabold uppercase hover:underline flex items-center gap-1 cursor-pointer"
+                              >
+                                Open Detailed Modal Matrix <ArrowUpRight size={12} />
+                              </button>
+                            </div>
+
+                            <div className="space-y-2">
+                              {b.records.map((r) => (
+                                <div key={r.id} className="p-3 bg-gray-50 hover:bg-emerald-50/30 rounded-xl border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 transition-colors">
+                                  <div className="flex items-center gap-3">
+                                    <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-[9px] font-black uppercase rounded">
+                                      {r.accountType}
+                                    </span>
+                                    <div>
+                                      <p className="text-xs font-extrabold text-gray-900 font-mono">CID: {r.id}</p>
+                                      <p className="text-[10px] text-gray-400 font-bold">
+                                        Applied: {format(new Date(r.createdAt), 'MMM d, yyyy')} • CI: {r.ciOfficerName}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-4 text-xs">
+                                    <div>
+                                      <span className="text-[9px] text-gray-400 font-bold uppercase block">Amount</span>
+                                      <span className="font-extrabold text-emerald-900">₱{r.requestedAmount.toLocaleString()}</span>
+                                    </div>
+
+                                    <div>
+                                      <span className="text-[9px] text-gray-400 font-bold uppercase block">Status</span>
+                                      <span className={cn(
+                                        "px-2 py-0.5 text-[9px] font-black uppercase rounded-full",
+                                        r.status === 'Approved' ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                                      )}>
+                                        {r.status}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex items-center gap-1 pl-2 border-l border-gray-200">
+                                      <button 
+                                        onClick={() => {
+                                          setSelected(r);
+                                          setIsViewing(true);
+                                        }}
+                                        className="p-1.5 text-gray-500 hover:text-emerald-700 hover:bg-emerald-100 rounded-lg transition-all cursor-pointer"
+                                        title="View Account Dossier"
+                                      >
+                                        <FileText size={15} />
+                                      </button>
+                                      <button 
+                                        onClick={() => {
+                                          setSelected(r);
+                                          setIsEditing(true);
+                                        }}
+                                        className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-100 rounded-lg transition-all cursor-pointer"
+                                        title="Edit Application"
+                                      >
+                                        <Pencil size={15} />
+                                      </button>
+                                      <button 
+                                        onClick={() => generateAssignmentPPT(r)}
+                                        className="p-1.5 text-gray-500 hover:text-emerald-700 hover:bg-emerald-100 rounded-lg transition-all cursor-pointer"
+                                        title="Export PPT"
+                                      >
+                                        <Presentation size={15} />
+                                      </button>
+                                      <button 
+                                        onClick={() => handleDelete(r.id)}
+                                        className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-100 rounded-lg transition-all cursor-pointer"
+                                        title="Delete Data"
+                                      >
+                                        <Trash2 size={15} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
-          {filtered.length === 0 && (
+          {consolidatedBorrowers.length === 0 && (
             <div className="p-20 text-center">
               <Database className="mx-auto text-gray-200 mb-4" size={48} />
               <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">No matching records found in storage</p>
@@ -10067,6 +10859,7 @@ function DataStorage({ user }: { user: UserProfile }) {
         </div>
       </div>
 
+      {/* Edit Single Assignment Modal */}
       {isEditing && selected && (
         <EditAssignmentModal 
           assignment={selected} 
@@ -10078,6 +10871,7 @@ function DataStorage({ user }: { user: UserProfile }) {
         />
       )}
 
+      {/* View Single Dossier Modal */}
       {isViewing && selected && (
         <AccountDossierModal 
           assignment={selected} 
@@ -10085,6 +10879,19 @@ function DataStorage({ user }: { user: UserProfile }) {
             setIsViewing(false);
             setSelected(null);
           }} 
+        />
+      )}
+
+      {/* Consolidated Borrower Modal */}
+      {viewingConsolidated && (
+        <ConsolidatedBorrowerModal
+          borrowerName={viewingConsolidated.borrowerName}
+          assignments={viewingConsolidated.assignments}
+          onClose={() => setViewingConsolidated(null)}
+          onViewSingleAssignment={(assignment) => {
+            setSelected(assignment);
+            setIsViewing(true);
+          }}
         />
       )}
     </div>
