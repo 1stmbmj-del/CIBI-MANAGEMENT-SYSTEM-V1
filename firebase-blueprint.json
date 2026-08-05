@@ -272,9 +272,32 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "appraiserName", "title", "reportType", "borrowerName", "marketValue", "recommendedLoan", "data", "createdAt"]
+    },
+    "CIStarAward": {
+      "title": "CIStarAward",
+      "description": "Monthly star awards and accomplishments for CI officers",
+      "type": "object",
+      "properties": {
+        "ciOfficerId": { "type": "string" },
+        "ciOfficerName": { "type": "string" },
+        "ciOfficerPhoto": { "type": "string" },
+        "stars": { "type": "number" },
+        "accomplishment": { "type": "string" },
+        "month": { "type": "number" },
+        "year": { "type": "number" },
+        "dateAssigned": { "type": "string" },
+        "awardedBy": { "type": "string" },
+        "awardedById": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ciOfficerId", "ciOfficerName", "stars", "accomplishment", "month", "year", "dateAssigned", "awardedBy", "awardedById", "createdAt"]
     }
   },
   "firestore": {
+    "/ci_star_awards/{awardId}": {
+      "schema": "CIStarAward",
+      "description": "CI Officer star awards and monthly accomplishments"
+    },
     "/appraisal_reports/{reportId}": {
       "schema": "AppraisalReport",
       "description": "Appraisal report records database"

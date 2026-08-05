@@ -287,6 +287,21 @@ export interface Assignment {
   };
 }
 
+export interface CIStarAward {
+  id: string;
+  ciOfficerId: string;
+  ciOfficerName: string;
+  ciOfficerPhoto?: string;
+  stars: number;
+  accomplishment: string;
+  month: number;
+  year: number;
+  dateAssigned: string;
+  awardedBy: string;
+  awardedById: string;
+  createdAt: string;
+}
+
 export interface AttendanceRecord {
   id: string;
   userId: string;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, UserRole, Assignment, AssignmentStatus, TimelineStep, Liability, CashflowReport, MOP, TOP, LoanCategory, AccountType, Tribe, AttendanceRecord, LeaveRequest, OvertimeRequest, LeaveType, OBRequest } from './types';
+import { UserProfile, UserRole, Assignment, AssignmentStatus, TimelineStep, Liability, CashflowReport, MOP, TOP, LoanCategory, AccountType, Tribe, AttendanceRecord, LeaveRequest, OvertimeRequest, LeaveType, OBRequest, CIStarAward } from './types';
 import { 
   LineChart,
   Line,
@@ -73,7 +73,10 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
-  BadgeCheck
+  BadgeCheck,
+  Trophy,
+  Award,
+  Medal
 } from 'lucide-react';
 import pptxgen from "pptxgenjs";
 import { motion, AnimatePresence } from 'framer-motion';
@@ -1375,6 +1378,7 @@ function Dashboard({
 
   const menuItems = isAdmin ? [
     { id: 'DASHBOARD', icon: LayoutDashboard },
+    { id: 'LEADERBOARD', icon: Trophy },
     { 
       id: 'HR', 
       icon: Users,
@@ -1400,6 +1404,7 @@ function Dashboard({
     { id: 'PROFILE', icon: User },
   ] : (isCoordinator || isSupervisor) ? [
     { id: 'DASHBOARD', icon: LayoutDashboard },
+    { id: 'LEADERBOARD', icon: Trophy },
     { id: 'ATTENDANCE', icon: Fingerprint },
     { id: 'ATTENDANCE CALENDAR', icon: CalendarRange },
     { id: 'LEAVES', icon: CalendarDays },
@@ -1419,6 +1424,7 @@ function Dashboard({
     { id: 'PROFILE', icon: User },
   ] : [
     { id: 'DASHBOARD', icon: LayoutDashboard },
+    { id: 'LEADERBOARD', icon: Trophy },
     { id: 'ATTENDANCE', icon: Fingerprint },
     { id: 'ATTENDANCE CALENDAR', icon: CalendarRange },
     { id: 'LEAVES', icon: CalendarDays },
@@ -1756,6 +1762,7 @@ function Dashboard({
           )}>
             <AnimatePresence mode="wait">
               {activeTab === 'DASHBOARD' && ((isAdmin || isCoordinator || user.role === 'supervisor') ? <DashboardOverview user={user} /> : <CIDashboard user={user} />)}
+              {activeTab === 'LEADERBOARD' && <LeaderboardModule user={user} />}
               {activeTab === 'ATTENDANCE' && <AttendanceModule user={user} />}
               {activeTab === 'ATTENDANCE CALENDAR' && <AttendanceCalendar user={user} />}
               {activeTab === 'LEAVES' && <LeaveModule user={user} />}
@@ -1821,73 +1828,307 @@ function Dashboard({
 // --- SHARED UTILS ---
 // Constants & Utilities
 
-interface LeaderboardEntry {
-  id: string;
-  fullName: string;
-  photoURL?: string;
-  points: number;
-  approvedCount: number;
-  deniedCount: number;
-  mclCount: number;
-  madeCount: number;
-}
+// --- STAR GRADING & LEADERBOARD COMPONENTS ---
 
-function LeaderboardSection({ assignments, currentMonth, currentYear }: { assignments: Assignment[], currentMonth: number, currentYear: number }) {
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+function AwardStarModal({ 
+  isOpen, 
+  onClose, 
+  user,
+  preselectedOfficerId 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  user: UserProfile; 
+  preselectedOfficerId?: string;
+}) {
+  const [officers, setOfficers] = useState<UserProfile[]>([]);
+  const [ciOfficerId, setCiOfficerId] = useState(preselectedOfficerId || '');
+  const [stars, setStars] = useState(5);
+  const [hoverStars, setHoverStars] = useState(0);
+  const [accomplishment, setAccomplishment] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const fetchLeaderboard = async () => {
-      const currentMonthAssignments = assignments.filter(a => {
-        const date = new Date(a.createdAt);
-        return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+    if (preselectedOfficerId) setCiOfficerId(preselectedOfficerId);
+  }, [preselectedOfficerId]);
+
+  useEffect(() => {
+    const q = query(collection(db, 'users'));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as UserProfile[];
+      const filtered = list.filter(u => u.role === 'user' || u.role === 'coordinator' || u.role === 'supervisor');
+      setOfficers(filtered);
+      if (!ciOfficerId && filtered.length > 0) {
+        setCiOfficerId(filtered[0].id);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ciOfficerId) {
+      alert('Please select a CI Officer.');
+      return;
+    }
+    if (!accomplishment.trim()) {
+      alert('Please enter the accomplishment of the CI Officer.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const targetOfficer = officers.find(o => o.id === ciOfficerId);
+      await addDoc(collection(db, 'ci_star_awards'), {
+        ciOfficerId,
+        ciOfficerName: targetOfficer?.fullName || 'CI Officer',
+        ciOfficerPhoto: targetOfficer?.photoURL || '',
+        stars: Number(stars),
+        accomplishment: accomplishment.trim(),
+        month: Number(selectedMonth),
+        year: Number(selectedYear),
+        dateAssigned: new Date().toISOString().split('T')[0],
+        awardedBy: user.fullName || 'Admin',
+        awardedById: user.id,
+        createdAt: new Date().toISOString()
       });
+      alert(`Successfully awarded ${stars} Star(s) to ${targetOfficer?.fullName}!`);
+      setAccomplishment('');
+      onClose();
+    } catch (err) {
+      console.error('Error awarding stars:', err);
+      handleFirestoreError(err, OperationType.CREATE, 'ci_star_awards');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      const usersSnapshot = await getDocs(collection(db, 'users'));
-      const usersList = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      const leaderData = usersList
-        .filter((u: any) => u.role === 'user' || u.role === 'coordinator')
-        .map((u: any) => {
-          const personalMonthly = currentMonthAssignments.filter(a => a.ciOfficerId === u.id);
-          const approved = personalMonthly.filter(a => a.status === 'Approved').length;
-          const denied = personalMonthly.filter(a => a.status === 'Denied').length;
-          const mcl = personalMonthly.filter(a => a.isMCLReferral).length;
-          const made = personalMonthly.length;
-          
-          const points = (made * 1) + (mcl * 2);
-          
-          return {
-            ...u,
-            points,
-            approvedCount: approved,
-            deniedCount: denied,
-            mclCount: mcl,
-            madeCount: made
-          };
-        })
-        .sort((a: any, b: any) => b.points - a.points)
-        .slice(0, 10);
-      
-      setLeaderboard(leaderData);
-    };
-
-    fetchLeaderboard();
-  }, [assignments, currentMonth, currentYear]);
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
   return (
-    <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 lg:col-span-2">
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-xs font-black text-emerald-800 uppercase tracking-[0.2em]">CI Officer Leaderboard (Monthly)</h3>
-        <div className="flex gap-2">
-           <span className="text-[9px] font-black text-gray-400 uppercase bg-gray-50 px-2 py-1 rounded">Made: 1pt</span>
-           <span className="text-[9px] font-black text-emerald-700 uppercase bg-emerald-50 px-2 py-1 rounded">MCL: 2pt</span>
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-gray-100 relative text-left">
+        <button onClick={onClose} className="absolute top-5 right-5 text-gray-400 hover:text-gray-600 font-bold p-1 rounded-full cursor-pointer">
+          <X size={20} />
+        </button>
+
+        <div className="flex items-center gap-3.5 mb-6">
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-500 border border-amber-200/80 flex items-center justify-center shadow-xs">
+            <Star size={24} className="fill-amber-400" />
+          </div>
+          <div>
+            <h3 className="text-base font-extrabold text-gray-900 uppercase tracking-tight">Give Officer Star Rating</h3>
+            <p className="text-[11px] text-gray-500 font-medium">Assign stars and record officer accomplishments.</p>
+          </div>
         </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Select CI Officer</label>
+            <select
+              value={ciOfficerId}
+              onChange={(e) => setCiOfficerId(e.target.value)}
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 focus:outline-none focus:border-emerald-500"
+              required
+            >
+              <option value="">-- Select CI Officer --</option>
+              {officers.map(o => (
+                <option key={o.id} value={o.id}>{o.fullName} ({o.role.toUpperCase()})</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Month</label>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800"
+              >
+                {monthNames.map((m, idx) => (
+                  <option key={idx} value={idx}>{m}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Year</label>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800"
+              >
+                <option value={2025}>2025</option>
+                <option value={2026}>2026</option>
+                <option value={2027}>2027</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Number of Stars Awarded</label>
+            <div className="flex items-center gap-2 p-3.5 bg-amber-50/60 rounded-2xl border border-amber-200/50 justify-between">
+              <div className="flex items-center gap-1.5">
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setStars(s)}
+                    onMouseEnter={() => setHoverStars(s)}
+                    onMouseLeave={() => setHoverStars(0)}
+                    className="p-1 transition-transform hover:scale-125 focus:outline-none cursor-pointer"
+                  >
+                    <Star 
+                      size={28} 
+                      className={cn(
+                        "transition-colors",
+                        (hoverStars || stars) >= s 
+                          ? "text-amber-400 fill-amber-400 filter drop-shadow-xs" 
+                          : "text-gray-300 fill-gray-100"
+                      )}
+                    />
+                  </button>
+                ))}
+              </div>
+              <span className="text-xs font-black text-amber-900 bg-amber-100/80 px-2.5 py-1 rounded-lg">
+                {stars} {stars === 1 ? 'Star' : 'Stars'}
+              </span>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">CI Officer Accomplishment / Achievement</label>
+            <textarea
+              rows={3}
+              value={accomplishment}
+              onChange={(e) => setAccomplishment(e.target.value)}
+              placeholder="e.g. Completed 18 field investigations with 100% accuracy and exemplary turnaround time."
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium text-gray-800 focus:outline-none focus:border-emerald-500"
+              required
+            />
+          </div>
+
+          <div className="pt-2 flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3 border border-gray-200 text-gray-600 font-bold rounded-xl text-xs uppercase tracking-wider hover:bg-gray-50 transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 py-3 bg-emerald-600 text-white font-black rounded-xl text-xs uppercase tracking-wider hover:bg-emerald-700 transition-all shadow-md shadow-emerald-900/10 cursor-pointer"
+            >
+              {loading ? 'Saving...' : 'Submit Star Rating'}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
+
+function LeaderboardSection({ 
+  assignments, 
+  currentMonth, 
+  currentYear,
+  user 
+}: { 
+  assignments: Assignment[]; 
+  currentMonth: number; 
+  currentYear: number;
+  user: UserProfile;
+}) {
+  const [officers, setOfficers] = useState<UserProfile[]>([]);
+  const [starAwards, setStarAwards] = useState<CIStarAward[]>([]);
+  const [showAwardModal, setShowAwardModal] = useState(false);
+  const [selectedForModal, setSelectedForModal] = useState<string | undefined>(undefined);
+
+  const canGrade = user.role === 'admin' || user.role === 'coordinator' || user.role === 'supervisor';
+
+  useEffect(() => {
+    const qUsers = query(collection(db, 'users'));
+    const unsubUsers = onSnapshot(qUsers, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as UserProfile[];
+      setOfficers(list.filter(u => u.role === 'user' || u.role === 'coordinator' || u.role === 'supervisor'));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
+
+    const qAwards = query(collection(db, 'ci_star_awards'));
+    const unsubAwards = onSnapshot(qAwards, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as CIStarAward[];
+      setStarAwards(list);
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'ci_star_awards'));
+
+    return () => {
+      unsubUsers();
+      unsubAwards();
+    };
+  }, []);
+
+  const leaderboardData = useMemo(() => {
+    const currentMonthAssignments = assignments.filter(a => {
+      const date = new Date(a.createdAt);
+      return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+    });
+
+    const monthlyAwards = starAwards.filter(a => a.month === currentMonth && a.year === currentYear);
+
+    return officers.map((u) => {
+      const personalAssignments = currentMonthAssignments.filter(a => a.ciOfficerId === u.id);
+      const officerAwards = monthlyAwards.filter(a => a.ciOfficerId === u.id);
+      
+      const totalStars = officerAwards.reduce((acc, curr) => acc + curr.stars, 0);
+      const latestAward = officerAwards.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
+      return {
+        id: u.id,
+        fullName: u.fullName,
+        photoURL: u.photoURL,
+        role: u.role,
+        totalStars,
+        accomplishmentCount: officerAwards.length,
+        latestAccomplishment: latestAward?.accomplishment,
+        completedAssignments: personalAssignments.filter(a => a.status === 'Completed').length,
+        approvedAssignments: personalAssignments.filter(a => a.status === 'Approved').length
+      };
+    }).sort((a, b) => b.totalStars - a.totalStars || b.accomplishmentCount - a.accomplishmentCount);
+  }, [officers, starAwards, assignments, currentMonth, currentYear]);
+
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+  return (
+    <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 lg:col-span-2 text-left">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b border-gray-100">
+        <div>
+          <h3 className="text-xs font-black text-emerald-800 uppercase tracking-[0.2em] flex items-center gap-2">
+            <Trophy size={16} className="text-amber-500" /> CI Officer Leaderboard ({monthNames[currentMonth]} {currentYear})
+          </h3>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Rankings based on Admin star ratings & officer accomplishments</p>
+        </div>
+
+        {canGrade && (
+          <button
+            onClick={() => {
+              setSelectedForModal(undefined);
+              setShowAwardModal(true);
+            }}
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 shadow-md shadow-amber-900/10 cursor-pointer shrink-0"
+          >
+            <Star size={14} className="fill-white" /> Give Stars to Officer
+          </button>
+        )}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
-        {leaderboard.length > 0 ? leaderboard.map((u, i) => (
-          <div key={u.id} className="flex items-center justify-between group p-3 hover:bg-gray-50 rounded-2xl transition-all border border-transparent hover:border-gray-100">
-            <div className="flex items-center gap-4">
-              <div className="relative">
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+        {leaderboardData.length > 0 ? leaderboardData.map((u, i) => (
+          <div key={u.id} className="flex items-start justify-between group p-3.5 bg-gray-50/60 hover:bg-amber-50/40 rounded-2xl transition-all border border-gray-100/80 hover:border-amber-200/80">
+            <div className="flex items-start gap-3.5">
+              <div className="relative shrink-0 mt-0.5">
                 <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden border-2 border-white shadow-sm">
                   {u.photoURL ? (
                     <img src={u.photoURL} alt={u.fullName} className="w-full h-full object-cover" />
@@ -1897,36 +2138,569 @@ function LeaderboardSection({ assignments, currentMonth, currentYear }: { assign
                 </div>
                 <div className={cn(
                   "absolute -top-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black border-2 border-white shadow-sm",
-                  i === 0 ? "bg-yellow-400 text-white" : 
-                  i === 1 ? "bg-gray-400 text-white" : 
-                  i === 2 ? "bg-amber-600 text-white" : "bg-gray-100 text-gray-400"
+                  i === 0 ? "bg-amber-400 text-white" : 
+                  i === 1 ? "bg-slate-400 text-white" : 
+                  i === 2 ? "bg-amber-700 text-white" : "bg-gray-200 text-gray-500"
                 )}>
-                  {i + 1}
+                  {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
                 </div>
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-black text-gray-900 uppercase tracking-tight">{u.fullName}</p>
-                <div className="flex items-center gap-3">
-                   <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded" title="Total Assignments Made">MADE: {u.madeCount}</span>
-                   <span className="text-[9px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded" title="Approved">APP: {u.approvedCount}</span>
-                   <span className="text-[9px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded" title="Denied">DEN: {u.deniedCount}</span>
-                   <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded" title="MCL Referrals">MCL: {u.mclCount}</span>
+                <p className="text-xs font-extrabold text-gray-900 uppercase tracking-tight">{u.fullName}</p>
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <Star 
+                      key={s} 
+                      size={12} 
+                      className={cn(
+                        s <= Math.min(u.totalStars, 5) ? "text-amber-400 fill-amber-400" : "text-gray-200 fill-gray-100"
+                      )} 
+                    />
+                  ))}
+                  <span className="text-[10px] font-black text-amber-800 ml-1">
+                    {u.totalStars} Stars
+                  </span>
                 </div>
+                {u.latestAccomplishment ? (
+                  <p className="text-[10px] text-gray-600 italic line-clamp-1 bg-white/80 px-2 py-0.5 rounded border border-gray-100 mt-1">
+                    "{u.latestAccomplishment}"
+                  </p>
+                ) : (
+                  <p className="text-[9px] text-gray-400 uppercase tracking-wider">No accomplishments logged yet</p>
+                )}
               </div>
             </div>
-            <div className="text-right">
-               <div className="text-lg font-black text-emerald-700 leading-none">{u.points}</div>
-               <div className="text-[8px] text-gray-400 font-bold uppercase tracking-widest mt-1">Points</div>
-            </div>
+
+            {canGrade && (
+              <button
+                onClick={() => {
+                  setSelectedForModal(u.id);
+                  setShowAwardModal(true);
+                }}
+                className="p-1.5 text-amber-500 hover:text-amber-700 hover:bg-amber-100/50 rounded-lg transition-colors shrink-0 cursor-pointer"
+                title="Grade / Award Stars"
+              >
+                <Plus size={16} />
+              </button>
+            )}
           </div>
         )) : (
           <div className="col-span-2 py-12 text-center text-gray-300">
-            <TrendingUp size={32} className="mx-auto mb-2 opacity-20" />
-            <p className="text-[10px] font-bold uppercase tracking-widest">No monthly ranking data</p>
+            <Trophy size={36} className="mx-auto mb-2 opacity-20 text-amber-500" />
+            <p className="text-[10px] font-bold uppercase tracking-widest">No star ratings recorded for this month</p>
           </div>
         )}
       </div>
+
+      <AwardStarModal
+        isOpen={showAwardModal}
+        onClose={() => setShowAwardModal(false)}
+        user={user}
+        preselectedOfficerId={selectedForModal}
+      />
     </div>
+  );
+}
+
+// Full Leaderboard Menu Page
+function LeaderboardModule({ user }: { user: UserProfile }) {
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [starAwards, setStarAwards] = useState<CIStarAward[]>([]);
+  const [officers, setOfficers] = useState<UserProfile[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [showModal, setShowModal] = useState(false);
+  const [modalOfficerId, setModalOfficerId] = useState<string | undefined>(undefined);
+
+  const canGrade = user.role === 'admin' || user.role === 'coordinator' || user.role === 'supervisor';
+
+  useEffect(() => {
+    const qUsers = query(collection(db, 'users'));
+    const unsubUsers = onSnapshot(qUsers, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as UserProfile[];
+      setOfficers(list.filter(u => u.role === 'user' || u.role === 'coordinator' || u.role === 'supervisor'));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
+
+    const qAwards = query(collection(db, 'ci_star_awards'), orderBy('createdAt', 'desc'));
+    const unsubAwards = onSnapshot(qAwards, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as CIStarAward[];
+      setStarAwards(list);
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'ci_star_awards'));
+
+    const qAssign = query(collection(db, 'assignments'));
+    const unsubAssign = onSnapshot(qAssign, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Assignment[];
+      setAssignments(list);
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'assignments'));
+
+    return () => {
+      unsubUsers();
+      unsubAwards();
+      unsubAssign();
+    };
+  }, []);
+
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+  const changeMonth = (delta: number) => {
+    let newM = selectedMonth + delta;
+    let newY = selectedYear;
+    if (newM < 0) {
+      newM = 11;
+      newY -= 1;
+    } else if (newM > 11) {
+      newM = 0;
+      newY += 1;
+    }
+    setSelectedMonth(newM);
+    setSelectedYear(newY);
+  };
+
+  const monthlyAwards = useMemo(() => {
+    return starAwards.filter(a => a.month === selectedMonth && a.year === selectedYear);
+  }, [starAwards, selectedMonth, selectedYear]);
+
+  const monthlyAssignments = useMemo(() => {
+    return assignments.filter(a => {
+      const date = new Date(a.createdAt);
+      return date.getMonth() === selectedMonth && date.getFullYear() === selectedYear;
+    });
+  }, [assignments, selectedMonth, selectedYear]);
+
+  const rankings = useMemo(() => {
+    return officers.map(o => {
+      const oAwards = monthlyAwards.filter(a => a.ciOfficerId === o.id);
+      const oAssignments = monthlyAssignments.filter(a => a.ciOfficerId === o.id);
+      const totalStars = oAwards.reduce((acc, curr) => acc + curr.stars, 0);
+
+      return {
+        id: o.id,
+        fullName: o.fullName,
+        photoURL: o.photoURL,
+        role: o.role,
+        totalStars,
+        awardCount: oAwards.length,
+        accomplishments: oAwards.map(a => a.accomplishment),
+        completedCount: oAssignments.filter(a => a.status === 'Completed').length,
+        approvedCount: oAssignments.filter(a => a.status === 'Approved').length
+      };
+    }).sort((a, b) => b.totalStars - a.totalStars || b.awardCount - a.awardCount);
+  }, [officers, monthlyAwards, monthlyAssignments]);
+
+  const top1 = rankings[0];
+  const top2 = rankings[1];
+  const top3 = rankings[2];
+
+  const handleDeleteAward = async (id: string, name: string) => {
+    if (window.confirm(`Are you sure you want to delete this star award for ${name}?`)) {
+      try {
+        await deleteDoc(doc(db, 'ci_star_awards', id));
+        alert('Award deleted successfully.');
+      } catch (err) {
+        console.error('Delete award error:', err);
+      }
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-8 text-left max-w-7xl mx-auto">
+      {/* Header Bar & Month Filter */}
+      <div className="bg-white p-6 sm:p-8 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-200 flex items-center justify-center text-amber-500 shadow-xs">
+            <Trophy size={30} className="fill-amber-400" />
+          </div>
+          <div>
+            <h2 className="text-xl font-extrabold text-gray-900 uppercase tracking-tight flex items-center gap-2">
+              CI Officer Leaderboard
+            </h2>
+            <p className="text-xs text-gray-500 font-medium mt-0.5">
+              Monthly stars & accomplishments awarded by management.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          {/* Month Navigator */}
+          <div className="flex items-center bg-gray-50 border border-gray-200 rounded-2xl p-1 shadow-xs">
+            <button 
+              onClick={() => changeMonth(-1)}
+              className="px-3 py-1.5 text-xs font-bold text-gray-600 hover:text-emerald-700 hover:bg-white rounded-xl transition-all cursor-pointer"
+            >
+              ◀
+            </button>
+            <div className="px-3 flex items-center gap-2">
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                className="bg-transparent text-xs font-black text-emerald-900 focus:outline-none cursor-pointer"
+              >
+                {monthNames.map((m, idx) => (
+                  <option key={idx} value={idx}>{m}</option>
+                ))}
+              </select>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                className="bg-transparent text-xs font-black text-emerald-900 focus:outline-none cursor-pointer"
+              >
+                <option value={2025}>2025</option>
+                <option value={2026}>2026</option>
+                <option value={2027}>2027</option>
+              </select>
+            </div>
+            <button 
+              onClick={() => changeMonth(1)}
+              className="px-3 py-1.5 text-xs font-bold text-gray-600 hover:text-emerald-700 hover:bg-white rounded-xl transition-all cursor-pointer"
+            >
+              ▶
+            </button>
+          </div>
+
+          {canGrade && (
+            <button
+              onClick={() => {
+                setModalOfficerId(undefined);
+                setShowModal(true);
+              }}
+              className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wider rounded-2xl transition-all flex items-center gap-2 shadow-lg shadow-amber-900/10 cursor-pointer"
+            >
+              <Star size={16} className="fill-white" /> Give Stars to Officer
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Top 3 Podium Section */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* 1st Place Gold */}
+        <div className="bg-gradient-to-b from-amber-50 to-white p-6 rounded-3xl border-2 border-amber-300 shadow-sm relative overflow-hidden flex flex-col justify-between">
+          <div className="absolute top-0 right-0 bg-amber-400 text-amber-950 font-black text-[10px] uppercase px-3 py-1 rounded-bl-xl shadow-xs">
+            🥇 1ST PLACE CHAMPION
+          </div>
+          {top1 ? (
+            <div className="space-y-4 pt-3">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-amber-100 border-4 border-amber-300 shadow-md flex items-center justify-center overflow-hidden shrink-0">
+                  {top1.photoURL ? (
+                    <img src={top1.photoURL} alt={top1.fullName} className="w-full h-full object-cover" />
+                  ) : (
+                    <User size={32} className="text-amber-500" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-gray-900 uppercase">{top1.fullName}</h3>
+                  <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full uppercase">
+                    {top1.role}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-amber-100/60 p-3 rounded-2xl border border-amber-200 flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <Star size={20} className="text-amber-500 fill-amber-400" />
+                  <span className="text-lg font-black text-amber-950">{top1.totalStars} Stars</span>
+                </div>
+                <span className="text-[10px] font-bold text-amber-800">
+                  {top1.awardCount} Award(s)
+                </span>
+              </div>
+
+              {top1.accomplishments.length > 0 && (
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-amber-900 uppercase tracking-wider block">Key Accomplishments:</label>
+                  <ul className="space-y-1">
+                    {top1.accomplishments.slice(0, 2).map((acc, idx) => (
+                      <li key={idx} className="text-[10px] font-medium text-gray-700 bg-white/80 p-2 rounded-xl border border-amber-100 italic">
+                        "{acc}"
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="py-8 text-center text-gray-400 font-bold text-xs uppercase">No 1st place data yet</div>
+          )}
+        </div>
+
+        {/* 2nd Place Silver */}
+        <div className="bg-gradient-to-b from-slate-50 to-white p-6 rounded-3xl border border-slate-300 shadow-sm relative overflow-hidden flex flex-col justify-between">
+          <div className="absolute top-0 right-0 bg-slate-300 text-slate-900 font-black text-[10px] uppercase px-3 py-1 rounded-bl-xl shadow-xs">
+            🥈 2ND PLACE
+          </div>
+          {top2 ? (
+            <div className="space-y-4 pt-3">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-slate-100 border-2 border-slate-300 shadow-sm flex items-center justify-center overflow-hidden shrink-0">
+                  {top2.photoURL ? (
+                    <img src={top2.photoURL} alt={top2.fullName} className="w-full h-full object-cover" />
+                  ) : (
+                    <User size={28} className="text-slate-500" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-gray-900 uppercase">{top2.fullName}</h3>
+                  <span className="text-[10px] font-bold text-slate-700 bg-slate-200/80 px-2 py-0.5 rounded-full uppercase">
+                    {top2.role}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-slate-100/80 p-3 rounded-2xl border border-slate-200 flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <Star size={18} className="text-amber-500 fill-amber-400" />
+                  <span className="text-base font-black text-slate-900">{top2.totalStars} Stars</span>
+                </div>
+                <span className="text-[10px] font-bold text-slate-600">
+                  {top2.awardCount} Award(s)
+                </span>
+              </div>
+
+              {top2.accomplishments.length > 0 && (
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-700 uppercase tracking-wider block">Key Accomplishment:</label>
+                  <p className="text-[10px] font-medium text-gray-700 bg-white/80 p-2 rounded-xl border border-slate-100 italic">
+                    "{top2.accomplishments[0]}"
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="py-8 text-center text-gray-400 font-bold text-xs uppercase">No 2nd place data yet</div>
+          )}
+        </div>
+
+        {/* 3rd Place Bronze */}
+        <div className="bg-gradient-to-b from-amber-50/40 to-white p-6 rounded-3xl border border-amber-200 shadow-sm relative overflow-hidden flex flex-col justify-between">
+          <div className="absolute top-0 right-0 bg-amber-700 text-white font-black text-[10px] uppercase px-3 py-1 rounded-bl-xl shadow-xs">
+            🥉 3RD PLACE
+          </div>
+          {top3 ? (
+            <div className="space-y-4 pt-3">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-amber-100/50 border-2 border-amber-600/40 shadow-sm flex items-center justify-center overflow-hidden shrink-0">
+                  {top3.photoURL ? (
+                    <img src={top3.photoURL} alt={top3.fullName} className="w-full h-full object-cover" />
+                  ) : (
+                    <User size={28} className="text-amber-700" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-gray-900 uppercase">{top3.fullName}</h3>
+                  <span className="text-[10px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full uppercase">
+                    {top3.role}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-amber-50/80 p-3 rounded-2xl border border-amber-200/60 flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <Star size={18} className="text-amber-500 fill-amber-400" />
+                  <span className="text-base font-black text-amber-950">{top3.totalStars} Stars</span>
+                </div>
+                <span className="text-[10px] font-bold text-amber-800">
+                  {top3.awardCount} Award(s)
+                </span>
+              </div>
+
+              {top3.accomplishments.length > 0 && (
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-amber-900 uppercase tracking-wider block">Key Accomplishment:</label>
+                  <p className="text-[10px] font-medium text-gray-700 bg-white/80 p-2 rounded-xl border border-amber-100 italic">
+                    "{top3.accomplishments[0]}"
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="py-8 text-center text-gray-400 font-bold text-xs uppercase">No 3rd place data yet</div>
+          )}
+        </div>
+      </div>
+
+      {/* Officer Rankings Table */}
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="p-6 bg-gray-50/60 border-b border-gray-100 flex justify-between items-center">
+          <div>
+            <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">
+              Officer Monthly Rankings ({monthNames[selectedMonth]} {selectedYear})
+            </h3>
+            <p className="text-[10px] text-gray-500 font-medium mt-0.5">Total stars received and accomplishments logged</p>
+          </div>
+          <span className="text-[10px] font-black text-emerald-800 bg-emerald-50 px-3 py-1 rounded-xl">
+            {rankings.length} Officers Active
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50/40 border-b border-gray-100 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                <th className="p-4 pl-6 text-center w-16">Rank</th>
+                <th className="p-4">CI Officer</th>
+                <th className="p-4">Total Stars Earned</th>
+                <th className="p-4 text-center">Accomplishments Logged</th>
+                <th className="p-4 text-center">Completed Accounts</th>
+                <th className="p-4 text-right pr-6">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 text-xs font-semibold text-gray-800">
+              {rankings.length > 0 ? rankings.map((r, idx) => (
+                <tr key={r.id} className="hover:bg-amber-50/20 transition-colors">
+                  <td className="p-4 pl-6 text-center">
+                    <span className={cn(
+                      "w-7 h-7 rounded-full inline-flex items-center justify-center font-black text-xs",
+                      idx === 0 ? "bg-amber-400 text-white" :
+                      idx === 1 ? "bg-slate-300 text-slate-900" :
+                      idx === 2 ? "bg-amber-700 text-white" : "bg-gray-100 text-gray-600"
+                    )}>
+                      {idx + 1}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center shrink-0">
+                        {r.photoURL ? (
+                          <img src={r.photoURL} alt={r.fullName} className="w-full h-full object-cover" />
+                        ) : (
+                          <User size={20} className="text-gray-400" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-extrabold text-gray-900 uppercase">{r.fullName}</p>
+                        <span className="text-[9px] font-bold text-gray-400 uppercase">{r.role}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex items-center gap-1.5">
+                      <div className="flex items-center">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <Star 
+                            key={s} 
+                            size={14} 
+                            className={cn(
+                              s <= Math.min(r.totalStars, 5) ? "text-amber-400 fill-amber-400" : "text-gray-200 fill-gray-100"
+                            )} 
+                          />
+                        ))}
+                      </div>
+                      <span className="font-black text-amber-900 bg-amber-50 px-2 py-0.5 rounded-md text-xs">
+                        {r.totalStars} Stars
+                      </span>
+                    </div>
+                  </td>
+                  <td className="p-4 text-center">
+                    <span className="px-2.5 py-1 bg-emerald-50 text-emerald-800 font-bold rounded-xl text-xs">
+                      {r.awardCount} Logged
+                    </span>
+                  </td>
+                  <td className="p-4 text-center">
+                    <span className="px-2.5 py-1 bg-blue-50 text-blue-800 font-bold rounded-xl text-xs">
+                      {r.completedCount} Accounts
+                    </span>
+                  </td>
+                  <td className="p-4 text-right pr-6">
+                    {canGrade && (
+                      <button
+                        onClick={() => {
+                          setModalOfficerId(r.id);
+                          setShowModal(true);
+                        }}
+                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer inline-flex items-center gap-1"
+                      >
+                        <Plus size={12} /> Award Star
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-gray-400 font-bold uppercase text-xs">
+                    No active officers found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Monthly Accomplishment Feed Log */}
+      <div className="bg-white p-6 sm:p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
+        <div>
+          <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
+            <Award size={18} className="text-amber-500" /> Logged Star Accomplishments ({monthNames[selectedMonth]} {selectedYear})
+          </h3>
+          <p className="text-[10px] text-gray-500 font-medium mt-0.5">Specific achievements recorded by management</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {monthlyAwards.length > 0 ? monthlyAwards.map((award) => (
+            <div key={award.id} className="p-4 bg-amber-50/30 rounded-2xl border border-amber-200/60 space-y-3 relative">
+              <div className="flex justify-between items-start">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-amber-100 border border-amber-300 overflow-hidden flex items-center justify-center shrink-0">
+                    {award.ciOfficerPhoto ? (
+                      <img src={award.ciOfficerPhoto} alt={award.ciOfficerName} className="w-full h-full object-cover" />
+                    ) : (
+                      <User size={20} className="text-amber-600" />
+                    )}
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-xs text-gray-900 uppercase">{award.ciOfficerName}</h4>
+                    <span className="text-[9px] font-bold text-gray-400">{award.dateAssigned}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-0.5 bg-white px-2 py-1 rounded-lg border border-amber-200">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star 
+                        key={s} 
+                        size={12} 
+                        className={s <= award.stars ? "text-amber-400 fill-amber-400" : "text-gray-200 fill-gray-100"} 
+                      />
+                    ))}
+                  </div>
+
+                  {canGrade && (
+                    <button
+                      onClick={() => handleDeleteAward(award.id, award.ciOfficerName)}
+                      className="text-gray-400 hover:text-red-500 p-1 rounded-lg transition-colors cursor-pointer"
+                      title="Delete Award"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <p className="text-xs font-semibold text-gray-800 bg-white p-3 rounded-xl border border-amber-100/80 leading-relaxed">
+                "{award.accomplishment}"
+              </p>
+
+              <div className="text-[9px] font-bold text-gray-400 uppercase text-right">
+                Awarded by: <span className="text-amber-800 font-extrabold">{award.awardedBy}</span>
+              </div>
+            </div>
+          )) : (
+            <div className="col-span-2 p-12 text-center text-gray-300 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+              <Award size={32} className="mx-auto mb-2 opacity-20 text-amber-500" />
+              <p className="text-xs font-bold uppercase tracking-wider text-gray-400">No accomplishments logged for this month</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <AwardStarModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        user={user}
+        preselectedOfficerId={modalOfficerId}
+      />
+    </motion.div>
   );
 }
 
@@ -2231,6 +3005,7 @@ function DashboardOverview({ user }: { user: UserProfile }) {
           assignments={assignments} 
           currentMonth={new Date().getMonth()} 
           currentYear={new Date().getFullYear()} 
+          user={user}
         />
 
         <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 lg:col-span-3">
@@ -3669,6 +4444,7 @@ function CIDashboard({ user }: { user: UserProfile }) {
         assignments={allAssignments} 
         currentMonth={new Date().getMonth()} 
         currentYear={new Date().getFullYear()} 
+        user={user}
       />
     </motion.div>
   );
@@ -5078,7 +5854,6 @@ function AssignAccount() {
     mop: 'Weekly' as MOP,
     top: 'Collection' as TOP,
     ciOfficerId: '',
-    isMCLReferral: false,
     loanCategory: 'SME' as LoanCategory
   });
 
@@ -5221,7 +5996,6 @@ function AssignAccount() {
         mop: 'Weekly',
         top: 'Collection',
         ciOfficerId: '',
-        isMCLReferral: false,
         loanCategory: 'SME'
       });
     } catch (err) {
@@ -5483,21 +6257,6 @@ function AssignAccount() {
                 <option key={o.id} value={o.id}>{o.fullName} ({o.role})</option>
               ))}
             </select>
-          </div>
-
-          <div className="pt-2">
-            <div className="flex items-center gap-3 p-3.5 bg-emerald-50 rounded-xl border border-emerald-100">
-              <input 
-                type="checkbox" 
-                id="isMCLReferral"
-                className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                checked={formData.isMCLReferral}
-                onChange={e => setFormData({...formData, isMCLReferral: e.target.checked})}
-              />
-              <label htmlFor="isMCLReferral" className="text-[10px] font-black text-emerald-800 uppercase tracking-widest cursor-pointer select-none">
-                MCL Referral (Points: 2)
-              </label>
-            </div>
           </div>
         </div>
 

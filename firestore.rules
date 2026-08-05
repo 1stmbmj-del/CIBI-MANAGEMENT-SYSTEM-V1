@@ -166,9 +166,32 @@ service cloud.firestore {
              data.createdAt is string;
     }
 
+    function isValidStarAward(data) {
+      let requiredFields = ['ciOfficerId', 'ciOfficerName', 'stars', 'accomplishment', 'month', 'year', 'dateAssigned', 'awardedBy', 'awardedById', 'createdAt'];
+      return data.keys().hasAll(requiredFields) &&
+             data.ciOfficerId is string &&
+             data.ciOfficerName is string &&
+             (data.stars is number || data.stars is int) &&
+             data.accomplishment is string &&
+             (data.month is number || data.month is int) &&
+             (data.year is number || data.year is int) &&
+             data.dateAssigned is string &&
+             data.awardedBy is string &&
+             data.awardedById is string &&
+             data.createdAt is string;
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
+
+    match /ci_star_awards/{awardId} {
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && isValidStarAward(request.resource.data);
+      allow update: if isSignedIn() && isValidStarAward(request.resource.data);
+      allow delete: if isSignedIn() && (isPrivileged() || resource.data.awardedById == request.auth.uid);
+    }
 
     match /appraisal_reports/{reportId} {
       allow list: if isSignedIn();
@@ -187,32 +210,32 @@ service cloud.firestore {
     }
 
     match /attendance/{attendanceId} {
-      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
-      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
       allow create: if isSignedIn() && isValidAttendance(request.resource.data) && (request.resource.data.userId == request.auth.uid || isPrivileged());
       allow update: if isSignedIn() && (isPrivileged() || resource.data.userId == request.auth.uid) && isValidAttendance(request.resource.data);
       allow delete: if isAdmin();
     }
 
     match /leaves/{leaveId} {
-      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
-      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
       allow create: if isSignedIn() && isValidLeaveRequest(request.resource.data) && (request.resource.data.userId == request.auth.uid || isPrivileged());
       allow update: if isSignedIn() && (isPrivileged() || resource.data.userId == request.auth.uid) && isValidLeaveRequest(request.resource.data);
       allow delete: if isAdmin();
     }
 
     match /overtime/{overtimeId} {
-      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
-      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
       allow create: if isSignedIn() && isValidOvertimeRequest(request.resource.data) && (request.resource.data.userId == request.auth.uid || isPrivileged());
       allow update: if isSignedIn() && (isPrivileged() || resource.data.userId == request.auth.uid) && isValidOvertimeRequest(request.resource.data);
       allow delete: if isAdmin();
     }
 
     match /ob_requests/{obId} {
-      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
-      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
       allow create: if isSignedIn() && isValidOBRequest(request.resource.data) && (request.resource.data.userId == request.auth.uid || isPrivileged());
       allow update: if isSignedIn() && (isPrivileged() || resource.data.userId == request.auth.uid) && isValidOBRequest(request.resource.data);
       allow delete: if isAdmin();
@@ -220,8 +243,8 @@ service cloud.firestore {
 
     match /notifications/{notificationId} {
       // Use resource.data check for list since it's the recipient
-      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
-      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isPrivileged());
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
       allow create: if isSignedIn() && isValidNotification(request.resource.data);
       allow update: if isSignedIn() && isOwner(resource.data.userId) && 
                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
@@ -254,18 +277,16 @@ service cloud.firestore {
     }
 
     match /assignments/{assignmentId} {
-      // Regular users only see their own assigned accounts. Privileged roles see all.
-      allow list: if isSignedIn() && (isPrivileged() || resource.data.ciOfficerId == request.auth.uid);
-      allow get: if isSignedIn() && (isPrivileged() || resource.data.ciOfficerId == request.auth.uid);
-      allow create: if isPrivileged() && isValidAssignment(request.resource.data);
-      allow update: if isSignedIn() && isValidAssignment(request.resource.data) &&
-                    (isPrivileged() || request.auth.uid == resource.data.ciOfficerId);
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && isValidAssignment(request.resource.data);
+      allow update: if isSignedIn() && isValidAssignment(request.resource.data);
       allow delete: if isAdmin();
     }
 
     match /evaluations/{evaluationId} {
-      allow list: if isSignedIn() && (isPrivileged() || resource.data.employeeId == request.auth.uid);
-      allow get: if isSignedIn() && (isPrivileged() || resource.data.employeeId == request.auth.uid);
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
       allow create: if isSignedIn() && (isPrivileged() || request.resource.data.employeeId == request.auth.uid);
       allow update: if isSignedIn() && isPrivileged();
       allow delete: if isAdmin();
