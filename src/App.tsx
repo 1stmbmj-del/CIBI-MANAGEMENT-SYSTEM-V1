@@ -6548,9 +6548,15 @@ function AccountStatus({ user }: { user: UserProfile }) {
       return;
     }
 
-    if (assignment.status === 'Cashflowing' && !assignment.cashflowReport) {
-      alert('Please complete and save the Cashflow Report before proceeding to the next step.');
-      return;
+    if (assignment.status === 'Cashflowing') {
+      if (!assignment.cashflowReport) {
+        alert('Please complete and save the Cashflow Report before proceeding to the next step.');
+        return;
+      }
+      if (!assignment.cashflowReport.ciRecommendation?.remarks?.trim()) {
+        alert('Please fill up the CI Remarks & Justification in the Cashflow Report before proceeding.');
+        return;
+      }
     }
 
     const currentIndex = steps.indexOf(assignment.status);
@@ -9449,6 +9455,10 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
   };
 
   const handleSave = async () => {
+    if (!ciRecommendation.remarks || !ciRecommendation.remarks.trim()) {
+      alert('CI Remarks & Justification is required. Please fill up the remarks before committing the Cashflow Report.');
+      return;
+    }
     setIsSaving(true);
     try {
       const sanitizedAnalysis = {
@@ -9551,6 +9561,10 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
   };
 
   const handleSaveCiOnly = async () => {
+    if (!ciRecommendation.remarks || !ciRecommendation.remarks.trim()) {
+      alert('CI Remarks & Justification is required. Please fill up the remarks before saving.');
+      return;
+    }
     setIsSaving(true);
     try {
       const sanitizedAnalysis = {
@@ -9880,14 +9894,30 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
           </div>
           
           <div className="space-y-2">
-            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">CI Remarks & Justification</label>
+            <div className="flex justify-between items-center">
+              <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                CI Remarks & Justification <span className="text-red-500 font-bold text-xs">* (REQUIRED)</span>
+              </label>
+              {!ciRecommendation.remarks?.trim() && (
+                <span className="text-[10px] text-red-600 font-bold animate-pulse">Required to fill up</span>
+              )}
+            </div>
             <textarea 
               disabled={!isCiRecommendationEditable}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm h-24 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
-              placeholder="Provide detailed breakdown and justification for this recommendation..."
+              required
+              className={cn(
+                "w-full px-4 py-3 bg-gray-50 border rounded-xl text-sm h-28 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-colors",
+                !ciRecommendation.remarks?.trim() ? "border-red-300 bg-red-50/20 focus:border-red-500" : "border-gray-200"
+              )}
+              placeholder="Provide detailed breakdown and justification for this recommendation (Required to fill up)..."
               value={ciRecommendation.remarks}
               onChange={e => setCiRecommendation({ ...ciRecommendation, remarks: e.target.value })}
             />
+            {!ciRecommendation.remarks?.trim() && (
+              <p className="text-[10px] text-red-600 font-bold flex items-center gap-1">
+                ⚠️ CI Remarks & Justification must be provided before committing or saving the Cashflow Report.
+              </p>
+            )}
           </div>
 
           <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 grid grid-cols-1 md:grid-cols-4 gap-6 text-center">
