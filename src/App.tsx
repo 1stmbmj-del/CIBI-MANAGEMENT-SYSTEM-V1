@@ -10820,6 +10820,9 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
   const [selected, setSelected] = useState<Assignment | null>(null);
   const [isViewingAccount, setIsViewingAccount] = useState(false);
   const [step, setStep] = useState(1);
+  const [search, setSearch] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState<number | 'ALL'>('ALL');
+  const [selectedYear, setSelectedYear] = useState<number | 'ALL'>('ALL');
   const [validation, setValidation] = useState({
     didAnswerCalls: false,
     didReceiveProceeds: false,
@@ -10836,6 +10839,8 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
     recommendExplanation: '',
     comments: ''
   });
+
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
   useEffect(() => {
     let q = query(collection(db, 'assignments'), where('status', '==', 'Approved'));
@@ -10855,6 +10860,23 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
 
     return () => unsubscribe();
   }, []);
+
+  const filteredAssignments = assignments.filter(a => {
+    if (search) {
+      const q = search.toLowerCase();
+      const matchName = a.borrowerName.toLowerCase().includes(q);
+      const matchMobile = a.mobileNumber?.toLowerCase().includes(q);
+      const matchOfficer = a.ciOfficerName?.toLowerCase().includes(q);
+      if (!matchName && !matchMobile && !matchOfficer) return false;
+    }
+    const dateToUse = a.createdAt;
+    if (dateToUse) {
+      const d = new Date(dateToUse);
+      if (selectedMonth !== 'ALL' && d.getMonth() !== selectedMonth) return false;
+      if (selectedYear !== 'ALL' && d.getFullYear() !== selectedYear) return false;
+    }
+    return true;
+  });
 
   const handleNext = () => {
     setStep(2);
@@ -10927,13 +10949,59 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
-      <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
-        <h2 className="text-xl font-black text-emerald-800 uppercase tracking-widest mb-2">Pending Validation & Survey</h2>
-        <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Select a client to record their post-release feedback</p>
+      <div className="bg-white p-6 sm:p-8 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div>
+          <h2 className="text-xl font-black text-emerald-800 uppercase tracking-widest mb-1">Pending Validation & Survey</h2>
+          <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Select a client to record their post-release feedback</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          {/* Search */}
+          <div className="relative w-full sm:w-48">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+            <input 
+              type="text" 
+              placeholder="Search borrower..."
+              className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-medium"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          {/* Month Filter */}
+          <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-700">
+            <Calendar size={14} className="text-emerald-700 shrink-0" />
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+              className="bg-transparent text-xs font-black text-emerald-900 focus:outline-none cursor-pointer"
+            >
+              <option value="ALL">All Months</option>
+              {monthNames.map((m, idx) => (
+                <option key={idx} value={idx}>{m}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Year Filter */}
+          <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-700">
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+              className="bg-transparent text-xs font-black text-emerald-900 focus:outline-none cursor-pointer"
+            >
+              <option value="ALL">All Years</option>
+              <option value={2024}>2024</option>
+              <option value={2025}>2025</option>
+              <option value={2026}>2026</option>
+              <option value={2027}>2027</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {assignments.map(a => (
+        {filteredAssignments.map(a => (
           <div 
             key={a.id} 
             onClick={() => {
@@ -10958,10 +11026,10 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
             </div>
           </div>
         ))}
-        {assignments.length === 0 && (
+        {filteredAssignments.length === 0 && (
           <div className="col-span-full py-20 text-center bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-100">
              <CheckCircle2 className="mx-auto text-gray-200 mb-4" size={48} />
-             <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">No pending validations found</p>
+             <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">No pending validations found for selected period</p>
           </div>
         )}
       </div>
@@ -11144,7 +11212,11 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
   const [isViewingAccount, setIsViewingAccount] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState<number | 'ALL'>('ALL');
+  const [selectedYear, setSelectedYear] = useState<number | 'ALL'>('ALL');
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
   useEffect(() => {
     const q = query(collection(db, 'assignments'), where('status', '==', 'Completed'));
@@ -11203,34 +11275,74 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
     { label: 'Support Quality', key: 'customerService', options: ['Very poor', 'Poor', 'Fair', 'Good', 'Excellent'] },
   ];
 
-  const filtered = assignments.filter(a => 
-    a.borrowerName.toLowerCase().includes(search.toLowerCase()) ||
-    a.ciOfficerName.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = assignments.filter(a => {
+    const searchMatch = 
+      a.borrowerName.toLowerCase().includes(search.toLowerCase()) ||
+      a.ciOfficerName.toLowerCase().includes(search.toLowerCase());
+    if (!searchMatch) return false;
+
+    const surveyDate = new Date(a.survey?.createdAt || a.createdAt);
+    if (selectedMonth !== 'ALL' && surveyDate.getMonth() !== selectedMonth) return false;
+    if (selectedYear !== 'ALL' && surveyDate.getFullYear() !== selectedYear) return false;
+
+    return true;
+  });
 
   const isMobileView = window.innerWidth < 1024;
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
-      <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+      <div className="bg-white p-6 sm:p-8 rounded-3xl border border-gray-100 shadow-sm flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
         <div>
           <h2 className="text-2xl font-black text-emerald-800 uppercase tracking-tight">Validation & Survey Results</h2>
           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Analyzing client feedback and service performance</p>
         </div>
-        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
-          <div className="relative w-full md:w-64">
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          {/* Search */}
+          <div className="relative w-full sm:w-56">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input 
               type="text" 
               placeholder="Search feedback..."
-              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-medium"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-2 px-6 py-3 bg-green-50 text-green-600 rounded-2xl border border-green-100 w-full md:w-auto justify-center">
-             <Star size={18} fill="currentColor" />
-             <span className="text-[11px] font-black uppercase tracking-widest">Live Feedback</span>
+
+          {/* Month Filter */}
+          <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-700">
+            <Calendar size={14} className="text-emerald-700 shrink-0" />
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+              className="bg-transparent text-xs font-black text-emerald-900 focus:outline-none cursor-pointer"
+            >
+              <option value="ALL">All Months</option>
+              {monthNames.map((m, idx) => (
+                <option key={idx} value={idx}>{m}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Year Filter */}
+          <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-700">
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+              className="bg-transparent text-xs font-black text-emerald-900 focus:outline-none cursor-pointer"
+            >
+              <option value="ALL">All Years</option>
+              <option value={2024}>2024</option>
+              <option value={2025}>2025</option>
+              <option value={2026}>2026</option>
+              <option value={2027}>2027</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-600 rounded-xl border border-green-100 text-xs font-bold shrink-0">
+             <Star size={16} fill="currentColor" />
+             <span className="text-[10px] font-black uppercase tracking-widest">{filtered.length} Response(s)</span>
           </div>
         </div>
       </div>
