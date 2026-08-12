@@ -10823,6 +10823,10 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
   const [search, setSearch] = useState('');
   const [selectedMonth, setSelectedMonth] = useState<number | 'ALL'>('ALL');
   const [selectedYear, setSelectedYear] = useState<number | 'ALL'>('ALL');
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [cancelRemarks, setCancelRemarks] = useState('');
+  const [cancelRemarksError, setCancelRemarksError] = useState('');
+  const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
   const [validation, setValidation] = useState({
     didAnswerCalls: false,
     didReceiveProceeds: false,
@@ -10841,6 +10845,61 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
   });
 
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+  const handleCancelApproval = async () => {
+    if (!selected) return;
+    if (!cancelRemarks.trim()) {
+      setCancelRemarksError('Remarks / justification for cancelling approval is required.');
+      return;
+    }
+
+    setIsSubmittingCancel(true);
+    setCancelRemarksError('');
+    try {
+      await api.patch(`/api/assignments/${selected.id}`, {
+        status: 'Archived',
+        archiveReason: `Approval Cancelled: ${cancelRemarks.trim()}`,
+        approvalCancelledRemarks: cancelRemarks.trim(),
+        timeline: [...selected.timeline, { 
+          step: 'Approval Cancelled', 
+          timestamp: new Date().toISOString(),
+          note: `Approval cancelled and moved to Data Storage by ${user.fullName} (${user.role.toUpperCase()}). Remarks: ${cancelRemarks.trim()}`
+        }]
+      });
+
+      // Notify Admins
+      const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'admin')));
+      adminsSnapshot.forEach(adminDoc => {
+        createNotification(
+          adminDoc.id,
+          'Approval Cancelled',
+          `Approval for ${selected.borrowerName} was cancelled by ${user.fullName} and moved to Data Storage. Remarks: ${cancelRemarks.trim()}`,
+          'status_change',
+          selected.id
+        );
+      });
+
+      if (selected.ciOfficerId && selected.ciOfficerId !== user.id) {
+        createNotification(
+          selected.ciOfficerId,
+          'Approval Cancelled',
+          `Approval for ${selected.borrowerName} was cancelled and moved to Data Storage. Remarks: ${cancelRemarks.trim()}`,
+          'status_change',
+          selected.id
+        );
+      }
+
+      toast.success('Approval cancelled. Account moved to Data Storage.');
+      setIsCancelModalOpen(false);
+      setSelected(null);
+      setCancelRemarks('');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to cancel approval.');
+    } finally {
+      setIsSubmittingCancel(false);
+    }
+  };
 
   useEffect(() => {
     let q = query(collection(db, 'assignments'), where('status', '==', 'Approved'));
@@ -11008,21 +11067,41 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
               setSelected(a);
               setStep(1);
             }}
-            className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer relative group"
+            className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer relative group flex flex-col justify-between"
           >
-            <div className="absolute top-4 right-4 text-amber-500 animate-pulse group-hover:scale-110 transition-transform">
-              <ClipboardList size={18} />
+            <div>
+              <div className="absolute top-4 right-4 text-amber-500 animate-pulse group-hover:scale-110 transition-transform">
+                <ClipboardList size={18} />
+              </div>
+              <h4 className="font-black text-sm uppercase text-emerald-800">{a.borrowerName}</h4>
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-1 mt-1">
+                 <Phone size={10} /> {a.mobileNumber}
+              </p>
             </div>
-            <h4 className="font-black text-sm uppercase text-emerald-800">{a.borrowerName}</h4>
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-1 mt-1">
-               <Phone size={10} /> {a.mobileNumber}
-            </p>
-            <div className="mt-4 pt-4 border-t border-gray-50 flex justify-between items-center">
+            
+            <div className="mt-4 pt-4 border-t border-gray-50 flex justify-between items-center gap-2">
               <div className="text-[10px] space-y-1">
                 <p className="text-gray-400 uppercase tracking-widest">Released Amount</p>
                 <p className="font-bold">₱{a.approvedAmount?.toLocaleString()}</p>
               </div>
-              <ChevronRight className="text-gray-300 group-hover:translate-x-1 transition-transform" size={16} />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelected(a);
+                    setStep(1);
+                    setIsCancelModalOpen(true);
+                    setCancelRemarks('');
+                    setCancelRemarksError('');
+                  }}
+                  className="px-2.5 py-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-all flex items-center gap-1 z-10"
+                  title="Cancel approval for this account"
+                >
+                  <XCircle size={12} /> Cancel Approval
+                </button>
+                <ChevronRight className="text-gray-300 group-hover:translate-x-1 transition-transform" size={16} />
+              </div>
             </div>
           </div>
         ))}
@@ -11035,7 +11114,7 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
       </div>
 
       <AnimatePresence>
-        {selected && (
+        {selected && !isCancelModalOpen && (
           <motion.div 
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
@@ -11051,15 +11130,29 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
                 <div className="flex justify-between items-start mb-8">
                   <div>
                     <h3 className="text-3xl font-black text-emerald-800 uppercase tracking-tight">{selected.borrowerName}</h3>
-                    <div className="flex items-center gap-4 mt-1">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2">
                       <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Validation & Survey</p>
-                      <div className="h-1 w-1 bg-gray-300 rounded-full" />
+                      <div className="h-1 w-1 bg-gray-300 rounded-full hidden sm:block" />
                       <p className="text-xs text-emerald-700 font-black uppercase tracking-widest">Step {step} of 2</p>
+                      
                       <button 
+                        type="button"
                         onClick={() => setIsViewingAccount(true)}
-                        className="text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:text-emerald-800 transition-colors flex items-center gap-1 border-l border-emerald-100 pl-4 ml-4"
+                        className="text-[10px] font-black text-emerald-600 hover:text-emerald-800 transition-colors flex items-center gap-1 border-l border-emerald-100 pl-3 ml-1 sm:pl-4 sm:ml-2"
                       >
-                        <FileText size={10} /> View Account Information
+                        <FileText size={10} /> View Account Info
+                      </button>
+
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setIsCancelModalOpen(true);
+                          setCancelRemarks('');
+                          setCancelRemarksError('');
+                        }}
+                        className="text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg border border-red-200 transition-colors flex items-center gap-1 border-l border-red-100 pl-3"
+                      >
+                        <XCircle size={11} /> Cancel Approval
                       </button>
                     </div>
                   </div>
@@ -11101,12 +11194,25 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
                       </div>
                     </div>
 
-                    <button 
-                      onClick={handleNext}
-                      className="w-full py-6 bg-emerald-600 text-white font-black rounded-3xl shadow-xl shadow-emerald-900/40 hover:bg-emerald-700 hover:-translate-y-1 transition-all uppercase tracking-[0.3em] text-[11px]"
-                    >
-                      Continue to Client Survey
-                    </button>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setIsCancelModalOpen(true);
+                          setCancelRemarks('');
+                          setCancelRemarksError('');
+                        }}
+                        className="py-5 px-6 bg-red-50 text-red-600 border border-red-200 font-bold rounded-3xl hover:bg-red-100 transition-all uppercase tracking-wider text-[11px] flex items-center justify-center gap-2"
+                      >
+                        <XCircle size={16} /> Cancel Approval
+                      </button>
+                      <button 
+                        onClick={handleNext}
+                        className="flex-1 py-5 bg-emerald-600 text-white font-black rounded-3xl shadow-xl shadow-emerald-900/40 hover:bg-emerald-700 hover:-translate-y-1 transition-all uppercase tracking-[0.3em] text-[11px]"
+                      >
+                        Continue to Client Survey
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-8 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
@@ -11200,6 +11306,83 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
             assignment={selected} 
             onClose={() => setIsViewingAccount(false)} 
           />
+        )}
+
+        {isCancelModalOpen && selected && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-md z-[60] flex items-center justify-center p-4 overflow-y-auto"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, y: 10 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-white w-full max-w-lg rounded-3xl p-6 sm:p-8 shadow-2xl border border-gray-100 space-y-6 my-8"
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="flex items-center gap-2 text-red-600 font-black text-xs uppercase tracking-wider mb-1">
+                    <XCircle size={16} /> Cancel Loan Approval
+                  </div>
+                  <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">{selected.borrowerName}</h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    This will cancel the approval for this loan and move it directly to Main Data Storage (Archived status) without returning it to active workflow.
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setIsCancelModalOpen(false)}
+                  className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider flex justify-between items-center">
+                  <span>Cancellation Remarks & Justification</span>
+                  <span className="text-red-500 font-bold text-[10px]">* (REQUIRED)</span>
+                </label>
+                <textarea 
+                  rows={4}
+                  value={cancelRemarks}
+                  onChange={(e) => {
+                    setCancelRemarks(e.target.value);
+                    if (e.target.value.trim()) setCancelRemarksError('');
+                  }}
+                  placeholder="State the detailed reason for cancelling this approval (e.g. discrepancy during call verification, client requested cancellation, missing compliance documents)..."
+                  className={cn(
+                    "w-full p-3.5 bg-gray-50 border rounded-2xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-red-500/20 transition-all",
+                    cancelRemarksError ? "border-red-500 bg-red-50/20" : "border-gray-200 focus:border-red-500"
+                  )}
+                />
+                {cancelRemarksError && (
+                  <p className="text-[11px] text-red-600 font-bold flex items-center gap-1">
+                    ⚠️ {cancelRemarksError}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-3 justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCancelModalOpen(false)}
+                  disabled={isSubmittingCancel}
+                  className="px-5 py-3 text-xs font-bold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors uppercase tracking-wider"
+                >
+                  Dismiss
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelApproval}
+                  disabled={isSubmittingCancel}
+                  className="px-6 py-3 text-xs font-black text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-lg shadow-red-600/30 transition-all flex items-center gap-2 uppercase tracking-wider disabled:opacity-50"
+                >
+                  {isSubmittingCancel ? 'Cancelling...' : 'Confirm Cancel Approval'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
