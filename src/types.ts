@@ -510,6 +510,75 @@ export interface HouseImprovementAppraisal {
   recommendedCollateralValue: number;
 }
 
+export interface TraverseLine {
+  id: string;
+  fromPoint: number;
+  toPoint: number;
+  quadrant: 'N-E' | 'S-E' | 'S-W' | 'N-W' | 'DUE-N' | 'DUE-E' | 'DUE-S' | 'DUE-W';
+  deg: number;
+  min: number;
+  sec?: number;
+  distance: number;
+  bearingString?: string;
+  azimuthDeg?: number;
+  deltaE?: number;
+  deltaN?: number;
+  boundaryDescription?: string;
+}
+
+export interface LotCoordinate {
+  point: number;
+  label: string;
+  x: number; // Easting (meters)
+  y: number; // Northing (meters)
+  adjustedX?: number;
+  adjustedY?: number;
+}
+
+export interface TiePoint {
+  monumentName: string;
+  quadrant: 'N-E' | 'S-E' | 'S-W' | 'N-W' | 'DUE-N' | 'DUE-E' | 'DUE-S' | 'DUE-W';
+  deg: number;
+  min: number;
+  sec?: number;
+  distance: number;
+  bearingString: string;
+  eastingOffset?: number;
+  northingOffset?: number;
+}
+
+export interface LotPlottingData {
+  propertyId: string;
+  lotNo: string;
+  surveyPlan: string;
+  titleNo: string;
+  location: string;
+  statedArea: number;
+  numberOfCorners: number;
+  plotStatus: 'Verified' | 'Discrepancy' | 'Draft' | 'Needs Review';
+  tiePoint?: TiePoint;
+  traverses: TraverseLine[];
+  coordinates: LotCoordinate[];
+  computedArea: number;
+  areaDifference: number;
+  areaVariancePct: number;
+  areaMatchStatus: 'PASS' | 'DISCREPANCY';
+  linearMisclosure: number;
+  closureRatio: string;
+  closureRatioNumber: number;
+  closureStatus: 'GOOD' | 'FAIR' | 'HIGH_MISCLOSURE';
+  lotShape: 'Regular Rectangular' | 'Square' | 'Trapezoidal' | 'Triangular' | 'Irregular' | 'Corner Lot';
+  frontageMeters: number;
+  depthMeters: number;
+  roadWidth: string;
+  roadAccessType: string;
+  boundaryNorth?: string;
+  boundaryEast?: string;
+  boundarySouth?: string;
+  boundaryWest?: string;
+  notes?: string;
+}
+
 export interface RealPropertyAppraisal {
   type: 'real_property';
   borrower: string;
@@ -525,6 +594,9 @@ export interface RealPropertyAppraisal {
   
   // House / Improvement Appraisal (Separate or Integrated)
   houseImprovement?: HouseImprovementAppraisal;
+  
+  // Lot Plotting & Boundary Analysis
+  lotPlotting?: LotPlottingData;
   
   // Description
   terrain: string;
