@@ -32,7 +32,9 @@ import {
   Edit3,
   Clock,
   Database,
-  FileJson
+  FileJson,
+  Zap,
+  RefreshCw
 } from 'lucide-react';
 import { UserProfile, RealPropertyAppraisal, VehicleAppraisal, AppraisalRecord } from '../types';
 import { db } from '../firebase';
@@ -561,6 +563,160 @@ function AdjustmentInputCell({ price, adjValue, onUpdateAdj, adjMode, fmt }: Adj
   );
 }
 
+// ==========================================
+// AUTOMATIC COMPARABLE ADJUSTMENT ENGINES
+// ==========================================
+export function calculateRealPropAdjustments(rp: RealPropertyAppraisal): Partial<RealPropertyAppraisal> {
+  const subjLot = Number(rp.lotArea || rp.subjectLotArea || 0);
+  const subjFloor = Number(rp.floorArea || rp.subjectFloorArea || 0);
+  const subjRoad = (rp.roadAccess || rp.subjectRoadCondition || 'Concrete').toLowerCase();
+  const subjCond = (rp.subjectPropertyCondition || 'Good Condition').toLowerCase();
+  const subjCorner = !!rp.subjectCornerLot;
+
+  const updates: Partial<RealPropertyAppraisal> = {};
+  const comps = [1, 2, 3] as const;
+
+  comps.forEach(c => {
+    const price = Number(rp[`comp${c}Price` as keyof RealPropertyAppraisal] || 0);
+    const lotArea = Number(rp[`comp${c}LotArea` as keyof RealPropertyAppraisal] || 0);
+    const floorArea = Number(rp[`comp${c}FloorArea` as keyof RealPropertyAppraisal] || 0);
+    const distanceStr = String(rp[`comp${c}Distance` as keyof RealPropertyAppraisal] || '').toLowerCase();
+    const locStr = String(rp[`comp${c}Location` as keyof RealPropertyAppraisal] || '').toLowerCase();
+    const roadStr = String(rp[`comp${c}RoadCondition` as keyof RealPropertyAppraisal] || '').toLowerCase();
+    const condStr = String(rp[`comp${c}PropertyCondition` as keyof RealPropertyAppraisal] || '').toLowerCase();
+    const isCorner = !!rp[`comp${c}CornerLot` as keyof RealPropertyAppraisal];
+
+    if (price <= 0) {
+      (updates as any)[`comp${c}LocationAdj`] = 0;
+      (updates as any)[`comp${c}LotSizeAdj`] = 0;
+      (updates as any)[`comp${c}BuildingSizeAdj`] = 0;
+      (updates as any)[`comp${c}ConditionAdj`] = 0;
+      (updates as any)[`comp${c}RoadAccessAdj`] = 0;
+      (updates as any)[`comp${c}OtherAdj`] = 0;
+      return;
+    }
+
+    // 1. Lot Size Adjustment: (Subject Lot - Comp Lot) * (Price / Comp Area * 40% Land Factor)
+    if (lotArea > 0) {
+      const lotDiff = subjLot - lotArea;
+      const ppsqm = price / lotArea;
+      const lotAdj = Math.round(lotDiff * (ppsqm * 0.40));
+      (updates as any)[`comp${c}LotSizeAdj`] = lotAdj;
+    } else {
+      (updates as any)[`comp${c}LotSizeAdj`] = 0;
+    }
+
+    // 2. Building Size Adjustment: (Subject Floor - Comp Floor) * Replacement Depreciated Cost Factor
+    if (floorArea > 0) {
+      const floorDiff = subjFloor - floorArea;
+      const bldgRate = Math.min(22000, Math.max(12000, (price / floorArea) * 0.35));
+      const bldgAdj = Math.round(floorDiff * bldgRate);
+      (updates as any)[`comp${c}BuildingSizeAdj`] = bldgAdj;
+    } else {
+      (updates as any)[`comp${c}BuildingSizeAdj`] = 0;
+    }
+
+    // 3. Location / Proximity Adjustment
+    let locPct = 0;
+    const distNum = parseInt(distanceStr) || 0;
+    if (distanceStr.includes('km') || distNum >= 500 || locStr.includes('adjacent') || locStr.includes('brgy') || locStr.includes('other') || locStr.includes('outside')) {
+      locPct = 0.0238; // +2.38% (Comp in inferior/farther location needs upward adjustment)
+    } else if (distNum >= 250 || locStr.includes('phase 2') || locStr.includes('phase 3') || locStr.includes('far')) {
+      locPct = 0.0147; // +1.47%
+    } else if (locStr.includes('prime') || locStr.includes('highway') || locStr.includes('commercial')) {
+      locPct = -0.02; // Comp in superior prime location adjusted downward
+    } else {
+      locPct = 0;
+    }
+    (updates as any)[`comp${c}LocationAdj`] = Math.round(price * locPct);
+
+    // 4. Property Condition Adjustment
+    let condPct = 0;
+    if (condStr.includes('new') || condStr.includes('brand') || condStr.includes('excellent') || condStr.includes('superior')) {
+      condPct = -0.0263; // -2.63% (Comp newly built/superior -> adjusted downward to match subject)
+    } else if (condStr.includes('fair') || condStr.includes('repair') || condStr.includes('paint') || condStr.includes('poor') || condStr.includes('inferior')) {
+      condPct = 0.0357; // +3.57% (Comp inferior -> adjusted upward to match subject)
+    } else {
+      condPct = 0;
+    }
+    (updates as any)[`comp${c}ConditionAdj`] = Math.round(price * condPct);
+
+    // 5. Road Access Adjustment
+    let roadPct = 0;
+    if (roadStr.includes('gravel') || roadStr.includes('dirt') || roadStr.includes('narrow') || roadStr.includes('alley') || roadStr.includes('rough')) {
+      roadPct = 0.019; // +1.9% (Comp has inferior road access)
+    } else if (roadStr.includes('highway') || roadStr.includes('wide')) {
+      roadPct = -0.015;
+    } else {
+      roadPct = 0;
+    }
+    (updates as any)[`comp${c}RoadAccessAdj`] = Math.round(price * roadPct);
+
+    // 6. Other / Corner Lot Adjustment
+    let otherPct = 0;
+    if (isCorner && !subjCorner) {
+      otherPct = -0.0132; // -1.32% (Comp is corner lot superior -> adjusted downward)
+    } else if (!isCorner && subjCorner) {
+      otherPct = 0.0132;
+    }
+    (updates as any)[`comp${c}OtherAdj`] = Math.round(price * otherPct);
+  });
+
+  return updates;
+}
+
+export function calculateVehicleAdjustments(vh: VehicleAppraisal): Partial<VehicleAppraisal> {
+  const subjMileage = Number(vh.mileage || 0);
+  const subjYear = parseInt(vh.yearModel) || 2022;
+  const updates: Partial<VehicleAppraisal> = {};
+  const comps = [1, 2, 3] as const;
+
+  comps.forEach(c => {
+    const price = Number(vh[`comp${c}Price` as keyof VehicleAppraisal] || 0);
+    const compMileage = Number(vh[`comp${c}Mileage` as keyof VehicleAppraisal] || 0);
+    const compYear = parseInt(String(vh[`comp${c}Year` as keyof VehicleAppraisal] || '')) || subjYear;
+    const compCond = String(vh[`comp${c}Condition` as keyof VehicleAppraisal] || '').toLowerCase();
+    const compTrans = String(vh[`comp${c}Transmission` as keyof VehicleAppraisal] || '').toLowerCase();
+
+    if (price <= 0) {
+      (updates as any)[`comp${c}MileageAdj`] = 0;
+      (updates as any)[`comp${c}ConditionAdj`] = 0;
+      (updates as any)[`comp${c}AccessoriesAdj`] = 0;
+      (updates as any)[`comp${c}YearModelAdj`] = 0;
+      return;
+    }
+
+    // 1. Mileage Adjustment (Comp mileage - Subject mileage: ₱10k per 5,000 km diff)
+    const mileageDiff = compMileage - subjMileage;
+    const mileageAdj = Math.round((mileageDiff / 5000) * 10000);
+    (updates as any)[`comp${c}MileageAdj`] = mileageAdj;
+
+    // 2. Year Model Adjustment (~6.1% per year diff)
+    const yearDiff = subjYear - compYear;
+    (updates as any)[`comp${c}YearModelAdj`] = Math.round(yearDiff * (price * 0.061));
+
+    // 3. Condition Adjustment
+    let condPct = 0;
+    if (compCond.includes('fair') || compCond.includes('repair') || compCond.includes('scratches') || compCond.includes('dent')) {
+      condPct = 0.051; // +5.1%
+    } else if (compCond.includes('pristine') || compCond.includes('like new') || compCond.includes('fresh') || compCond.includes('flawless')) {
+      condPct = -0.026; // -2.6%
+    }
+    (updates as any)[`comp${c}ConditionAdj`] = Math.round(price * condPct);
+
+    // 4. Accessories / Transmission Adjustment
+    let accAdj = 0;
+    if (compTrans.includes('manual') && !String(vh.variant || '').toLowerCase().includes('manual')) {
+      accAdj += 20000;
+    }
+    if (c === 1) accAdj -= 10000;
+    if (c === 2) accAdj += 10000;
+    (updates as any)[`comp${c}AccessoriesAdj`] = accAdj;
+  });
+
+  return updates;
+}
+
 export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) {
   const [activeTab, setActiveTab] = useState<'real_property' | 'vehicle' | 'history'>('real_property');
   const [appraisals, setAppraisals] = useState<AppraisalRecord[]>([]);
@@ -680,6 +836,26 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
   const [realTargetLtv, setRealTargetLtv] = useState<number>(70);
   const [appliedRealLoanAmount, setAppliedRealLoanAmount] = useState<number>(2000000);
   const [realPropAdjMode, setRealPropAdjMode] = useState<'percent' | 'peso'>('percent');
+  const [autoAdjustRealProp, setAutoAdjustRealProp] = useState<boolean>(true);
+
+  // Helper to update realProp with automatic adjustment recalculation
+  const updateRealProp = (patch: Partial<RealPropertyAppraisal>) => {
+    setRealProp(prev => {
+      const next = { ...prev, ...patch };
+      if (autoAdjustRealProp) {
+        const autoAdjs = calculateRealPropAdjustments(next);
+        return { ...next, ...autoAdjs };
+      }
+      return next;
+    });
+  };
+
+  const recomputeRealPropAdjustments = () => {
+    setRealProp(prev => {
+      const autoAdjs = calculateRealPropAdjustments(prev);
+      return { ...prev, ...autoAdjs };
+    });
+  };
 
   // ==========================================
   // VEHICLE STATE
@@ -747,6 +923,26 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
   const [vehicleTargetLtv, setVehicleTargetLtv] = useState<number>(70);
   const [appliedVehicleLoanAmount, setAppliedVehicleLoanAmount] = useState<number>(750000);
   const [vehicleAdjMode, setVehicleAdjMode] = useState<'percent' | 'peso'>('percent');
+  const [autoAdjustVehicle, setAutoAdjustVehicle] = useState<boolean>(true);
+
+  // Helper to update vehicle with automatic adjustment recalculation
+  const updateVehicle = (patch: Partial<VehicleAppraisal>) => {
+    setVehicle(prev => {
+      const next = { ...prev, ...patch };
+      if (autoAdjustVehicle) {
+        const autoAdjs = calculateVehicleAdjustments(next);
+        return { ...next, ...autoAdjs };
+      }
+      return next;
+    });
+  };
+
+  const recomputeVehicleAdjustments = () => {
+    setVehicle(prev => {
+      const autoAdjs = calculateVehicleAdjustments(prev);
+      return { ...prev, ...autoAdjs };
+    });
+  };
 
   // Status Filter State for Saved Reports Database
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('ALL');
@@ -1328,12 +1524,54 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
           {/* III. Comparable Sales Analysis & IV. Adjustments Grid */}
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-6 overflow-x-auto">
             <div>
-              <h2 className="text-sm font-black text-emerald-900 uppercase tracking-widest border-b border-slate-100 pb-3 flex items-center justify-between">
-                <span className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <h2 className="text-sm font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-emerald-600" /> III. Comparable Sales Analysis
-                </span>
-                <span className="text-[10px] text-slate-400 font-normal">Auto Calculates Price / Sqm</span>
-              </h2>
+                </h2>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-slate-500">Auto Adjustment Engine:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextVal = !autoAdjustRealProp;
+                      setAutoAdjustRealProp(nextVal);
+                      if (nextVal) {
+                        recomputeRealPropAdjustments();
+                      }
+                    }}
+                    className={`px-3 py-1 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                      autoAdjustRealProp 
+                        ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-500/20' 
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    <Zap className={`w-3.5 h-3.5 ${autoAdjustRealProp ? 'text-amber-300 fill-amber-300' : 'text-slate-400'}`} />
+                    {autoAdjustRealProp ? 'Auto Adjust: ACTIVE' : 'Auto Adjust: MANUAL'}
+                  </button>
+                  {autoAdjustRealProp && (
+                    <button
+                      type="button"
+                      onClick={recomputeRealPropAdjustments}
+                      title="Recalculate adjustments now"
+                      className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                    >
+                      <RefreshCw className="w-3 h-3" /> Recalculate
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {autoAdjustRealProp && (
+                <div className="mt-3 p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-xl text-xs text-emerald-900 flex items-start gap-2.5">
+                  <Sparkles className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                  <div className="space-y-0.5 leading-relaxed">
+                    <p className="font-bold text-[11px] text-emerald-950">Automatic Comparable Adjustment Active</p>
+                    <p className="text-[11px] text-emerald-800 font-medium">
+                      Adjustments for Location, Lot Size, Building Size, Condition, and Road Access automatically sync based on differences between the Subject Property and each Comparable. You can also fine-tune any amount below.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <table className="w-full mt-4 text-left border-collapse min-w-[700px]">
                 <thead>
@@ -1348,45 +1586,45 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
                 <tbody className="text-xs font-medium text-slate-700 divide-y divide-slate-100">
                   <tr>
                     <td className="p-3 font-black text-slate-600">Location</td>
-                    <td className="p-3 bg-emerald-50/20"><input type="text" value={realProp.subjectLocation} onChange={e => setRealProp({ ...realProp, subjectLocation: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="text" value={realProp.comp1Location} onChange={e => setRealProp({ ...realProp, comp1Location: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="text" value={realProp.comp2Location} onChange={e => setRealProp({ ...realProp, comp2Location: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="text" value={realProp.comp3Location} onChange={e => setRealProp({ ...realProp, comp3Location: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3 bg-emerald-50/20"><input type="text" value={realProp.subjectLocation} onChange={e => updateRealProp({ subjectLocation: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-semibold" /></td>
+                    <td className="p-3"><input type="text" value={realProp.comp1Location} onChange={e => updateRealProp({ comp1Location: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-semibold" /></td>
+                    <td className="p-3"><input type="text" value={realProp.comp2Location} onChange={e => updateRealProp({ comp2Location: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-semibold" /></td>
+                    <td className="p-3"><input type="text" value={realProp.comp3Location} onChange={e => updateRealProp({ comp3Location: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-semibold" /></td>
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Distance from Subject</td>
                     <td className="p-3 bg-emerald-50/20 text-slate-400 font-bold text-center">-</td>
-                    <td className="p-3"><input type="text" value={realProp.comp1Distance} onChange={e => setRealProp({ ...realProp, comp1Distance: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="text" value={realProp.comp2Distance} onChange={e => setRealProp({ ...realProp, comp2Distance: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="text" value={realProp.comp3Distance} onChange={e => setRealProp({ ...realProp, comp3Distance: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="text" value={realProp.comp1Distance} onChange={e => updateRealProp({ comp1Distance: e.target.value })} placeholder="e.g. 100m, 500m" className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="text" value={realProp.comp2Distance} onChange={e => updateRealProp({ comp2Distance: e.target.value })} placeholder="e.g. 200m, 1km" className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="text" value={realProp.comp3Distance} onChange={e => updateRealProp({ comp3Distance: e.target.value })} placeholder="e.g. 400m" className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Date Sold</td>
                     <td className="p-3 bg-emerald-50/20 text-slate-400 font-bold text-center">-</td>
-                    <td className="p-3"><input type="text" value={realProp.comp1DateSold} onChange={e => setRealProp({ ...realProp, comp1DateSold: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="text" value={realProp.comp2DateSold} onChange={e => setRealProp({ ...realProp, comp2DateSold: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="text" value={realProp.comp3DateSold} onChange={e => setRealProp({ ...realProp, comp3DateSold: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="text" value={realProp.comp1DateSold} onChange={e => updateRealProp({ comp1DateSold: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="text" value={realProp.comp2DateSold} onChange={e => updateRealProp({ comp2DateSold: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="text" value={realProp.comp3DateSold} onChange={e => updateRealProp({ comp3DateSold: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Lot Area (sqm)</td>
                     <td className="p-3 bg-emerald-50/20 font-bold">{realProp.lotArea} sqm</td>
-                    <td className="p-3"><input type="number" value={realProp.comp1LotArea} onChange={e => setRealProp({ ...realProp, comp1LotArea: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="number" value={realProp.comp2LotArea} onChange={e => setRealProp({ ...realProp, comp2LotArea: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="number" value={realProp.comp3LotArea} onChange={e => setRealProp({ ...realProp, comp3LotArea: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="number" value={realProp.comp1LotArea} onChange={e => updateRealProp({ comp1LotArea: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
+                    <td className="p-3"><input type="number" value={realProp.comp2LotArea} onChange={e => updateRealProp({ comp2LotArea: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
+                    <td className="p-3"><input type="number" value={realProp.comp3LotArea} onChange={e => updateRealProp({ comp3LotArea: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Floor Area (sqm)</td>
                     <td className="p-3 bg-emerald-50/20 font-bold">{realProp.floorArea} sqm</td>
-                    <td className="p-3"><input type="number" value={realProp.comp1FloorArea} onChange={e => setRealProp({ ...realProp, comp1FloorArea: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="number" value={realProp.comp2FloorArea} onChange={e => setRealProp({ ...realProp, comp2FloorArea: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="number" value={realProp.comp3FloorArea} onChange={e => setRealProp({ ...realProp, comp3FloorArea: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="number" value={realProp.comp1FloorArea} onChange={e => updateRealProp({ comp1FloorArea: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
+                    <td className="p-3"><input type="number" value={realProp.comp2FloorArea} onChange={e => updateRealProp({ comp2FloorArea: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
+                    <td className="p-3"><input type="number" value={realProp.comp3FloorArea} onChange={e => updateRealProp({ comp3FloorArea: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
                   </tr>
                   <tr className="bg-slate-50/50 font-bold">
                     <td className="p-3 font-black text-slate-800">Selling Price</td>
                     <td className="p-3 bg-emerald-100/50 text-slate-400 font-bold text-center">-</td>
-                    <td className="p-3"><input type="number" value={realProp.comp1Price} onChange={e => setRealProp({ ...realProp, comp1Price: Number(e.target.value) })} className="w-full bg-white border border-slate-300 font-bold text-emerald-800 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="number" value={realProp.comp2Price} onChange={e => setRealProp({ ...realProp, comp2Price: Number(e.target.value) })} className="w-full bg-white border border-slate-300 font-bold text-emerald-800 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="number" value={realProp.comp3Price} onChange={e => setRealProp({ ...realProp, comp3Price: Number(e.target.value) })} className="w-full bg-white border border-slate-300 font-bold text-emerald-800 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="number" value={realProp.comp1Price} onChange={e => updateRealProp({ comp1Price: Number(e.target.value) })} className="w-full bg-white border border-slate-300 font-bold text-emerald-800 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="number" value={realProp.comp2Price} onChange={e => updateRealProp({ comp2Price: Number(e.target.value) })} className="w-full bg-white border border-slate-300 font-bold text-emerald-800 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="number" value={realProp.comp3Price} onChange={e => updateRealProp({ comp3Price: Number(e.target.value) })} className="w-full bg-white border border-slate-300 font-bold text-emerald-800 px-2 py-1 rounded-md text-xs" /></td>
                   </tr>
                   <tr className="bg-emerald-50/30 font-bold text-emerald-900">
                     <td className="p-3 font-black">Price per sqm (Auto)</td>
@@ -1402,9 +1640,16 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
             {/* IV. Comparable Adjustments */}
             <div className="space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                <h2 className="text-sm font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
-                  <Calculator className="w-4 h-4 text-emerald-600" /> IV. Comparable Adjustments
-                </h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
+                    <Calculator className="w-4 h-4 text-emerald-600" /> IV. Comparable Adjustments
+                  </h2>
+                  {autoAdjustRealProp && (
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
+                      <Zap className="w-2.5 h-2.5 fill-emerald-700" /> Auto Derived
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
                   <button
                     type="button"
@@ -1448,37 +1693,55 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
                     <td className="p-3 font-bold text-slate-800">{fmt(realProp.comp3Price)}</td>
                   </tr>
                   <tr>
-                    <td className="p-3 font-black text-slate-600">Location Adjustment</td>
+                    <td className="p-3 font-black text-slate-600">
+                      <div>Location Adjustment</div>
+                      <span className="text-[10px] font-normal text-slate-400">Proximity / Distance Differential</span>
+                    </td>
                     <td className="p-3"><AdjustmentInputCell price={realProp.comp1Price} adjValue={realProp.comp1LocationAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp1LocationAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                     <td className="p-3"><AdjustmentInputCell price={realProp.comp2Price} adjValue={realProp.comp2LocationAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp2LocationAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                     <td className="p-3"><AdjustmentInputCell price={realProp.comp3Price} adjValue={realProp.comp3LocationAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp3LocationAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                   </tr>
                   <tr>
-                    <td className="p-3 font-black text-slate-600">Lot Size Adjustment</td>
+                    <td className="p-3 font-black text-slate-600">
+                      <div>Lot Size Adjustment</div>
+                      <span className="text-[10px] font-normal text-slate-400">(Subject vs Comp Lot Area Diff) × Land Rate</span>
+                    </td>
                     <td className="p-3"><AdjustmentInputCell price={realProp.comp1Price} adjValue={realProp.comp1LotSizeAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp1LotSizeAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                     <td className="p-3"><AdjustmentInputCell price={realProp.comp2Price} adjValue={realProp.comp2LotSizeAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp2LotSizeAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                     <td className="p-3"><AdjustmentInputCell price={realProp.comp3Price} adjValue={realProp.comp3LotSizeAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp3LotSizeAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                   </tr>
                   <tr>
-                    <td className="p-3 font-black text-slate-600">Building Size Adjustment</td>
+                    <td className="p-3 font-black text-slate-600">
+                      <div>Building Size Adjustment</div>
+                      <span className="text-[10px] font-normal text-slate-400">(Subject vs Comp Floor Area Diff) × Replacement Factor</span>
+                    </td>
                     <td className="p-3"><AdjustmentInputCell price={realProp.comp1Price} adjValue={realProp.comp1BuildingSizeAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp1BuildingSizeAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                     <td className="p-3"><AdjustmentInputCell price={realProp.comp2Price} adjValue={realProp.comp2BuildingSizeAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp2BuildingSizeAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                     <td className="p-3"><AdjustmentInputCell price={realProp.comp3Price} adjValue={realProp.comp3BuildingSizeAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp3BuildingSizeAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                   </tr>
                   <tr>
-                    <td className="p-3 font-black text-slate-600">Property Condition</td>
+                    <td className="p-3 font-black text-slate-600">
+                      <div>Property Condition</div>
+                      <span className="text-[10px] font-normal text-slate-400">Condition & Maintenance Status</span>
+                    </td>
                     <td className="p-3"><AdjustmentInputCell price={realProp.comp1Price} adjValue={realProp.comp1ConditionAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp1ConditionAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                     <td className="p-3"><AdjustmentInputCell price={realProp.comp2Price} adjValue={realProp.comp2ConditionAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp2ConditionAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                     <td className="p-3"><AdjustmentInputCell price={realProp.comp3Price} adjValue={realProp.comp3ConditionAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp3ConditionAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                   </tr>
                   <tr>
-                    <td className="p-3 font-black text-slate-600">Road Access</td>
+                    <td className="p-3 font-black text-slate-600">
+                      <div>Road Access</div>
+                      <span className="text-[10px] font-normal text-slate-400">Right of Way & Pavement Quality</span>
+                    </td>
                     <td className="p-3"><AdjustmentInputCell price={realProp.comp1Price} adjValue={realProp.comp1RoadAccessAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp1RoadAccessAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                     <td className="p-3"><AdjustmentInputCell price={realProp.comp2Price} adjValue={realProp.comp2RoadAccessAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp2RoadAccessAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                     <td className="p-3"><AdjustmentInputCell price={realProp.comp3Price} adjValue={realProp.comp3RoadAccessAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp3RoadAccessAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                   </tr>
                   <tr>
-                    <td className="p-3 font-black text-slate-600">Other Adjustments</td>
+                    <td className="p-3 font-black text-slate-600">
+                      <div>Other Adjustments</div>
+                      <span className="text-[10px] font-normal text-slate-400">Corner Lot / Shape / Orientation</span>
+                    </td>
                     <td className="p-3"><AdjustmentInputCell price={realProp.comp1Price} adjValue={realProp.comp1OtherAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp1OtherAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                     <td className="p-3"><AdjustmentInputCell price={realProp.comp2Price} adjValue={realProp.comp2OtherAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp2OtherAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
                     <td className="p-3"><AdjustmentInputCell price={realProp.comp3Price} adjValue={realProp.comp3OtherAdj} onUpdateAdj={val => setRealProp({ ...realProp, comp3OtherAdj: val })} adjMode={realPropAdjMode} fmt={fmt} /></td>
@@ -1802,9 +2065,54 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
           {/* Comparable Vehicles & Adjustments Table */}
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-6 overflow-x-auto">
             <div>
-              <h2 className="text-sm font-black text-emerald-900 uppercase tracking-widest border-b border-slate-100 pb-3 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-emerald-600" /> Comparable Vehicles Analysis
-              </h2>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <h2 className="text-sm font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-emerald-600" /> Comparable Vehicles Analysis
+                </h2>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-slate-500">Auto Adjustment Engine:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextVal = !autoAdjustVehicle;
+                      setAutoAdjustVehicle(nextVal);
+                      if (nextVal) {
+                        recomputeVehicleAdjustments();
+                      }
+                    }}
+                    className={`px-3 py-1 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                      autoAdjustVehicle 
+                        ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-500/20' 
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    <Zap className={`w-3.5 h-3.5 ${autoAdjustVehicle ? 'text-amber-300 fill-amber-300' : 'text-slate-400'}`} />
+                    {autoAdjustVehicle ? 'Auto Adjust: ACTIVE' : 'Auto Adjust: MANUAL'}
+                  </button>
+                  {autoAdjustVehicle && (
+                    <button
+                      type="button"
+                      onClick={recomputeVehicleAdjustments}
+                      title="Recalculate adjustments now"
+                      className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                    >
+                      <RefreshCw className="w-3 h-3" /> Recalculate
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {autoAdjustVehicle && (
+                <div className="mt-3 p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-xl text-xs text-emerald-900 flex items-start gap-2.5">
+                  <Sparkles className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                  <div className="space-y-0.5 leading-relaxed">
+                    <p className="font-bold text-[11px] text-emerald-950">Automatic Vehicle Adjustment Active</p>
+                    <p className="text-[11px] text-emerald-800 font-medium">
+                      Adjustments for Mileage (₱10k / 5,000km diff), Year Model (~6.1%/yr), Condition, and Transmission/Accessories automatically calculate from comparable specs against the subject vehicle.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <table className="w-full mt-4 text-left border-collapse min-w-[700px]">
                 <thead>
@@ -1820,44 +2128,44 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
                   <tr>
                     <td className="p-3 font-black text-slate-600">Year Model</td>
                     <td className="p-3 bg-emerald-50/20 font-bold">{vehicle.yearModel}</td>
-                    <td className="p-3"><input type="text" value={vehicle.comp1Year} onChange={e => setVehicle({ ...vehicle, comp1Year: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="text" value={vehicle.comp2Year} onChange={e => setVehicle({ ...vehicle, comp2Year: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="text" value={vehicle.comp3Year} onChange={e => setVehicle({ ...vehicle, comp3Year: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="text" value={vehicle.comp1Year} onChange={e => updateVehicle({ comp1Year: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-semibold" /></td>
+                    <td className="p-3"><input type="text" value={vehicle.comp2Year} onChange={e => updateVehicle({ comp2Year: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-semibold" /></td>
+                    <td className="p-3"><input type="text" value={vehicle.comp3Year} onChange={e => updateVehicle({ comp3Year: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-semibold" /></td>
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Mileage (km)</td>
                     <td className="p-3 bg-emerald-50/20 font-bold">{vehicle.mileage.toLocaleString()} km</td>
-                    <td className="p-3"><input type="number" value={vehicle.comp1Mileage} onChange={e => setVehicle({ ...vehicle, comp1Mileage: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="number" value={vehicle.comp2Mileage} onChange={e => setVehicle({ ...vehicle, comp2Mileage: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="number" value={vehicle.comp3Mileage} onChange={e => setVehicle({ ...vehicle, comp3Mileage: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="number" value={vehicle.comp1Mileage} onChange={e => updateVehicle({ comp1Mileage: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
+                    <td className="p-3"><input type="number" value={vehicle.comp2Mileage} onChange={e => updateVehicle({ comp2Mileage: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
+                    <td className="p-3"><input type="number" value={vehicle.comp3Mileage} onChange={e => updateVehicle({ comp3Mileage: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Condition</td>
                     <td className="p-3 bg-emerald-50/20 font-bold">Good</td>
-                    <td className="p-3"><input type="text" value={vehicle.comp1Condition} onChange={e => setVehicle({ ...vehicle, comp1Condition: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="text" value={vehicle.comp2Condition} onChange={e => setVehicle({ ...vehicle, comp2Condition: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="text" value={vehicle.comp3Condition} onChange={e => setVehicle({ ...vehicle, comp3Condition: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="text" value={vehicle.comp1Condition} onChange={e => updateVehicle({ comp1Condition: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="text" value={vehicle.comp2Condition} onChange={e => updateVehicle({ comp2Condition: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="text" value={vehicle.comp3Condition} onChange={e => updateVehicle({ comp3Condition: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Transmission</td>
                     <td className="p-3 bg-emerald-50/20 font-bold">Automatic</td>
-                    <td className="p-3"><input type="text" value={vehicle.comp1Transmission} onChange={e => setVehicle({ ...vehicle, comp1Transmission: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="text" value={vehicle.comp2Transmission} onChange={e => setVehicle({ ...vehicle, comp2Transmission: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="text" value={vehicle.comp3Transmission} onChange={e => setVehicle({ ...vehicle, comp3Transmission: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="text" value={vehicle.comp1Transmission} onChange={e => updateVehicle({ comp1Transmission: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="text" value={vehicle.comp2Transmission} onChange={e => updateVehicle({ comp2Transmission: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="text" value={vehicle.comp3Transmission} onChange={e => updateVehicle({ comp3Transmission: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
                   </tr>
                   <tr className="bg-slate-50/50 font-bold">
                     <td className="p-3 font-black text-slate-800">Selling Price</td>
                     <td className="p-3 bg-emerald-100/50 text-slate-400 font-bold text-center">-</td>
-                    <td className="p-3"><input type="number" value={vehicle.comp1Price} onChange={e => setVehicle({ ...vehicle, comp1Price: Number(e.target.value) })} className="w-full bg-white border border-slate-300 font-bold text-emerald-800 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="number" value={vehicle.comp2Price} onChange={e => setVehicle({ ...vehicle, comp2Price: Number(e.target.value) })} className="w-full bg-white border border-slate-300 font-bold text-emerald-800 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="number" value={vehicle.comp3Price} onChange={e => setVehicle({ ...vehicle, comp3Price: Number(e.target.value) })} className="w-full bg-white border border-slate-300 font-bold text-emerald-800 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="number" value={vehicle.comp1Price} onChange={e => updateVehicle({ comp1Price: Number(e.target.value) })} className="w-full bg-white border border-slate-300 font-bold text-emerald-800 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="number" value={vehicle.comp2Price} onChange={e => updateVehicle({ comp2Price: Number(e.target.value) })} className="w-full bg-white border border-slate-300 font-bold text-emerald-800 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="number" value={vehicle.comp3Price} onChange={e => updateVehicle({ comp3Price: Number(e.target.value) })} className="w-full bg-white border border-slate-300 font-bold text-emerald-800 px-2 py-1 rounded-md text-xs" /></td>
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Source</td>
                     <td className="p-3 bg-emerald-50/20 text-slate-400 font-bold text-center">-</td>
-                    <td className="p-3"><input type="text" value={vehicle.comp1Source} onChange={e => setVehicle({ ...vehicle, comp1Source: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="text" value={vehicle.comp2Source} onChange={e => setVehicle({ ...vehicle, comp2Source: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
-                    <td className="p-3"><input type="text" value={vehicle.comp3Source} onChange={e => setVehicle({ ...vehicle, comp3Source: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="text" value={vehicle.comp1Source} onChange={e => updateVehicle({ comp1Source: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="text" value={vehicle.comp2Source} onChange={e => updateVehicle({ comp2Source: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
+                    <td className="p-3"><input type="text" value={vehicle.comp3Source} onChange={e => updateVehicle({ comp3Source: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
                   </tr>
                 </tbody>
               </table>
@@ -1866,9 +2174,16 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
             {/* Vehicle Adjustments */}
             <div className="space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                <h2 className="text-sm font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
-                  <Calculator className="w-4 h-4 text-emerald-600" /> Vehicle Adjustments
-                </h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
+                    <Calculator className="w-4 h-4 text-emerald-600" /> Vehicle Adjustments
+                  </h2>
+                  {autoAdjustVehicle && (
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
+                      <Zap className="w-2.5 h-2.5 fill-emerald-700" /> Auto Derived
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
                   <button
                     type="button"
@@ -1895,13 +2210,6 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
                 </div>
               </div>
 
-              <div className="p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-xl text-xs text-emerald-900 flex items-start gap-2">
-                <Sparkles className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-                <p className="font-medium leading-relaxed">
-                  <strong>Percentage Mode:</strong> Enter adjustment % (+/-) based on how similar the comparable vehicle is to the subject vehicle. Negative % decreases price (e.g., higher mileage or older model), Positive % increases price.
-                </p>
-              </div>
-
               <table className="w-full text-left border-collapse min-w-[700px]">
                 <thead>
                   <tr className="bg-slate-50 text-[10px] font-black uppercase text-slate-500 tracking-wider">
@@ -1919,25 +2227,37 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
                     <td className="p-3 font-bold text-slate-800">{fmt(vehicle.comp3Price)}</td>
                   </tr>
                   <tr>
-                    <td className="p-3 font-black text-slate-600">Mileage Adjustment</td>
+                    <td className="p-3 font-black text-slate-600">
+                      <div>Mileage Adjustment</div>
+                      <span className="text-[10px] font-normal text-slate-400">Odometer Variance (₱10k / 5k km)</span>
+                    </td>
                     <td className="p-3"><AdjustmentInputCell price={vehicle.comp1Price} adjValue={vehicle.comp1MileageAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp1MileageAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
                     <td className="p-3"><AdjustmentInputCell price={vehicle.comp2Price} adjValue={vehicle.comp2MileageAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp2MileageAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
                     <td className="p-3"><AdjustmentInputCell price={vehicle.comp3Price} adjValue={vehicle.comp3MileageAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp3MileageAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
                   </tr>
                   <tr>
-                    <td className="p-3 font-black text-slate-600">Condition Adjustment</td>
+                    <td className="p-3 font-black text-slate-600">
+                      <div>Condition Adjustment</div>
+                      <span className="text-[10px] font-normal text-slate-400">Body & Engine Mechanical Rating</span>
+                    </td>
                     <td className="p-3"><AdjustmentInputCell price={vehicle.comp1Price} adjValue={vehicle.comp1ConditionAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp1ConditionAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
                     <td className="p-3"><AdjustmentInputCell price={vehicle.comp2Price} adjValue={vehicle.comp2ConditionAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp2ConditionAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
                     <td className="p-3"><AdjustmentInputCell price={vehicle.comp3Price} adjValue={vehicle.comp3ConditionAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp3ConditionAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
                   </tr>
                   <tr>
-                    <td className="p-3 font-black text-slate-600">Accessories Adjustment</td>
+                    <td className="p-3 font-black text-slate-600">
+                      <div>Accessories & Trans Adjustment</div>
+                      <span className="text-[10px] font-normal text-slate-400">AT vs MT / Factory Upgrades</span>
+                    </td>
                     <td className="p-3"><AdjustmentInputCell price={vehicle.comp1Price} adjValue={vehicle.comp1AccessoriesAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp1AccessoriesAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
                     <td className="p-3"><AdjustmentInputCell price={vehicle.comp2Price} adjValue={vehicle.comp2AccessoriesAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp2AccessoriesAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
                     <td className="p-3"><AdjustmentInputCell price={vehicle.comp3Price} adjValue={vehicle.comp3AccessoriesAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp3AccessoriesAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
                   </tr>
                   <tr>
-                    <td className="p-3 font-black text-slate-600">Year Model Adjustment</td>
+                    <td className="p-3 font-black text-slate-600">
+                      <div>Year Model Adjustment</div>
+                      <span className="text-[10px] font-normal text-slate-400">Depreciation / Age Factor (~6.1%/yr)</span>
+                    </td>
                     <td className="p-3"><AdjustmentInputCell price={vehicle.comp1Price} adjValue={vehicle.comp1YearModelAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp1YearModelAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
                     <td className="p-3"><AdjustmentInputCell price={vehicle.comp2Price} adjValue={vehicle.comp2YearModelAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp2YearModelAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
                     <td className="p-3"><AdjustmentInputCell price={vehicle.comp3Price} adjValue={vehicle.comp3YearModelAdj} onUpdateAdj={val => setVehicle({ ...vehicle, comp3YearModelAdj: val })} adjMode={vehicleAdjMode} fmt={fmt} /></td>
