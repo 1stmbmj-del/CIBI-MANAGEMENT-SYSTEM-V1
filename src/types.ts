@@ -360,6 +360,156 @@ export interface OBRequest {
   createdAt: string;
 }
 
+export interface HousePhysicalInspectionComponent {
+  component: string;
+  description: string;
+  condition: 'Excellent' | 'Good' | 'Fair' | 'Poor';
+  depreciationPct: number;
+}
+
+export interface AdditionalImprovementItem {
+  id: string;
+  name: string;
+  qtyArea: string;
+  unitCost: number;
+  newCost: number;
+  depreciationPct: number;
+  depreciatedValue: number;
+}
+
+export interface HouseImprovementAppraisal {
+  enabled: boolean;
+  
+  // Particulars
+  propertyOwner: string;
+  propertyAddress: string;
+  propertyType: string;
+  lotArea: number;
+  floorArea: number;
+  noOfFloors: number;
+  yearBuilt: string;
+  estimatedAge: number;
+  economicLife: number;
+  constructionType: string;
+  roofType: string;
+  noOfBedrooms: number;
+  noOfToiletAndBath: number;
+  garage: string;
+  overallCondition: 'Excellent' | 'Good' | 'Fair' | 'Poor';
+  occupancy: 'Owner Occupied' | 'Tenant Occupied' | 'Vacant';
+  roadAccessWidth: string;
+  inspectionDate: string;
+  appraiser: string;
+
+  // A. Physical Inspection
+  physicalComponents: HousePhysicalInspectionComponent[];
+  overallPhysicalCondition: string;
+
+  // B & C. Cost Approach
+  constructionCostPerSqm: number;
+  replacementCostNew: number;
+  effectiveAge: number;
+  economicLifeYears: number;
+  straightLineDepreciationPct: number;
+  depreciationAmount: number;
+  depreciatedMainHouseValue: number;
+
+  // D. Additional Improvements
+  additionalImprovements: AdditionalImprovementItem[];
+  totalImprovementCostNew: number;
+  totalDepreciatedImprovementValue: number;
+
+  // E. Comparable House Analysis
+  comp1Location: string;
+  comp2Location: string;
+  comp3Location: string;
+
+  comp1FloorArea: number;
+  comp2FloorArea: number;
+  comp3FloorArea: number;
+
+  comp1LotArea: number;
+  comp2LotArea: number;
+  comp3LotArea: number;
+
+  comp1YearBuilt: string;
+  comp2YearBuilt: string;
+  comp3YearBuilt: string;
+
+  comp1Condition: string;
+  comp2Condition: string;
+  comp3Condition: string;
+
+  comp1NoOfFloors: number;
+  comp2NoOfFloors: number;
+  comp3NoOfFloors: number;
+
+  comp1Bedrooms: number;
+  comp2Bedrooms: number;
+  comp3Bedrooms: number;
+
+  comp1ToiletBath: number;
+  comp2ToiletBath: number;
+  comp3ToiletBath: number;
+
+  comp1Garage: string;
+  comp2Garage: string;
+  comp3Garage: string;
+
+  comp1Construction: string;
+  comp2Construction: string;
+  comp3Construction: string;
+
+  comp1Price: number;
+  comp2Price: number;
+  comp3Price: number;
+
+  // Comparable Adjustments
+  comp1LocationAdj: number;
+  comp2LocationAdj: number;
+  comp3LocationAdj: number;
+
+  comp1FloorAreaAdj: number;
+  comp2FloorAreaAdj: number;
+  comp3FloorAreaAdj: number;
+
+  comp1ConditionAdj: number;
+  comp2ConditionAdj: number;
+  comp3ConditionAdj: number;
+
+  comp1AgeAdj: number;
+  comp2AgeAdj: number;
+  comp3AgeAdj: number;
+
+  comp1QualityAdj: number;
+  comp2QualityAdj: number;
+  comp3QualityAdj: number;
+
+  comp1AmenitiesAdj: number;
+  comp2AmenitiesAdj: number;
+  comp3AmenitiesAdj: number;
+
+  comp1OtherAdj: number;
+  comp2OtherAdj: number;
+  comp3OtherAdj: number;
+
+  // F. Final Reconciliation
+  costApproachWeight: number;
+  comparableApproachWeight: number;
+  reconciledValue: number;
+  recommendedImprovementValue: number;
+
+  // G. Final Property & Lending Values
+  landMarketValue: number;
+  improvementMarketValue: number;
+  totalMarketValue: number;
+  forcedSaleValuePct: number;
+  forcedSaleValue: number;
+  maxLtvPct: number;
+  maxLoanableAmount: number;
+  recommendedCollateralValue: number;
+}
+
 export interface RealPropertyAppraisal {
   type: 'real_property';
   borrower: string;
@@ -372,6 +522,9 @@ export interface RealPropertyAppraisal {
   lotArea: number;
   floorArea: number;
   propertyType: 'Residential' | 'Commercial' | 'Agricultural' | 'Industrial' | 'Mixed-Use';
+  
+  // House / Improvement Appraisal (Separate or Integrated)
+  houseImprovement?: HouseImprovementAppraisal;
   
   // Description
   terrain: string;

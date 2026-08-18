@@ -34,11 +34,13 @@ import {
   Database,
   FileJson,
   Zap,
-  RefreshCw
+  RefreshCw,
+  Home
 } from 'lucide-react';
 import { UserProfile, RealPropertyAppraisal, VehicleAppraisal, AppraisalRecord } from '../types';
 import { db } from '../firebase';
 import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import HouseImprovementAppraisalSection, { DEFAULT_PHYSICAL_COMPONENTS, DEFAULT_ADDITIONAL_IMPROVEMENTS } from './HouseImprovementAppraisalSection';
 
 interface AppraisalCalculatorProps {
   user: UserProfile;
@@ -829,6 +831,107 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
     opinionRemarks: 'Subject property possesses sound structural integrity and favorable marketability.',
     recommendedLoanAmount: 0,
 
+    houseImprovement: {
+      enabled: true,
+      propertyOwner: '',
+      propertyAddress: '',
+      propertyType: 'Residential House',
+      lotArea: 150,
+      floorArea: 80,
+      noOfFloors: 1,
+      yearBuilt: '2016',
+      estimatedAge: 10,
+      economicLife: 50,
+      constructionType: 'Concrete',
+      roofType: 'Longspan Pre-painted GI Sheet',
+      noOfBedrooms: 3,
+      noOfToiletAndBath: 2,
+      garage: '1-Car Carport',
+      overallCondition: 'Good',
+      occupancy: 'Owner Occupied',
+      roadAccessWidth: '8 meters',
+      inspectionDate: new Date().toISOString().split('T')[0],
+      appraiser: user.fullName || '',
+      physicalComponents: DEFAULT_PHYSICAL_COMPONENTS,
+      overallPhysicalCondition: 'Good Condition (Well Maintained)',
+      constructionCostPerSqm: 30000,
+      replacementCostNew: 2400000,
+      effectiveAge: 10,
+      economicLifeYears: 50,
+      straightLineDepreciationPct: 20,
+      depreciationAmount: 480000,
+      depreciatedMainHouseValue: 1920000,
+      additionalImprovements: DEFAULT_ADDITIONAL_IMPROVEMENTS,
+      totalImprovementCostNew: 2960000,
+      totalDepreciatedImprovementValue: 2360500,
+      comp1Location: 'Subdivision Phase 1, Block 3',
+      comp2Location: 'Subdivision Phase 2, Block 8',
+      comp3Location: 'Adjacent Barangay 400m',
+      comp1FloorArea: 85,
+      comp2FloorArea: 75,
+      comp3FloorArea: 90,
+      comp1LotArea: 150,
+      comp2LotArea: 140,
+      comp3LotArea: 160,
+      comp1YearBuilt: '2017',
+      comp2YearBuilt: '2015',
+      comp3YearBuilt: '2018',
+      comp1Condition: 'Good Condition',
+      comp2Condition: 'Good Condition',
+      comp3Condition: 'Fair / Minor Repainting',
+      comp1NoOfFloors: 1,
+      comp2NoOfFloors: 1,
+      comp3NoOfFloors: 2,
+      comp1Bedrooms: 3,
+      comp2Bedrooms: 2,
+      comp3Bedrooms: 3,
+      comp1ToiletBath: 2,
+      comp2ToiletBath: 1,
+      comp3ToiletBath: 2,
+      comp1Garage: '1-Car Carport',
+      comp2Garage: '1-Car Carport',
+      comp3Garage: '2-Car Garage',
+      comp1Construction: 'Concrete',
+      comp2Construction: 'Concrete',
+      comp3Construction: 'Semi-Concrete',
+      comp1Price: 2450000,
+      comp2Price: 2300000,
+      comp3Price: 2600000,
+      comp1LocationAdj: 0,
+      comp2LocationAdj: 30000,
+      comp3LocationAdj: -50000,
+      comp1FloorAreaAdj: -90000,
+      comp2FloorAreaAdj: 90000,
+      comp3FloorAreaAdj: -180000,
+      comp1ConditionAdj: 0,
+      comp2ConditionAdj: 0,
+      comp3ConditionAdj: 80000,
+      comp1AgeAdj: -30000,
+      comp2AgeAdj: 30000,
+      comp3AgeAdj: -60000,
+      comp1QualityAdj: 0,
+      comp2QualityAdj: 0,
+      comp3QualityAdj: 0,
+      comp1AmenitiesAdj: 0,
+      comp2AmenitiesAdj: 0,
+      comp3AmenitiesAdj: 0,
+      comp1OtherAdj: 0,
+      comp2OtherAdj: 0,
+      comp3OtherAdj: 0,
+      costApproachWeight: 60,
+      comparableApproachWeight: 40,
+      reconciledValue: 2396300,
+      recommendedImprovementValue: 2400000,
+      landMarketValue: 2000000,
+      improvementMarketValue: 2400000,
+      totalMarketValue: 4400000,
+      forcedSaleValuePct: 70,
+      forcedSaleValue: 3080000,
+      maxLtvPct: 70,
+      maxLoanableAmount: 2156000,
+      recommendedCollateralValue: 3080000
+    },
+
     photoChecklist: REAL_PROPERTY_CHECKLIST.reduce((acc, item) => ({ ...acc, [item]: false }), {})
   };
 
@@ -1067,12 +1170,21 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
     }
     try {
       const reportNum = `REP-RP-${Date.now().toString().slice(-6)}`;
-      const risk = calculateRiskLevel(appliedRealLoanAmount, realAverageMarketValue, realTargetLtv);
+      const houseEnabled = realProp.houseImprovement?.enabled ?? true;
+      const combinedMarketValue = houseEnabled 
+        ? (realAverageMarketValue + (realProp.houseImprovement?.recommendedImprovementValue || 2400000))
+        : realAverageMarketValue;
+      const finalRecLoan = houseEnabled
+        ? (realProp.houseImprovement?.maxLoanableAmount || Math.round(combinedMarketValue * 0.7 * 0.7))
+        : realProp.recommendedLoanAmount;
+
+      const risk = calculateRiskLevel(appliedRealLoanAmount, combinedMarketValue, realTargetLtv);
 
       const realDataToSave: RealPropertyAppraisal = {
         ...realProp,
         appliedLoanAmount: appliedRealLoanAmount,
-        targetLtv: realTargetLtv
+        targetLtv: realTargetLtv,
+        recommendedLoanAmount: finalRecLoan
       };
 
       const payload: Omit<AppraisalRecord, 'id'> = {
@@ -1082,8 +1194,8 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
         title: `Real Property Appraisal - ${realProp.borrower}`,
         reportType: 'real_property',
         borrowerName: realProp.borrower,
-        marketValue: realAverageMarketValue,
-        recommendedLoan: realProp.recommendedLoanAmount,
+        marketValue: combinedMarketValue,
+        recommendedLoan: finalRecLoan,
         appliedLoanAmount: appliedRealLoanAmount,
         targetLtv: realTargetLtv,
         riskLevel: risk,
@@ -1303,24 +1415,48 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
           {/* Quick Metrics & Preset Banner */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
-              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Average Market Value</span>
-              <p className="text-xl font-black text-emerald-900 mt-1">{fmt(realAverageMarketValue)}</p>
-              <p className="text-[10px] text-slate-500 mt-0.5">3-Comparable Reconciliation</p>
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                {realProp.houseImprovement?.enabled ? 'Total Property Value (Land + House)' : 'Average Land Market Value'}
+              </span>
+              <p className="text-xl font-black text-emerald-900 mt-1">
+                {fmt(realProp.houseImprovement?.enabled 
+                  ? (realAverageMarketValue + (realProp.houseImprovement.recommendedImprovementValue || 2400000))
+                  : realAverageMarketValue)}
+              </p>
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                {realProp.houseImprovement?.enabled 
+                  ? `Land: ${fmt(realAverageMarketValue)} | House: ${fmt(realProp.houseImprovement.recommendedImprovementValue || 2400000)}`
+                  : '3-Comparable Land Reconciliation'}
+              </p>
             </div>
             <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
-              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Loan-to-Value (70%)</span>
-              <p className="text-xl font-black text-teal-800 mt-1">{fmt(realLtv70)}</p>
-              <p className="text-[10px] text-slate-500 mt-0.5">70% Max Ceiling</p>
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                {realProp.houseImprovement?.enabled ? 'Combined Forced Sale Value (FSV)' : 'Forced Sale Value (80% of LTV)'}
+              </span>
+              <p className="text-xl font-black text-teal-800 mt-1">
+                {fmt(realProp.houseImprovement?.enabled 
+                  ? Math.round((realAverageMarketValue + (realProp.houseImprovement.recommendedImprovementValue || 2400000)) * 0.70)
+                  : realForcedSaleValue)}
+              </p>
+              <p className="text-[10px] text-slate-500 mt-0.5">70% Liquidation Standard</p>
             </div>
             <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
-              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Forced Sale Value (80% of LTV)</span>
-              <p className="text-xl font-black text-amber-700 mt-1">{fmt(realForcedSaleValue)}</p>
-              <p className="text-[10px] text-slate-500 mt-0.5">Liquidation Safety Standard</p>
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Maximum Loanable Collateral</span>
+              <p className="text-xl font-black text-amber-700 mt-1">
+                {fmt(realProp.houseImprovement?.enabled 
+                  ? (realProp.houseImprovement.maxLoanableAmount || Math.round((realAverageMarketValue + (realProp.houseImprovement.recommendedImprovementValue || 2400000)) * 0.70 * 0.70))
+                  : realProp.recommendedLoanAmount)}
+              </p>
+              <p className="text-[10px] text-slate-500 mt-0.5">70% Max LTV Ceiling</p>
             </div>
             <div className="bg-emerald-900 text-white rounded-2xl p-5 border border-emerald-800 shadow-md flex flex-col justify-between">
               <div>
                 <span className="text-[10px] font-black uppercase text-emerald-300 tracking-wider">Recommended Loan Amount</span>
-                <p className="text-2xl font-black text-white mt-1">{fmt(realProp.recommendedLoanAmount)}</p>
+                <p className="text-2xl font-black text-white mt-1">
+                  {fmt(realProp.houseImprovement?.enabled 
+                    ? (realProp.houseImprovement.maxLoanableAmount || realProp.recommendedLoanAmount)
+                    : realProp.recommendedLoanAmount)}
+                </p>
               </div>
               <button
                 onClick={handleSaveRealProperty}
@@ -1826,6 +1962,119 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
               </div>
             </div>
           </div>
+
+          {/* HOUSE & IMPROVEMENT APPRAISAL MODULE */}
+          <HouseImprovementAppraisalSection
+            data={realProp.houseImprovement || {
+              enabled: true,
+              propertyOwner: realProp.propertyOwner || '',
+              propertyAddress: realProp.propertyAddress || '',
+              propertyType: 'Residential House',
+              lotArea: realProp.lotArea || 150,
+              floorArea: realProp.floorArea || 80,
+              noOfFloors: 1,
+              yearBuilt: '2016',
+              estimatedAge: 10,
+              economicLife: 50,
+              constructionType: 'Concrete',
+              roofType: 'Longspan Pre-painted GI Sheet',
+              noOfBedrooms: 3,
+              noOfToiletAndBath: 2,
+              garage: '1-Car Carport',
+              overallCondition: 'Good',
+              occupancy: 'Owner Occupied',
+              roadAccessWidth: '8 meters',
+              inspectionDate: realProp.inspectionDate || new Date().toISOString().split('T')[0],
+              appraiser: user.fullName || realProp.appraiser || '',
+              physicalComponents: DEFAULT_PHYSICAL_COMPONENTS,
+              overallPhysicalCondition: 'Good Condition (Well Maintained)',
+              constructionCostPerSqm: 30000,
+              replacementCostNew: 2400000,
+              effectiveAge: 10,
+              economicLifeYears: 50,
+              straightLineDepreciationPct: 20,
+              depreciationAmount: 480000,
+              depreciatedMainHouseValue: 1920000,
+              additionalImprovements: DEFAULT_ADDITIONAL_IMPROVEMENTS,
+              totalImprovementCostNew: 2960000,
+              totalDepreciatedImprovementValue: 2360500,
+              comp1Location: 'Subdivision Phase 1, Block 3',
+              comp2Location: 'Subdivision Phase 2, Block 8',
+              comp3Location: 'Adjacent Barangay 400m',
+              comp1FloorArea: 85,
+              comp2FloorArea: 75,
+              comp3FloorArea: 90,
+              comp1LotArea: 150,
+              comp2LotArea: 140,
+              comp3LotArea: 160,
+              comp1YearBuilt: '2017',
+              comp2YearBuilt: '2015',
+              comp3YearBuilt: '2018',
+              comp1Condition: 'Good Condition',
+              comp2Condition: 'Good Condition',
+              comp3Condition: 'Fair / Minor Repainting',
+              comp1NoOfFloors: 1,
+              comp2NoOfFloors: 1,
+              comp3NoOfFloors: 2,
+              comp1Bedrooms: 3,
+              comp2Bedrooms: 2,
+              comp3Bedrooms: 3,
+              comp1ToiletBath: 2,
+              comp2ToiletBath: 1,
+              comp3ToiletBath: 2,
+              comp1Garage: '1-Car Carport',
+              comp2Garage: '1-Car Carport',
+              comp3Garage: '2-Car Garage',
+              comp1Construction: 'Concrete',
+              comp2Construction: 'Concrete',
+              comp3Construction: 'Semi-Concrete',
+              comp1Price: 2450000,
+              comp2Price: 2300000,
+              comp3Price: 2600000,
+              comp1LocationAdj: 0,
+              comp2LocationAdj: 30000,
+              comp3LocationAdj: -50000,
+              comp1FloorAreaAdj: -90000,
+              comp2FloorAreaAdj: 90000,
+              comp3FloorAreaAdj: -180000,
+              comp1ConditionAdj: 0,
+              comp2ConditionAdj: 0,
+              comp3ConditionAdj: 80000,
+              comp1AgeAdj: -30000,
+              comp2AgeAdj: 30000,
+              comp3AgeAdj: -60000,
+              comp1QualityAdj: 0,
+              comp2QualityAdj: 0,
+              comp3QualityAdj: 0,
+              comp1AmenitiesAdj: 0,
+              comp2AmenitiesAdj: 0,
+              comp3AmenitiesAdj: 0,
+              comp1OtherAdj: 0,
+              comp2OtherAdj: 0,
+              comp3OtherAdj: 0,
+              costApproachWeight: 60,
+              comparableApproachWeight: 40,
+              reconciledValue: 2396300,
+              recommendedImprovementValue: 2400000,
+              landMarketValue: realAverageMarketValue,
+              improvementMarketValue: 2400000,
+              totalMarketValue: realAverageMarketValue + 2400000,
+              forcedSaleValuePct: 70,
+              forcedSaleValue: Math.round((realAverageMarketValue + 2400000) * 0.70),
+              maxLtvPct: 70,
+              maxLoanableAmount: Math.round((realAverageMarketValue + 2400000) * 0.70 * 0.70),
+              recommendedCollateralValue: Math.round((realAverageMarketValue + 2400000) * 0.70)
+            }}
+            onChange={(updated) => {
+              setRealProp(prev => ({
+                ...prev,
+                houseImprovement: updated,
+                recommendedLoanAmount: updated.enabled ? (updated.maxLoanableAmount || prev.recommendedLoanAmount) : prev.recommendedLoanAmount
+              }));
+            }}
+            landMarketValue={realAverageMarketValue}
+            fmt={fmt}
+          />
 
           {/* VII. Appraiser's Opinion & Photo Checklist */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2652,40 +2901,145 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
               {printModalRecord.reportType === 'real_property' ? (
                 (() => {
                   const d = printModalRecord.data as RealPropertyAppraisal;
+                  const h = d.houseImprovement;
                   return (
                     <div className="space-y-6 text-xs text-slate-800">
                       <div>
                         <h3 className="font-black uppercase tracking-wider text-emerald-900 mb-2 border-b border-slate-200 pb-1">I. General Information</h3>
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                           <p><strong>Borrower:</strong> {d.borrower}</p>
-                          <p><strong>Property Owner:</strong> {d.propertyOwner}</p>
-                          <p><strong>Address:</strong> {d.propertyAddress}</p>
-                          <p><strong>Inspection Date:</strong> {d.inspectionDate}</p>
-                          <p><strong>Appraiser:</strong> {d.appraiser}</p>
+                          <p><strong>Property Owner:</strong> {h?.propertyOwner || d.propertyOwner}</p>
+                          <p><strong>Address:</strong> {h?.propertyAddress || d.propertyAddress}</p>
+                          <p><strong>Inspection Date:</strong> {h?.inspectionDate || d.inspectionDate}</p>
+                          <p><strong>Appraiser:</strong> {h?.appraiser || d.appraiser}</p>
                           <p><strong>Title No:</strong> {d.titleNo}</p>
                           <p><strong>Tax Dec No:</strong> {d.taxDecNo}</p>
-                          <p><strong>Property Type:</strong> {d.propertyType}</p>
+                          <p><strong>Property Type:</strong> {h?.propertyType || d.propertyType}</p>
                           <p><strong>Lot Area:</strong> {d.lotArea} sqm</p>
-                          <p><strong>Floor Area:</strong> {d.floorArea} sqm</p>
+                          <p><strong>Floor Area:</strong> {h?.floorArea || d.floorArea} sqm</p>
+                          {h?.enabled && (
+                            <>
+                              <p><strong>Construction Type:</strong> {h.constructionType}</p>
+                              <p><strong>Roof Type:</strong> {h.roofType}</p>
+                              <p><strong>Bedrooms / T&B:</strong> {h.noOfBedrooms} BR / {h.noOfToiletAndBath} T&B</p>
+                              <p><strong>Year Built / Age:</strong> {h.yearBuilt} ({h.estimatedAge} years)</p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {h?.enabled && h.physicalComponents && h.physicalComponents.length > 0 && (
+                        <div>
+                          <h3 className="font-black uppercase tracking-wider text-emerald-900 mb-2 border-b border-slate-200 pb-1">II. Physical Inspection (Component Breakdown)</h3>
+                          <table className="w-full text-left border-collapse border border-slate-300">
+                            <thead>
+                              <tr className="bg-slate-100 text-[10px] uppercase font-bold text-slate-700">
+                                <th className="p-1.5 border border-slate-300">Component</th>
+                                <th className="p-1.5 border border-slate-300">Description / Specs</th>
+                                <th className="p-1.5 border border-slate-300">Condition</th>
+                                <th className="p-1.5 border border-slate-300 text-center">Depr %</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200 text-[11px]">
+                              {h.physicalComponents.map(c => (
+                                <tr key={c.component}>
+                                  <td className="p-1.5 border border-slate-300 font-bold">{c.component}</td>
+                                  <td className="p-1.5 border border-slate-300">{c.description}</td>
+                                  <td className="p-1.5 border border-slate-300">{c.condition}</td>
+                                  <td className="p-1.5 border border-slate-300 text-center font-bold">{c.depreciationPct}%</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      {h?.enabled && (
+                        <div>
+                          <h3 className="font-black uppercase tracking-wider text-emerald-900 mb-2 border-b border-slate-200 pb-1">III. Cost Approach & Additional Improvements</h3>
+                          <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-200 mb-3">
+                            <div>
+                              <p><strong>Main Floor Area:</strong> {h.floorArea} sqm</p>
+                              <p><strong>Cost / sqm:</strong> {fmt(h.constructionCostPerSqm || 30000)}</p>
+                              <p><strong>Replacement Cost New (RCN):</strong> {fmt(h.replacementCostNew || 2400000)}</p>
+                            </div>
+                            <div>
+                              <p><strong>Effective Age / Life:</strong> {h.effectiveAge || 10} / {h.economicLifeYears || 50} yrs</p>
+                              <p><strong>Depreciation Rate:</strong> {h.straightLineDepreciationPct || 20}% (-{fmt(h.depreciationAmount || 480000)})</p>
+                              <p><strong>Depreciated Main House:</strong> {fmt(h.depreciatedMainHouseValue || 1920000)}</p>
+                            </div>
+                          </div>
+
+                          {h.additionalImprovements && (
+                            <table className="w-full text-left border-collapse border border-slate-300 text-[11px]">
+                              <thead>
+                                <tr className="bg-slate-100 uppercase text-[10px] font-bold">
+                                  <th className="p-1.5 border border-slate-300">Improvement Item</th>
+                                  <th className="p-1.5 border border-slate-300">Qty / Area</th>
+                                  <th className="p-1.5 border border-slate-300">New Cost</th>
+                                  <th className="p-1.5 border border-slate-300">Depr %</th>
+                                  <th className="p-1.5 border border-slate-300">Depreciated Value</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {h.additionalImprovements.map(imp => (
+                                  <tr key={imp.id}>
+                                    <td className="p-1.5 border border-slate-300 font-bold">{imp.name}</td>
+                                    <td className="p-1.5 border border-slate-300">{imp.qtyArea}</td>
+                                    <td className="p-1.5 border border-slate-300">{fmt(imp.newCost)}</td>
+                                    <td className="p-1.5 border border-slate-300">{imp.depreciationPct}%</td>
+                                    <td className="p-1.5 border border-slate-300 font-bold">{fmt(imp.depreciatedValue)}</td>
+                                  </tr>
+                                ))}
+                                <tr className="bg-emerald-50 font-bold">
+                                  <td colSpan={4} className="p-1.5 border border-slate-300 uppercase">Total Depreciated Improvements (Cost Approach)</td>
+                                  <td className="p-1.5 border border-slate-300 font-black text-emerald-900">{fmt(h.totalDepreciatedImprovementValue || 2360500)}</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          )}
+                        </div>
+                      )}
+
+                      <div>
+                        <h3 className="font-black uppercase tracking-wider text-emerald-900 mb-2 border-b border-slate-200 pb-1">
+                          {h?.enabled ? 'IV. Final Combined Valuation & Lending Parameters' : 'II. Final Valuation & Loan Computation'}
+                        </h3>
+                        <div className="grid grid-cols-3 gap-3 bg-emerald-50 p-4 rounded-xl border border-emerald-200 text-center">
+                          <div>
+                            <p className="text-[10px] uppercase font-bold text-slate-500">1. Land Market Value</p>
+                            <p className="text-sm font-black text-slate-800">
+                              {fmt(h?.enabled ? (h.landMarketValue || (printModalRecord.marketValue - (h.recommendedImprovementValue || 2400000))) : printModalRecord.marketValue)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase font-bold text-slate-500">2. House Improvement Value</p>
+                            <p className="text-sm font-black text-teal-800">
+                              {fmt(h?.enabled ? (h.recommendedImprovementValue || 2400000) : 0)}
+                            </p>
+                          </div>
+                          <div className="bg-emerald-100 p-2 rounded-lg border border-emerald-300">
+                            <p className="text-[10px] uppercase font-black text-emerald-950">Total Combined Market Value</p>
+                            <p className="text-base font-black text-emerald-900">{fmt(printModalRecord.marketValue)}</p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 mt-3">
+                          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                            <p className="text-[10px] uppercase font-bold text-slate-500">Forced Sale Value (FSV @ 70%)</p>
+                            <p className="text-sm font-black text-amber-800">{fmt(Math.round(printModalRecord.marketValue * 0.70))}</p>
+                          </div>
+                          <div className="p-3 bg-emerald-600 text-white rounded-lg">
+                            <p className="text-[10px] uppercase font-bold text-emerald-100">Maximum Recommended Loan</p>
+                            <p className="text-base font-black text-white">{fmt(printModalRecord.recommendedLoan)}</p>
+                          </div>
                         </div>
                       </div>
 
                       <div>
-                        <h3 className="font-black uppercase tracking-wider text-emerald-900 mb-2 border-b border-slate-200 pb-1">II. Final Valuation & Loan Computation</h3>
-                        <div className="grid grid-cols-2 gap-4 bg-emerald-50 p-4 rounded-xl border border-emerald-200">
-                          <div>
-                            <p className="text-[10px] uppercase font-bold text-slate-500">Average Market Value</p>
-                            <p className="text-sm font-black text-emerald-900">{fmt(printModalRecord.marketValue)}</p>
-                          </div>
-                          <div>
-                            <p className="text-[10px] uppercase font-bold text-slate-500">Recommended Loan Amount</p>
-                            <p className="text-sm font-black text-teal-900">{fmt(printModalRecord.recommendedLoan)}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <h3 className="font-black uppercase tracking-wider text-emerald-900 mb-2 border-b border-slate-200 pb-1">III. Appraiser's Opinion & Remarks</h3>
+                        <h3 className="font-black uppercase tracking-wider text-emerald-900 mb-2 border-b border-slate-200 pb-1">
+                          {h?.enabled ? 'V. Appraiser\'s Opinion & Certification' : 'III. Appraiser\'s Opinion & Remarks'}
+                        </h3>
                         <p><strong>Opinion:</strong> {d.opinion}</p>
                         <p className="mt-1 italic text-slate-600">"{d.opinionRemarks}"</p>
                       </div>
