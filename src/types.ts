@@ -201,38 +201,47 @@ export interface CreditScore {
 
 export interface MCLCreditScore {
   answers?: Record<string, string>;
-  character: {
-    reputation: number;
-    repaymentHistory: number;
-    creditBackground: number;
-    cooperation: number;
+  sectionGrades?: Record<string, number>;
+  character?: {
+    reputation?: number;
+    repaymentHistory?: number;
+    creditBackground?: number;
+    cooperation?: number;
+    [key: string]: any;
   };
-  incomeCapacity: {
-    stability: number;
-    incomeVsAmort: number;
-    otherIncome: number;
-    bankAccount: number;
+  incomeCapacity?: {
+    stability?: number;
+    incomeVsAmort?: number;
+    otherIncome?: number;
+    bankAccount?: number;
+    [key: string]: any;
   };
-  employmentBusiness: {
-    typeOfWork: number;
-    lengthOfService: number;
-    consistency: number;
+  employmentBusiness?: {
+    typeOfWork?: number;
+    lengthOfService?: number;
+    consistency?: number;
+    [key: string]: any;
   };
-  residence: {
-    ownership: number;
-    lengthOfStay: number;
-    condition: number;
+  residence?: {
+    ownership?: number;
+    lengthOfStay?: number;
+    condition?: number;
+    [key: string]: any;
   };
-  loanFactors: {
-    purpose: number;
-    downpayment: number;
-    existingDebts: number;
-    cicCmap: number;
+  loanFactors?: {
+    purpose?: number;
+    downpayment?: number;
+    existingDebts?: number;
+    cicCmap?: number;
+    [key: string]: any;
   };
   totalScore: number;
-  riskClassification: 'Low Risk' | 'Medium Risk' | 'High Risk';
+  riskScore?: number;
+  riskClassification: string;
   ciRemarks: string;
+  recommendation?: string;
   isBusinessEnabled?: boolean;
+  createdAt?: string;
 }
 
 export interface Assignment {

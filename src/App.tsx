@@ -6544,11 +6544,17 @@ function AccountStatus({ user }: { user: UserProfile }) {
   const handleNextStep = async (assignment: Assignment) => {
     const isMCL = assignment.loanCategory === 'MCL';
     if (assignment.status === 'Field CIBI' && ((isMCL && !assignment.mclCreditScore) || (!isMCL && !assignment.creditScore))) {
-      alert('Please complete and save the Credit Scoring before proceeding to the next step.');
+      alert(isMCL 
+        ? '⚠️ MCL Account Requirement: Please complete and save the MCL Credit Score before proceeding to the next step.' 
+        : 'Please complete and save the Credit Scoring before proceeding to the next step.');
       return;
     }
 
     if (assignment.status === 'Cashflowing') {
+      if (isMCL && !assignment.mclCreditScore) {
+        alert('⚠️ MCL Account Requirement: MCL Credit Score must be completed and recorded before proceeding.');
+        return;
+      }
       if (!assignment.cashflowReport) {
         alert('Please complete and save the Cashflow Report before proceeding to the next step.');
         return;
@@ -6930,7 +6936,7 @@ function AccountStatus({ user }: { user: UserProfile }) {
             )}
 
             {/* Credit Scoring Module */}
-            {(selected.status === 'Field CIBI' || selected.creditScore) && (
+            {(selected.status === 'Field CIBI' || selected.creditScore || selected.mclCreditScore) && (
               <CreditScoringModule assignment={selected} user={user} />
             )}
 
@@ -8762,6 +8768,13 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
 
   const handleSave = async () => {
     if (!results) return;
+    
+    // Strict validation for CI remarks
+    if (!formData.ciRemarks || !formData.ciRemarks.trim()) {
+      alert('CI Remarks / Field Findings are required. Please fill in the remarks before saving the credit score.');
+      return;
+    }
+
     setIsSaving(true);
     try {
       const { sectionGrades, totalGrade, riskScore, riskClassification } = results;
@@ -8774,14 +8787,40 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
       });
 
       if (isMCL) {
+        // Map section specific criteria points for full breakdown compatibility
+        const mclCharacter: Record<string, number> = {};
+        const mclIncome: Record<string, number> = {};
+        const mclEmp: Record<string, number> = {};
+        const mclRes: Record<string, number> = {};
+        const mclLoan: Record<string, number> = {};
+
+        Object.entries(CURRENT_SHEET).forEach(([sKey, sObj]: [string, any]) => {
+          sObj.items.forEach((it: any) => {
+            const selectedOpt = it.options.find((o: any) => o.l === answers[it.id]);
+            const pts = selectedOpt ? selectedOpt.p : 0;
+            if (sKey === 'CHARACTER') mclCharacter[it.id] = pts;
+            else if (sKey === 'INCOME_CAPACITY') mclIncome[it.id] = pts;
+            else if (sKey === 'EMPLOYMENT_BUSINESS') mclEmp[it.id] = pts;
+            else if (sKey === 'RESIDENCE') mclRes[it.id] = pts;
+            else if (sKey === 'LOAN_FACTORS') mclLoan[it.id] = pts;
+          });
+        });
+
         const mclScore = {
           answers,
+          sectionGrades,
           totalScore: totalGrade,
+          riskScore,
           riskClassification,
           ciRemarks: formData.ciRemarks,
+          recommendation: formData.recommendation || results.autoRecommendation || 'Approved',
           isBusinessEnabled,
-          // Legacy keys for safety (though mostly relying on answers now)
-          character: {}, incomeCapacity: {}, employmentBusiness: {}, residence: {}, loanFactors: {}
+          character: mclCharacter,
+          incomeCapacity: mclIncome,
+          employmentBusiness: mclEmp,
+          residence: mclRes,
+          loanFactors: mclLoan,
+          createdAt: new Date().toISOString()
         };
         await updateDoc(doc(db, 'assignments', assignment.id), { mclCreditScore: mclScore });
       } else {
@@ -8794,7 +8833,8 @@ function CreditScoringModule({ assignment, user, isReadOnly: forceReadOnly }: { 
           ciRemarks: formData.ciRemarks,
           isBusinessEnabled,
           riskClassification,
-          finalGrade: riskClassification
+          finalGrade: riskClassification,
+          createdAt: new Date().toISOString()
         };
         await updateDoc(doc(db, 'assignments', assignment.id), { creditScore: scoreData });
       }
@@ -9455,6 +9495,11 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
   };
 
   const handleSave = async () => {
+    const isMCL = assignment.loanCategory === 'MCL';
+    if (isMCL && !assignment.mclCreditScore) {
+      alert('⚠️ MCL Account Requirement: Please ensure the MCL Credit Score is filled up and recorded before submitting/committing the report.');
+      return;
+    }
     if (!ciRecommendation.remarks || !ciRecommendation.remarks.trim()) {
       alert('CI Remarks & Justification is required. Please fill up the remarks before committing the Cashflow Report.');
       return;
@@ -12340,8 +12385,53 @@ function ReportsView({ user }: { user: UserProfile }) {
     let rows: (string | number)[][] = [];
 
     if (activeReportTab === 'assignments') {
-      headers = ['Borrower', 'Account Type', 'Officer', 'Status', 'Date'];
-      rows = (data as Assignment[]).map(a => [a.borrowerName, a.accountType, a.ciOfficerName, a.status, a.createdAt]);
+      headers = [
+        'Borrower Name',
+        'Account Type',
+        'Loan Category',
+        'Requested Amount (PHP)',
+        'Term',
+        'Credit Score / Points',
+        'Risk Classification',
+        'CI Recommendation',
+        'CI Officer',
+        'Status',
+        'Date Created',
+        'CI Remarks'
+      ];
+      rows = (data as Assignment[]).map(a => {
+        const isMCL = a.loanCategory === 'MCL';
+        const scoreDisplay = isMCL
+          ? (a.mclCreditScore?.totalScore !== undefined ? `${a.mclCreditScore.totalScore} Pts (MCL)` : 'Pending Score')
+          : (a.creditScore?.totalGrade !== undefined ? `${a.creditScore.totalGrade.toFixed(1)} / 100` : 'Pending Score');
+        
+        const riskClass = isMCL
+          ? (a.mclCreditScore?.riskClassification || 'Pending')
+          : (a.creditScore?.riskClassification || 'Pending');
+
+        const remarks = isMCL
+          ? (a.mclCreditScore?.ciRemarks || '')
+          : (a.creditScore?.ciRemarks || '');
+
+        const rec = isMCL
+          ? (a.mclCreditScore?.recommendation || (a.mclCreditScore?.riskClassification === 'High Risk' ? 'Denied' : 'Approved'))
+          : (a.creditScore?.recommendation || 'Approved');
+
+        return [
+          `"${(a.borrowerName || '').replace(/"/g, '""')}"`,
+          `"${(a.accountType || '').replace(/"/g, '""')}"`,
+          `"${(a.loanCategory || 'SME').replace(/"/g, '""')}"`,
+          a.requestedAmount || 0,
+          `"${a.term || ''}"`,
+          `"${scoreDisplay}"`,
+          `"${riskClass}"`,
+          `"${rec}"`,
+          `"${(a.ciOfficerName || '').replace(/"/g, '""')}"`,
+          `"${(a.status || '').replace(/"/g, '""')}"`,
+          `"${a.createdAt ? format(new Date(a.createdAt), 'yyyy-MM-dd') : ''}"`,
+          `"${remarks.replace(/"/g, '""')}"`
+        ];
+      });
     } else if (activeReportTab === 'attendance') {
       headers = ['Employee', 'Date', 'Time In', 'Time Out', 'Status'];
       rows = (data as AttendanceRecord[]).map(a => [a.userName, a.date, a.timeIn, a.timeOut, a.status]);
@@ -12503,6 +12593,15 @@ function ReportsView({ user }: { user: UserProfile }) {
                     <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">No. of Days</th>
                     <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Status</th>
                   </>
+                ) : activeReportTab === 'assignments' ? (
+                  <>
+                    <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Borrower & Category</th>
+                    <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Loan Details</th>
+                    <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Credit Score & Risk</th>
+                    <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">CI Officer & Remarks</th>
+                    <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Date</th>
+                    <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Status</th>
+                  </>
                 ) : (
                   <>
                     <th className="p-8 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Primary Entity</th>
@@ -12514,24 +12613,73 @@ function ReportsView({ user }: { user: UserProfile }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50/50">
-              {activeReportTab === 'assignments' && filteredAssignments.map(a => (
-                <tr key={a.id} className="group hover:bg-emerald-50/30 transition-all duration-300">
-                  <td className="p-8">
-                    <p className="text-sm font-black text-emerald-950 uppercase">{a.borrowerName}</p>
-                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{a.accountType}</p>
-                  </td>
-                  <td className="p-8">
-                    <p className="text-xs font-black text-emerald-800">₱{a.requestedAmount.toLocaleString()}</p>
-                    <p className="text-[9px] text-gray-400 font-medium italic mt-0.5">{a.term} Duration</p>
-                  </td>
-                  <td className="p-8">
-                    <p className="text-xs font-mono text-gray-500 font-bold">{format(new Date(a.createdAt), 'MMM dd, yyyy')}</p>
-                  </td>
-                  <td className="p-8">
-                    <span className="px-5 py-1.5 bg-emerald-100/50 text-emerald-700 text-[9px] font-black uppercase rounded-full tracking-widest border border-emerald-200/50">{a.status}</span>
-                  </td>
-                </tr>
-              ))}
+              {activeReportTab === 'assignments' && filteredAssignments.map(a => {
+                const isMCL = a.loanCategory === 'MCL';
+                const scoreDisplay = isMCL
+                  ? (a.mclCreditScore?.totalScore !== undefined ? `${a.mclCreditScore.totalScore} Pts` : 'Pending')
+                  : (a.creditScore?.totalGrade !== undefined ? `${a.creditScore.totalGrade.toFixed(1)} / 100` : 'Pending');
+                
+                const riskClass = isMCL
+                  ? (a.mclCreditScore?.riskClassification || 'Pending')
+                  : (a.creditScore?.riskClassification || 'Pending');
+
+                const remarks = isMCL
+                  ? (a.mclCreditScore?.ciRemarks || '')
+                  : (a.creditScore?.ciRemarks || '');
+
+                return (
+                  <tr key={a.id} className="group hover:bg-emerald-50/30 transition-all duration-300">
+                    <td className="p-8">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-black text-emerald-950 uppercase">{a.borrowerName}</p>
+                        {isMCL && (
+                          <span className="px-2 py-0.5 bg-emerald-600 text-white text-[8px] font-black uppercase rounded-md tracking-wider">
+                            MCL
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{a.accountType} • {a.loanCategory || 'SME'}</p>
+                    </td>
+                    <td className="p-8">
+                      <p className="text-xs font-black text-emerald-800">₱{a.requestedAmount.toLocaleString()}</p>
+                      <p className="text-[9px] text-gray-400 font-medium italic mt-0.5">{a.term} Duration</p>
+                    </td>
+                    <td className="p-8">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-emerald-950">{scoreDisplay}</span>
+                        {riskClass !== 'Pending' && (
+                          <span className={cn(
+                            "px-2 py-0.5 text-[8px] font-black uppercase rounded-md tracking-wider border",
+                            riskClass.toLowerCase().includes('low') || riskClass.toLowerCase().includes('strong') 
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                              : riskClass.toLowerCase().includes('high') 
+                              ? "bg-red-50 text-red-700 border-red-200" 
+                              : "bg-amber-50 text-amber-700 border-amber-200"
+                          )}>
+                            {riskClass}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-8 max-w-[200px]">
+                      <p className="text-xs font-bold text-gray-800 truncate">{a.ciOfficerName || 'Unassigned'}</p>
+                      {remarks ? (
+                        <p className="text-[9px] text-gray-500 truncate mt-0.5 italic" title={remarks}>
+                          "{remarks}"
+                        </p>
+                      ) : (
+                        <p className="text-[9px] text-gray-300 italic mt-0.5">No remarks filed</p>
+                      )}
+                    </td>
+                    <td className="p-8">
+                      <p className="text-xs font-mono text-gray-500 font-bold">{format(new Date(a.createdAt), 'MMM dd, yyyy')}</p>
+                    </td>
+                    <td className="p-8">
+                      <span className="px-5 py-1.5 bg-emerald-100/50 text-emerald-700 text-[9px] font-black uppercase rounded-full tracking-widest border border-emerald-200/50">{a.status}</span>
+                    </td>
+                  </tr>
+                );
+              })}
               
               {activeReportTab === 'attendance' && filteredAttendance.map(a => (
                 <tr key={a.id} className="group hover:bg-emerald-50/30 transition-all duration-300">

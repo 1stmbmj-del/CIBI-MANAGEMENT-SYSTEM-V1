@@ -1782,31 +1782,7 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
               <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-1 shadow-sm">
                 <LotPlottingModule
                   user={user}
-                  initialData={realProp.lotPlotting || {
-                    propertyId: `PROP-${Date.now().toString().slice(-5)}`,
-                    lotNo: 'Lot 123',
-                    surveyPlan: 'Psd-04-123456',
-                    titleNo: realProp.titleNo || 'T-123456',
-                    location: realProp.propertyAddress || 'Brgy. San Antonio, Pasig City',
-                    statedArea: realProp.lotArea || 150,
-                    numberOfCorners: 4,
-                    plotStatus: 'Verified',
-                    lotShape: 'Regular Rectangular',
-                    frontageMeters: 10.0,
-                    depthMeters: 15.0,
-                    roadWidth: realProp.roadAccess || '8.00 meters concrete road',
-                    roadAccessType: 'Along Barangay Concrete Road',
-                    boundaryNorth: 'Lot 124',
-                    boundaryEast: 'Lot 125',
-                    boundarySouth: 'Road Lot 2',
-                    boundaryWest: 'Lot 122',
-                    traverses: [
-                      { id: '1', fromPoint: 1, toPoint: 2, quadrant: 'S-E', deg: 25, min: 30, sec: 0, distance: 15.0, bearingString: "S 25° 30' E", boundaryDescription: "Frontage along Road Lot 2" },
-                      { id: '2', fromPoint: 2, toPoint: 3, quadrant: 'S-W', deg: 64, min: 30, sec: 0, distance: 10.0, bearingString: "S 64° 30' W", boundaryDescription: "Adjacent to Lot 125" },
-                      { id: '3', fromPoint: 3, toPoint: 4, quadrant: 'N-W', deg: 25, min: 30, sec: 0, distance: 15.0, bearingString: "N 25° 30' W", boundaryDescription: "Adjacent to Lot 124" },
-                      { id: '4', fromPoint: 4, toPoint: 1, quadrant: 'N-E', deg: 64, min: 30, sec: 0, distance: 10.0, bearingString: "N 64° 30' E", boundaryDescription: "Adjacent to Lot 122" }
-                    ]
-                  }}
+                  initialData={realProp.lotPlotting}
                   onChange={(updatedData) => {
                     setRealProp(prev => ({
                       ...prev,

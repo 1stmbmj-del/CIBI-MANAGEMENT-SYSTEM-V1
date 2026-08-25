@@ -720,10 +720,16 @@ export const LotPlottingModule: React.FC<LotPlottingModuleProps> = ({
     notes
   ]);
 
-  // Real-time parent state synchronization
+  const lastEmittedRef = React.useRef<string>('');
+
+  // Real-time parent state synchronization (guarded against loop)
   useEffect(() => {
-    if (onChange) {
-      onChange(currentPlottingData);
+    if (onChange && currentPlottingData) {
+      const serialized = JSON.stringify(currentPlottingData);
+      if (serialized !== lastEmittedRef.current) {
+        lastEmittedRef.current = serialized;
+        onChange(currentPlottingData);
+      }
     }
   }, [currentPlottingData, onChange]);
 
