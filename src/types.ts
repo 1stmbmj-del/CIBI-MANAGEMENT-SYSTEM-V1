@@ -558,20 +558,20 @@ export interface LotPlottingData {
   plotStatus: 'Verified' | 'Discrepancy' | 'Draft' | 'Needs Review';
   tiePoint?: TiePoint;
   traverses: TraverseLine[];
-  coordinates: LotCoordinate[];
-  computedArea: number;
-  areaDifference: number;
-  areaVariancePct: number;
-  areaMatchStatus: 'PASS' | 'DISCREPANCY';
-  linearMisclosure: number;
-  closureRatio: string;
-  closureRatioNumber: number;
-  closureStatus: 'GOOD' | 'FAIR' | 'HIGH_MISCLOSURE';
-  lotShape: 'Regular Rectangular' | 'Square' | 'Trapezoidal' | 'Triangular' | 'Irregular' | 'Corner Lot';
-  frontageMeters: number;
-  depthMeters: number;
-  roadWidth: string;
-  roadAccessType: string;
+  coordinates?: LotCoordinate[];
+  computedArea?: number;
+  areaDifference?: number;
+  areaVariancePct?: number;
+  areaMatchStatus?: 'PASS' | 'DISCREPANCY';
+  linearMisclosure?: number;
+  closureRatio?: string;
+  closureRatioNumber?: number;
+  closureStatus?: 'GOOD' | 'FAIR' | 'HIGH_MISCLOSURE';
+  lotShape?: 'Regular Rectangular' | 'Square' | 'Trapezoidal' | 'Triangular' | 'Irregular' | 'Corner Lot';
+  frontageMeters?: number;
+  depthMeters?: number;
+  roadWidth?: string;
+  roadAccessType?: string;
   boundaryNorth?: string;
   boundaryEast?: string;
   boundarySouth?: string;
@@ -596,6 +596,7 @@ export interface RealPropertyAppraisal {
   houseImprovement?: HouseImprovementAppraisal;
   
   // Lot Plotting & Boundary Analysis
+  lotPlottingEnabled?: boolean;
   lotPlotting?: LotPlottingData;
   
   // Description

@@ -725,7 +725,7 @@ export function calculateVehicleAdjustments(vh: VehicleAppraisal): Partial<Vehic
 }
 
 export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) {
-  const [activeTab, setActiveTab] = useState<'real_property' | 'vehicle' | 'lot_plotting' | 'history'>('real_property');
+  const [activeTab, setActiveTab] = useState<'real_property' | 'vehicle' | 'history'>('real_property');
   const [appraisals, setAppraisals] = useState<AppraisalRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -935,6 +935,33 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
       maxLtvPct: 70,
       maxLoanableAmount: 2156000,
       recommendedCollateralValue: 3080000
+    },
+
+    lotPlottingEnabled: true,
+    lotPlotting: {
+      propertyId: 'PROP-2026-00125',
+      lotNo: 'Lot 123',
+      surveyPlan: 'Psd-04-123456',
+      titleNo: 'T-123456',
+      location: 'Brgy. San Antonio, Pasig City',
+      statedArea: 150.0,
+      numberOfCorners: 4,
+      plotStatus: 'Verified',
+      lotShape: 'Regular Rectangular',
+      frontageMeters: 10.0,
+      depthMeters: 15.0,
+      roadWidth: '8.00 meters concrete road',
+      roadAccessType: 'Along Barangay Concrete Road',
+      boundaryNorth: 'Lot 124',
+      boundaryEast: 'Lot 125',
+      boundarySouth: 'Road Lot 2',
+      boundaryWest: 'Lot 122',
+      traverses: [
+        { id: '1', fromPoint: 1, toPoint: 2, quadrant: 'S-E', deg: 25, min: 30, sec: 0, distance: 15.0, bearingString: "S 25° 30' E", boundaryDescription: "Frontage along Road Lot 2" },
+        { id: '2', fromPoint: 2, toPoint: 3, quadrant: 'S-W', deg: 64, min: 30, sec: 0, distance: 10.0, bearingString: "S 64° 30' W", boundaryDescription: "Adjacent to Lot 125" },
+        { id: '3', fromPoint: 3, toPoint: 4, quadrant: 'N-W', deg: 25, min: 30, sec: 0, distance: 15.0, bearingString: "N 25° 30' W", boundaryDescription: "Adjacent to Lot 124" },
+        { id: '4', fromPoint: 4, toPoint: 1, quadrant: 'N-E', deg: 64, min: 30, sec: 0, distance: 10.0, bearingString: "N 64° 30' E", boundaryDescription: "Adjacent to Lot 122" }
+      ]
     },
 
     photoChecklist: REAL_PROPERTY_CHECKLIST.reduce((acc, item) => ({ ...acc, [item]: false }), {})
@@ -1386,19 +1413,11 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
                   : 'bg-white/10 hover:bg-white/20 text-white/80'
               }`}
             >
-              <Building2 className="w-4 h-4" /> Real Property
-            </button>
-            <button
-              onClick={() => setActiveTab('lot_plotting')}
-              className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer ${
-                activeTab === 'lot_plotting' 
-                  ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
-                  : 'bg-white/10 hover:bg-white/20 text-white/80'
-              }`}
-            >
-              <Compass className="w-4 h-4" /> Lot Plotting
-              {realProp.lotPlotting && (
-                <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+              <Building2 className="w-4 h-4" /> Real Property (Land, Improvement & Cadastral Plotting)
+              {realProp.lotPlottingEnabled !== false && (
+                <span className="px-1.5 py-0.5 bg-emerald-950/60 text-emerald-200 text-[10px] rounded font-extrabold flex items-center gap-1 border border-emerald-400/30">
+                  <Compass className="w-3 h-3 text-emerald-300" /> Lot Plot ON
+                </span>
               )}
             </button>
             <button
@@ -1675,65 +1694,166 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
             </div>
           </div>
 
-          {/* II.B Cadastral Lot Plotting & Boundary Summary Card */}
-          <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-teal-950 text-white rounded-2xl border border-emerald-500/30 p-5 shadow-lg relative overflow-hidden">
-            <div className="absolute right-0 top-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-            
-            <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="p-1.5 bg-emerald-500/20 border border-emerald-400/40 rounded-lg text-emerald-300">
-                    <Compass className="w-4 h-4 text-emerald-400" />
-                  </span>
-                  <h3 className="text-sm font-black uppercase tracking-wider text-white">
-                    Cadastral Lot Plotting & Technical Boundary Analysis
-                  </h3>
-                  {realProp.lotPlotting ? (
-                    <span className="px-2 py-0.5 bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[10px] font-black uppercase tracking-wider rounded-full flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Verified Lot Plot Attached
+          {/* II.B Cadastral Lot Plotting & Boundary Analysis (Combined with ON/OFF Toggle) */}
+          <div className="space-y-4">
+            <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-teal-950 text-white rounded-2xl border border-emerald-500/30 p-5 shadow-lg relative overflow-hidden">
+              <div className="absolute right-0 top-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+              
+              <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="p-1.5 bg-emerald-500/20 border border-emerald-400/40 rounded-lg text-emerald-300">
+                      <Compass className="w-4 h-4 text-emerald-400" />
                     </span>
-                  ) : (
-                    <span className="px-2 py-0.5 bg-amber-500/20 border border-amber-400/40 text-amber-300 text-[10px] font-black uppercase tracking-wider rounded-full">
-                      Ready to Plot
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-300 max-w-2xl font-medium">
-                  {realProp.lotPlotting 
-                    ? `Lot #${realProp.lotPlotting.lotNo || '123'} (${realProp.lotPlotting.surveyPlan || 'Survey Plan'}) has ${realProp.lotPlotting.traverses?.length || 4} traverse corners with Shoelace Area: ${realProp.lotPlotting.computedArea?.toFixed(2) || realProp.lotArea} sqm.`
-                    : 'Encode technical descriptions, calculate quadrant azimuths (ΔE, ΔN), Bowditch closure adjustments, and preview interactive vector polygon.'
-                  }
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
-                {realProp.lotPlotting && (
-                  <div className="hidden lg:grid grid-cols-3 gap-2 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10 text-center">
-                    <div>
-                      <span className="text-[9px] uppercase font-bold text-slate-400 block">Stated Area</span>
-                      <span className="text-xs font-black text-white">{realProp.lotPlotting.statedArea || realProp.lotArea} sqm</span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] uppercase font-bold text-slate-400 block">Computed</span>
-                      <span className="text-xs font-black text-emerald-300">{realProp.lotPlotting.computedArea ? `${realProp.lotPlotting.computedArea.toFixed(1)} sqm` : `${realProp.lotArea} sqm`}</span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] uppercase font-bold text-slate-400 block">Corners</span>
-                      <span className="text-xs font-black text-teal-300">{realProp.lotPlotting.numberOfCorners || realProp.lotPlotting.traverses?.length || 4} Pts</span>
-                    </div>
+                    <h3 className="text-sm font-black uppercase tracking-wider text-white">
+                      II.B Cadastral Lot Plotting & Technical Boundary Analysis
+                    </h3>
+                    {realProp.lotPlottingEnabled !== false ? (
+                      <span className="px-2.5 py-0.5 bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[10px] font-black uppercase tracking-wider rounded-full flex items-center gap-1 shadow-sm">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Plotting Active in Appraisal Report
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-black uppercase tracking-wider rounded-full flex items-center gap-1">
+                        <Square className="w-3 h-3 text-slate-500" /> Plotting OFF (Excluded from Report)
+                      </span>
+                    )}
                   </div>
-                )}
-                
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('lot_plotting')}
-                  className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
-                >
-                  <Compass className="w-4 h-4" />
-                  {realProp.lotPlotting ? 'Open & Edit Lot Plotter' : 'Launch Lot Plotter'}
-                </button>
+                  <p className="text-xs text-slate-300 max-w-2xl font-medium">
+                    {realProp.lotPlottingEnabled !== false 
+                      ? (realProp.lotPlotting
+                          ? `Active Lot #${realProp.lotPlotting.lotNo || '123'} (${realProp.lotPlotting.surveyPlan || 'Survey Plan'}) has ${realProp.lotPlotting.numberOfCorners || realProp.lotPlotting.traverses?.length || 4} traverse corners with Shoelace Area: ${realProp.lotPlotting.computedArea?.toFixed(2) || realProp.lotArea} sqm.`
+                          : 'Encode cadastral technical descriptions, calculate quadrant azimuths (ΔE, ΔN), Bowditch closure adjustments, and preview interactive vector boundary polygon.')
+                      : 'Turn ON to encode technical descriptions, calculate quadrant azimuths (ΔE, ΔN), Bowditch closure adjustments, and attach cadastral lot plotting to this valuation report.'
+                    }
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                  {realProp.lotPlottingEnabled !== false && realProp.lotPlotting && (
+                    <div className="hidden lg:grid grid-cols-3 gap-2 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10 text-center">
+                      <div>
+                        <span className="text-[9px] uppercase font-bold text-slate-400 block">Stated Area</span>
+                        <span className="text-xs font-black text-white">{realProp.lotPlotting.statedArea || realProp.lotArea} sqm</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] uppercase font-bold text-slate-400 block">Computed</span>
+                        <span className="text-xs font-black text-emerald-300">{realProp.lotPlotting.computedArea ? `${realProp.lotPlotting.computedArea.toFixed(1)} sqm` : `${realProp.lotArea} sqm`}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] uppercase font-bold text-slate-400 block">Corners</span>
+                        <span className="text-xs font-black text-teal-300">{realProp.lotPlotting.numberOfCorners || realProp.lotPlotting.traverses?.length || 4} Pts</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* On / Off Toggle Button Switch */}
+                  <div className="flex items-center gap-2 bg-black/40 p-1.5 rounded-xl border border-white/10">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-300 pl-1">
+                      Lot Plotting:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setRealProp(prev => ({
+                        ...prev,
+                        lotPlottingEnabled: prev.lotPlottingEnabled === false ? true : false
+                      }))}
+                      className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
+                        realProp.lotPlottingEnabled !== false ? 'bg-emerald-500' : 'bg-slate-700'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          realProp.lotPlottingEnabled !== false ? 'translate-x-7' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
+                      realProp.lotPlottingEnabled !== false ? 'bg-emerald-500/30 text-emerald-300' : 'bg-slate-800 text-slate-400'
+                    }`}>
+                      {realProp.lotPlottingEnabled !== false ? 'ON' : 'OFF'}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
+
+            {/* When ON: Render Embedded Lot Plotting Module */}
+            {realProp.lotPlottingEnabled !== false ? (
+              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-1 shadow-sm">
+                <LotPlottingModule
+                  user={user}
+                  initialData={realProp.lotPlotting || {
+                    propertyId: `PROP-${Date.now().toString().slice(-5)}`,
+                    lotNo: 'Lot 123',
+                    surveyPlan: 'Psd-04-123456',
+                    titleNo: realProp.titleNo || 'T-123456',
+                    location: realProp.propertyAddress || 'Brgy. San Antonio, Pasig City',
+                    statedArea: realProp.lotArea || 150,
+                    numberOfCorners: 4,
+                    plotStatus: 'Verified',
+                    lotShape: 'Regular Rectangular',
+                    frontageMeters: 10.0,
+                    depthMeters: 15.0,
+                    roadWidth: realProp.roadAccess || '8.00 meters concrete road',
+                    roadAccessType: 'Along Barangay Concrete Road',
+                    boundaryNorth: 'Lot 124',
+                    boundaryEast: 'Lot 125',
+                    boundarySouth: 'Road Lot 2',
+                    boundaryWest: 'Lot 122',
+                    traverses: [
+                      { id: '1', fromPoint: 1, toPoint: 2, quadrant: 'S-E', deg: 25, min: 30, sec: 0, distance: 15.0, bearingString: "S 25° 30' E", boundaryDescription: "Frontage along Road Lot 2" },
+                      { id: '2', fromPoint: 2, toPoint: 3, quadrant: 'S-W', deg: 64, min: 30, sec: 0, distance: 10.0, bearingString: "S 64° 30' W", boundaryDescription: "Adjacent to Lot 125" },
+                      { id: '3', fromPoint: 3, toPoint: 4, quadrant: 'N-W', deg: 25, min: 30, sec: 0, distance: 15.0, bearingString: "N 25° 30' W", boundaryDescription: "Adjacent to Lot 124" },
+                      { id: '4', fromPoint: 4, toPoint: 1, quadrant: 'N-E', deg: 64, min: 30, sec: 0, distance: 10.0, bearingString: "N 64° 30' E", boundaryDescription: "Adjacent to Lot 122" }
+                    ]
+                  }}
+                  onChange={(updatedData) => {
+                    setRealProp(prev => ({
+                      ...prev,
+                      lotPlotting: updatedData
+                    }));
+                  }}
+                  onSave={(data) => {
+                    setRealProp(prev => ({
+                      ...prev,
+                      lotPlotting: data
+                    }));
+                  }}
+                  onSyncToAppraisal={(synced) => {
+                    setRealProp(prev => ({
+                      ...prev,
+                      lotArea: synced.lotArea,
+                      subjectLotArea: synced.lotArea,
+                      titleNo: synced.titleNo || prev.titleNo,
+                      roadAccess: synced.roadWidth || prev.roadAccess,
+                      lotPlotting: synced.lotPlottingData,
+                      terrain: synced.lotShape ? `${synced.lotShape} (${synced.numberOfCorners} Corners)` : prev.terrain
+                    }));
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="bg-slate-100/70 border border-dashed border-slate-300 rounded-2xl p-6 text-center space-y-3">
+                <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center mx-auto text-slate-400">
+                  <Compass className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black uppercase tracking-wider text-slate-700">
+                    Cadastral Lot Plotting is Turned OFF
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto mt-1 font-medium">
+                    Technical descriptions and polygon boundary calculations are currently excluded from this appraisal valuation. Turn ON to plot corners and include in reports.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRealProp(prev => ({ ...prev, lotPlottingEnabled: true }))}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 shadow-sm"
+                >
+                  <Compass className="w-4 h-4" /> Turn ON Cadastral Lot Plotting
+                </button>
+              </div>
+            )}
           </div>
 
           {/* III. Comparable Sales Analysis & IV. Adjustments Grid */}
@@ -2249,82 +2369,6 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* ========================================================= */}
-      {/* LOT PLOTTING & TECHNICAL BOUNDARY ANALYSIS TAB            */}
-      {/* ========================================================= */}
-      {activeTab === 'lot_plotting' && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setActiveTab('real_property')}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
-              >
-                ← Back to Real Property Appraisal
-              </button>
-              <div className="h-4 w-px bg-slate-200 hidden sm:block" />
-              <span className="text-xs font-bold text-slate-600 hidden sm:inline">
-                Attached to: <strong className="text-emerald-900">{realProp.borrower || 'Active Property Appraisal'}</strong>
-              </span>
-            </div>
-            
-            {realProp.lotPlotting && (
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-extrabold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Synced to Appraisal
-                </span>
-              </div>
-            )}
-          </div>
-
-          <LotPlottingModule
-            user={user}
-            initialData={realProp.lotPlotting || {
-              propertyId: `PROP-${Date.now().toString().slice(-5)}`,
-              lotNo: 'Lot 123',
-              surveyPlan: 'Psd-04-123456',
-              titleNo: realProp.titleNo || 'T-123456',
-              location: realProp.propertyAddress || 'Brgy. San Antonio, Pasig City',
-              statedArea: realProp.lotArea || 500,
-              numberOfCorners: 4,
-              plotStatus: 'Verified',
-              lotShape: 'Regular Rectangular',
-              frontageMeters: 20.0,
-              depthMeters: 25.0,
-              roadWidth: realProp.roadAccess || '8.00 meters concrete road',
-              roadAccessType: 'Along Barangay Concrete Road',
-              traverses: [
-                { id: '1', fromPoint: 1, toPoint: 2, quadrant: 'S-E', deg: 25, min: 30, sec: 0, distance: 25.0, bearingString: "S 25° 30' E" },
-                { id: '2', fromPoint: 2, toPoint: 3, quadrant: 'S-W', deg: 64, min: 30, sec: 0, distance: 20.0, bearingString: "S 64° 30' W" },
-                { id: '3', fromPoint: 3, toPoint: 4, quadrant: 'N-W', deg: 25, min: 30, sec: 0, distance: 25.0, bearingString: "N 25° 30' W" },
-                { id: '4', fromPoint: 4, toPoint: 1, quadrant: 'N-E', deg: 64, min: 30, sec: 0, distance: 20.0, bearingString: "N 64° 30' E" }
-              ]
-            }}
-            onSave={(data) => {
-              setRealProp(prev => ({
-                ...prev,
-                lotPlotting: data
-              }));
-              alert("✅ Lot Plotting technical description and boundary data saved with Real Property appraisal!");
-            }}
-            onSyncToAppraisal={(synced) => {
-              setRealProp(prev => ({
-                ...prev,
-                lotArea: synced.lotArea,
-                subjectLotArea: synced.lotArea,
-                titleNo: synced.titleNo || prev.titleNo,
-                roadAccess: synced.roadWidth || prev.roadAccess,
-                lotPlotting: synced.lotPlottingData,
-                terrain: synced.lotShape ? `${synced.lotShape} (${synced.numberOfCorners} Corners)` : prev.terrain
-              }));
-              alert(`✅ Synced ${synced.lotArea.toFixed(2)} sqm lot area, boundary, and technical description to Real Property Valuation!`);
-              setActiveTab('real_property');
-            }}
-          />
         </div>
       )}
 
@@ -3191,10 +3235,11 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
                         </div>
                       </div>
 
-                      {d.lotPlotting && (
+                      {d.lotPlottingEnabled !== false && d.lotPlotting && (
                         <div>
-                          <h3 className="font-black uppercase tracking-wider text-emerald-900 mb-2 border-b border-slate-200 pb-1">
-                            {h?.enabled ? 'V. Cadastral Lot Plotting & Boundary Analysis' : 'III. Cadastral Lot Plotting & Boundary Analysis'}
+                          <h3 className="font-black uppercase tracking-wider text-emerald-900 mb-2 border-b border-slate-200 pb-1 flex items-center justify-between">
+                            <span>{h?.enabled ? 'V. Cadastral Lot Plotting & Technical Boundary Analysis' : 'III. Cadastral Lot Plotting & Technical Boundary Analysis'}</span>
+                            <span className="text-[9px] px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-black uppercase">Verified Cadastral Survey Attached</span>
                           </h3>
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200 mb-2 text-[10px]">
                             <div>
@@ -3203,16 +3248,24 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
                             </div>
                             <div>
                               <p className="text-slate-500 font-bold uppercase">Stated vs Computed Area</p>
-                              <p className="font-black text-emerald-900">{d.lotPlotting.statedArea} sqm / {d.lotPlotting.computedArea?.toFixed(2) || d.lotArea} sqm</p>
+                              <p className="font-black text-emerald-900">{d.lotPlotting.statedArea} sqm / {d.lotPlotting.computedArea ? `${d.lotPlotting.computedArea.toFixed(2)} sqm` : `${d.lotArea} sqm`}</p>
                             </div>
                             <div>
                               <p className="text-slate-500 font-bold uppercase">Shape / Corners</p>
-                              <p className="font-black text-slate-800">{d.lotPlotting.lotShape || 'Regular'} ({d.lotPlotting.numberOfCorners || 4} Corners)</p>
+                              <p className="font-black text-slate-800">{d.lotPlotting.lotShape || 'Regular'} ({d.lotPlotting.numberOfCorners || d.lotPlotting.traverses?.length || 4} Corners)</p>
                             </div>
                             <div>
                               <p className="text-slate-500 font-bold uppercase">Closure / Misclosure</p>
-                              <p className="font-black text-teal-800">{d.lotPlotting.closureRatio || '1:10,000+'} ({d.lotPlotting.linearMisclosure?.toFixed(4) || '0.0000'}m)</p>
+                              <p className="font-black text-teal-800">{d.lotPlotting.closureRatio || '1:10,000+'} ({d.lotPlotting.linearMisclosure !== undefined ? `${d.lotPlotting.linearMisclosure.toFixed(4)}m` : '0.0000m'})</p>
                             </div>
+                          </div>
+
+                          {/* Boundaries & Dimensions */}
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-white p-2 rounded-lg border border-slate-200 mb-2 text-[10px]">
+                            <div><span className="text-slate-500 font-bold">North:</span> <span className="font-semibold">{d.lotPlotting.boundaryNorth || 'Adjacent Lot'}</span></div>
+                            <div><span className="text-slate-500 font-bold">East:</span> <span className="font-semibold">{d.lotPlotting.boundaryEast || 'Adjacent Lot'}</span></div>
+                            <div><span className="text-slate-500 font-bold">South:</span> <span className="font-semibold">{d.lotPlotting.boundarySouth || 'Road Access'}</span></div>
+                            <div><span className="text-slate-500 font-bold">West:</span> <span className="font-semibold">{d.lotPlotting.boundaryWest || 'Adjacent Lot'}</span></div>
                           </div>
 
                           {d.lotPlotting.traverses && d.lotPlotting.traverses.length > 0 && (
@@ -3242,9 +3295,9 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
 
                       <div>
                         <h3 className="font-black uppercase tracking-wider text-emerald-900 mb-2 border-b border-slate-200 pb-1">
-                          {d.lotPlotting && h?.enabled 
+                          {d.lotPlottingEnabled !== false && d.lotPlotting && h?.enabled 
                             ? 'VI. Appraiser\'s Opinion & Certification'
-                            : (h?.enabled || d.lotPlotting) 
+                            : (h?.enabled || (d.lotPlottingEnabled !== false && d.lotPlotting)) 
                             ? 'V. Appraiser\'s Opinion & Certification' 
                             : 'III. Appraiser\'s Opinion & Remarks'}
                         </h3>

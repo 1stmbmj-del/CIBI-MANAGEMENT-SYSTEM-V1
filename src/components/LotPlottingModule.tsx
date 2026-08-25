@@ -39,6 +39,7 @@ import { TraverseLine, LotCoordinate, TiePoint, LotPlottingData, UserProfile } f
 interface LotPlottingModuleProps {
   initialData?: LotPlottingData;
   onSave?: (data: LotPlottingData) => void;
+  onChange?: (data: LotPlottingData) => void;
   onSyncToAppraisal?: (synced: {
     lotArea: number;
     lotShape: string;
@@ -239,6 +240,7 @@ export function calculateAzimuth(
 export const LotPlottingModule: React.FC<LotPlottingModuleProps> = ({
   initialData,
   onSave,
+  onChange,
   onSyncToAppraisal,
   user
 }) => {
@@ -717,6 +719,13 @@ export const LotPlottingModule: React.FC<LotPlottingModuleProps> = ({
     boundaryWest,
     notes
   ]);
+
+  // Real-time parent state synchronization
+  useEffect(() => {
+    if (onChange) {
+      onChange(currentPlottingData);
+    }
+  }, [currentPlottingData, onChange]);
 
   // Handle Save
   const handleSave = () => {
