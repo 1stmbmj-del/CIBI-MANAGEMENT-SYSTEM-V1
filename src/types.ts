@@ -599,6 +599,7 @@ export interface RealPropertyAppraisal {
   taxDecNo: string;
   lotArea: number;
   floorArea: number;
+  declaredValue?: number; // Optional Borrower / Tax Dec Declared Property Value
   propertyType: 'Residential' | 'Commercial' | 'Agricultural' | 'Industrial' | 'Mixed-Use';
   
   // House / Improvement Appraisal (Separate or Integrated)
@@ -718,6 +719,7 @@ export interface VehicleAppraisal {
   engineNumber: string;
   chassisNumber: string;
   mileage: number;
+  declaredValue?: number; // Optional Borrower Declared Vehicle Value
 
   // Comparables
   comp1Year: string;

@@ -745,6 +745,7 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
     taxDecNo: '',
     lotArea: 150,
     floorArea: 120,
+    declaredValue: 0,
     propertyType: 'Residential',
 
     terrain: 'Flat Level',
@@ -1007,6 +1008,7 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
     engineNumber: '2GD1234567',
     chassisNumber: 'MHFJ123456789',
     mileage: 35000,
+    declaredValue: 0,
 
     comp1Year: '2022',
     comp2Year: '2022',
@@ -1144,8 +1146,19 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
   const comp3AdjTotal = realProp.comp3Price + realProp.comp3LocationAdj + realProp.comp3LotSizeAdj + realProp.comp3BuildingSizeAdj + realProp.comp3ConditionAdj + realProp.comp3RoadAccessAdj + realProp.comp3OtherAdj;
 
   const realAverageMarketValue = (comp1AdjTotal + comp2AdjTotal + comp3AdjTotal) / 3;
+  const declaredLandRatePerSqm = realProp.lotArea > 0 ? realAverageMarketValue / realProp.lotArea : 0;
+  const houseImprovementValue = realProp.houseImprovement?.enabled 
+    ? (realProp.houseImprovement.recommendedImprovementValue || 2400000) 
+    : 0;
+  const totalDeclaredMarketValue = realAverageMarketValue + houseImprovementValue;
   const realLtv70 = realAverageMarketValue * (realTargetLtv / 100);
   const realForcedSaleValue = realLtv70 * 0.80; // 80% of LTV
+  const totalDeclaredForcedSaleValue = realProp.houseImprovement?.enabled 
+    ? Math.round(totalDeclaredMarketValue * 0.70) 
+    : realForcedSaleValue;
+  const totalDeclaredMaxLoan = realProp.houseImprovement?.enabled 
+    ? (realProp.houseImprovement.maxLoanableAmount || Math.round(totalDeclaredMarketValue * 0.70 * 0.70)) 
+    : realProp.recommendedLoanAmount;
 
   // Auto set recommended loan if not user overridden
   useEffect(() => {
@@ -1451,19 +1464,22 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
         <div className="space-y-6">
           {/* Quick Metrics & Preset Banner */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
-              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                {realProp.houseImprovement?.enabled ? 'Total Property Value (Land + House)' : 'Average Land Market Value'}
-              </span>
-              <p className="text-xl font-black text-emerald-900 mt-1">
-                {fmt(realProp.houseImprovement?.enabled 
-                  ? (realAverageMarketValue + (realProp.houseImprovement.recommendedImprovementValue || 2400000))
-                  : realAverageMarketValue)}
+            <div className="bg-white rounded-2xl p-5 border-2 border-emerald-500/30 shadow-sm bg-gradient-to-br from-emerald-50/40 via-white to-teal-50/30">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase text-emerald-900 tracking-wider">
+                  Value ng Declared Property
+                </span>
+                <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  Base sa Comps
+                </span>
+              </div>
+              <p className="text-xl font-black text-emerald-950 mt-1">
+                {fmt(totalDeclaredMarketValue)}
               </p>
-              <p className="text-[10px] text-slate-500 mt-0.5">
+              <p className="text-[10px] text-slate-600 mt-0.5 font-medium">
                 {realProp.houseImprovement?.enabled 
-                  ? `Land: ${fmt(realAverageMarketValue)} | House: ${fmt(realProp.houseImprovement.recommendedImprovementValue || 2400000)}`
-                  : '3-Comparable Land Reconciliation'}
+                  ? `Lupa: ${fmt(realAverageMarketValue)} (${realProp.lotArea} sqm @ ${fmt(declaredLandRatePerSqm)}/sqm) + Bahay: ${fmt(houseImprovementValue)}`
+                  : `Lupa: ${realProp.lotArea} sqm @ ${fmt(declaredLandRatePerSqm)}/sqm (Reconciled mula sa 3 Comparables)`}
               </p>
             </div>
             <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
@@ -1607,7 +1623,7 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
                   <input
                     type="number"
                     value={realProp.lotArea}
-                    onChange={e => setRealProp({ ...realProp, lotArea: Number(e.target.value) })}
+                    onChange={e => updateRealProp({ lotArea: Number(e.target.value) })}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                   />
                 </div>
@@ -1616,9 +1632,55 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
                   <input
                     type="number"
                     value={realProp.floorArea}
-                    onChange={e => setRealProp({ ...realProp, floorArea: Number(e.target.value) })}
+                    onChange={e => updateRealProp({ floorArea: Number(e.target.value) })}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                   />
+                </div>
+              </div>
+
+              {/* Declared Property Value Input & Comparison */}
+              <div className="col-span-1 md:col-span-2 bg-emerald-50/70 p-4 rounded-xl border border-emerald-200/90 space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <label className="text-[11px] font-black text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
+                    <Scale className="w-4 h-4 text-emerald-700" />
+                    Declared Property Value (Borrower / Tax Dec Declared) (₱)
+                  </label>
+                  <span className="text-[10px] font-extrabold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300">
+                    Value Base sa Comps: {fmt(totalDeclaredMarketValue)}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                  <div>
+                    <input
+                      type="number"
+                      placeholder="Hal. 3,500,000 (Opsyonal na deklaradong halaga)"
+                      value={realProp.declaredValue || ''}
+                      onChange={e => updateRealProp({ declaredValue: Number(e.target.value) })}
+                      className="w-full px-3 py-2.5 bg-white border-2 border-emerald-300/80 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      * Deklaradong halaga ayon sa may-ari, borrower, o Tax Dec.
+                    </p>
+                  </div>
+                  <div className="text-[11px] text-slate-700 bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-slate-600">Calculated base sa Comps:</span>
+                      <strong className="text-emerald-900 font-black">{fmt(totalDeclaredMarketValue)}</strong>
+                    </div>
+                    {realProp.declaredValue && realProp.declaredValue > 0 ? (
+                      <div className="flex justify-between items-center pt-1 border-t border-slate-100">
+                        <span className="font-bold text-slate-500">Variance:</span>
+                        <span className={`font-black ${totalDeclaredMarketValue >= realProp.declaredValue ? 'text-emerald-700' : 'text-amber-700'}`}>
+                          {totalDeclaredMarketValue >= realProp.declaredValue ? '▲ +' : '▼ '}
+                          {fmt(totalDeclaredMarketValue - realProp.declaredValue)} ({(((totalDeclaredMarketValue - realProp.declaredValue) / realProp.declaredValue) * 100).toFixed(1)}%)
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 italic pt-0.5">
+                        Ipapakita rito ang paghahambing kapag naglagay ng deklaradong halaga.
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1888,7 +1950,9 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
                 <thead>
                   <tr className="bg-slate-50 text-[10px] font-black uppercase text-slate-500 tracking-wider">
                     <th className="p-3 border-b border-slate-200">Description</th>
-                    <th className="p-3 border-b border-slate-200 bg-emerald-50/50 text-emerald-900">Subject Property</th>
+                    <th className="p-3 border-b border-slate-200 bg-emerald-100/70 text-emerald-950 font-black border-x border-emerald-300">
+                      Subject / Declared Property
+                    </th>
                     <th className="p-3 border-b border-slate-200">Comparable 1</th>
                     <th className="p-3 border-b border-slate-200">Comparable 2</th>
                     <th className="p-3 border-b border-slate-200">Comparable 3</th>
@@ -1897,49 +1961,63 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
                 <tbody className="text-xs font-medium text-slate-700 divide-y divide-slate-100">
                   <tr>
                     <td className="p-3 font-black text-slate-600">Location</td>
-                    <td className="p-3 bg-emerald-50/20"><input type="text" value={realProp.subjectLocation} onChange={e => updateRealProp({ subjectLocation: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-semibold" /></td>
+                    <td className="p-3 bg-emerald-50/50 border-x border-emerald-200/60"><input type="text" value={realProp.subjectLocation} onChange={e => updateRealProp({ subjectLocation: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-semibold" /></td>
                     <td className="p-3"><input type="text" value={realProp.comp1Location} onChange={e => updateRealProp({ comp1Location: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-semibold" /></td>
                     <td className="p-3"><input type="text" value={realProp.comp2Location} onChange={e => updateRealProp({ comp2Location: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-semibold" /></td>
                     <td className="p-3"><input type="text" value={realProp.comp3Location} onChange={e => updateRealProp({ comp3Location: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-semibold" /></td>
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Distance from Subject</td>
-                    <td className="p-3 bg-emerald-50/20 text-slate-400 font-bold text-center">-</td>
+                    <td className="p-3 bg-emerald-50/50 border-x border-emerald-200/60 text-slate-400 font-bold text-center">Subject Site</td>
                     <td className="p-3"><input type="text" value={realProp.comp1Distance} onChange={e => updateRealProp({ comp1Distance: e.target.value })} placeholder="e.g. 100m, 500m" className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
                     <td className="p-3"><input type="text" value={realProp.comp2Distance} onChange={e => updateRealProp({ comp2Distance: e.target.value })} placeholder="e.g. 200m, 1km" className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
                     <td className="p-3"><input type="text" value={realProp.comp3Distance} onChange={e => updateRealProp({ comp3Distance: e.target.value })} placeholder="e.g. 400m" className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Date Sold</td>
-                    <td className="p-3 bg-emerald-50/20 text-slate-400 font-bold text-center">-</td>
+                    <td className="p-3 bg-emerald-50/50 border-x border-emerald-200/60 text-slate-400 font-bold text-center">Subject Site</td>
                     <td className="p-3"><input type="text" value={realProp.comp1DateSold} onChange={e => updateRealProp({ comp1DateSold: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
                     <td className="p-3"><input type="text" value={realProp.comp2DateSold} onChange={e => updateRealProp({ comp2DateSold: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
                     <td className="p-3"><input type="text" value={realProp.comp3DateSold} onChange={e => updateRealProp({ comp3DateSold: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Lot Area (sqm)</td>
-                    <td className="p-3 bg-emerald-50/20 font-bold">{realProp.lotArea} sqm</td>
+                    <td className="p-3 bg-emerald-50/50 border-x border-emerald-200/60 font-bold">{realProp.lotArea} sqm</td>
                     <td className="p-3"><input type="number" value={realProp.comp1LotArea} onChange={e => updateRealProp({ comp1LotArea: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
                     <td className="p-3"><input type="number" value={realProp.comp2LotArea} onChange={e => updateRealProp({ comp2LotArea: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
                     <td className="p-3"><input type="number" value={realProp.comp3LotArea} onChange={e => updateRealProp({ comp3LotArea: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
                   </tr>
                   <tr>
                     <td className="p-3 font-black text-slate-600">Floor Area (sqm)</td>
-                    <td className="p-3 bg-emerald-50/20 font-bold">{realProp.floorArea} sqm</td>
+                    <td className="p-3 bg-emerald-50/50 border-x border-emerald-200/60 font-bold">{realProp.floorArea} sqm</td>
                     <td className="p-3"><input type="number" value={realProp.comp1FloorArea} onChange={e => updateRealProp({ comp1FloorArea: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
                     <td className="p-3"><input type="number" value={realProp.comp2FloorArea} onChange={e => updateRealProp({ comp2FloorArea: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
                     <td className="p-3"><input type="number" value={realProp.comp3FloorArea} onChange={e => updateRealProp({ comp3FloorArea: Number(e.target.value) })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs font-bold" /></td>
                   </tr>
                   <tr className="bg-slate-50/50 font-bold">
-                    <td className="p-3 font-black text-slate-800">Selling Price</td>
-                    <td className="p-3 bg-emerald-100/50 text-slate-400 font-bold text-center">-</td>
+                    <td className="p-3 font-black text-slate-800">Selling Price / Value</td>
+                    <td className="p-3 bg-emerald-100/70 border-x border-emerald-300">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-black text-emerald-950">{fmt(realAverageMarketValue)}</span>
+                        <span className="text-[9px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-200/80 px-1.5 py-0.5 rounded w-fit mt-0.5">
+                          Value Base sa Comps
+                        </span>
+                      </div>
+                    </td>
                     <td className="p-3"><input type="number" value={realProp.comp1Price} onChange={e => updateRealProp({ comp1Price: Number(e.target.value) })} className="w-full bg-white border border-slate-300 font-bold text-emerald-800 px-2 py-1 rounded-md text-xs" /></td>
                     <td className="p-3"><input type="number" value={realProp.comp2Price} onChange={e => updateRealProp({ comp2Price: Number(e.target.value) })} className="w-full bg-white border border-slate-300 font-bold text-emerald-800 px-2 py-1 rounded-md text-xs" /></td>
                     <td className="p-3"><input type="number" value={realProp.comp3Price} onChange={e => updateRealProp({ comp3Price: Number(e.target.value) })} className="w-full bg-white border border-slate-300 font-bold text-emerald-800 px-2 py-1 rounded-md text-xs" /></td>
                   </tr>
                   <tr className="bg-emerald-50/30 font-bold text-emerald-900">
                     <td className="p-3 font-black">Price per sqm (Auto)</td>
-                    <td className="p-3 bg-emerald-100/50 text-slate-400 font-bold text-center">-</td>
+                    <td className="p-3 bg-emerald-100/70 border-x border-emerald-300">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-black text-emerald-950">{fmt(declaredLandRatePerSqm)}/sqm</span>
+                        <span className="text-[9px] font-bold text-emerald-800 mt-0.5">
+                          Derived ({realProp.lotArea} sqm declared)
+                        </span>
+                      </div>
+                    </td>
                     <td className="p-3 font-black">{fmt(comp1Ppsqm)}/sqm</td>
                     <td className="p-3 font-black">{fmt(comp2Ppsqm)}/sqm</td>
                     <td className="p-3 font-black">{fmt(comp3Ppsqm)}/sqm</td>
@@ -2063,6 +2141,17 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
                     <td className="p-3.5 font-extrabold text-emerald-200">{fmt(comp2AdjTotal)}</td>
                     <td className="p-3.5 font-extrabold text-emerald-200">{fmt(comp3AdjTotal)}</td>
                   </tr>
+                  <tr className="bg-emerald-950 text-white font-black text-xs border-t border-emerald-800">
+                    <td className="p-3.5 uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      Reconciled Declared Land Value
+                    </td>
+                    <td colSpan={3} className="p-3.5 text-right font-black text-sm text-emerald-200">
+                      <span className="text-[11px] font-normal text-emerald-400 mr-2">(Average ng 3 Comparables):</span>
+                      <span className="text-base text-white">{fmt(realAverageMarketValue)}</span>
+                      <span className="text-[11px] text-emerald-300 ml-2">(@ {fmt(declaredLandRatePerSqm)}/sqm para sa {realProp.lotArea} sqm)</span>
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -2078,50 +2167,135 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
             fmt={fmt}
           />
 
-          {/* V. Market Value Reconciliation & VI. Loan Computation */}
+          {/* V. Value ng Declared Property Base sa Comparables & VI. Loan Computation */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
-              <h2 className="text-sm font-black text-emerald-900 uppercase tracking-widest border-b border-slate-100 pb-3 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" /> V. Market Value Reconciliation
-              </h2>
+              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                <h2 className="text-sm font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" /> V. Value ng Declared Property Base sa Comparables
+                </h2>
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  Reconciled
+                </span>
+              </div>
 
-              <div className="space-y-3 divide-y divide-slate-100">
-                <div className="flex justify-between items-center pt-2">
-                  <span className="text-xs font-bold text-slate-600">Comparable 1 Adjusted Value</span>
-                  <span className="text-xs font-black text-slate-800">{fmt(comp1AdjTotal)}</span>
+              {/* High-visibility summary card of the declared property valuation */}
+              <div className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50/70 border border-emerald-300/80 rounded-2xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase text-emerald-900 tracking-wider">
+                    Declared Land Valuation ({realProp.lotArea} sqm)
+                  </span>
+                  <span className="text-xs font-black text-emerald-950">{fmt(realAverageMarketValue)}</span>
                 </div>
-                <div className="flex justify-between items-center pt-2">
-                  <span className="text-xs font-bold text-slate-600">Comparable 2 Adjusted Value</span>
-                  <span className="text-xs font-black text-slate-800">{fmt(comp2AdjTotal)}</span>
+                <p className="text-[11px] text-emerald-800 font-medium">
+                  Derived rate: <strong>{fmt(declaredLandRatePerSqm)}/sqm</strong> base sa sales comparison approach ng tatlong (3) comparables.
+                </p>
+
+                {realProp.houseImprovement?.enabled && (
+                  <div className="pt-2 border-t border-emerald-200/80 flex items-center justify-between text-xs">
+                    <span className="font-bold text-teal-900">Declared House / Improvement (Cost Approach):</span>
+                    <span className="font-black text-teal-950">{fmt(houseImprovementValue)}</span>
+                  </div>
+                )}
+
+                <div className="pt-2.5 border-t-2 border-emerald-400/60 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-black uppercase text-emerald-950 block">
+                      Kabuuang Halaga ng Declared Property:
+                    </span>
+                    <span className="text-[10px] text-emerald-700 font-semibold">
+                      {realProp.houseImprovement?.enabled ? 'Pinagsamang Lupa at Bahay' : 'Lupa base sa 3 Comparables'}
+                    </span>
+                  </div>
+                  <span className="text-lg font-black text-emerald-950 bg-emerald-200/60 px-2.5 py-1 rounded-xl">
+                    {fmt(totalDeclaredMarketValue)}
+                  </span>
                 </div>
-                <div className="flex justify-between items-center pt-2">
-                  <span className="text-xs font-bold text-slate-600">Comparable 3 Adjusted Value</span>
-                  <span className="text-xs font-black text-slate-800">{fmt(comp3AdjTotal)}</span>
+              </div>
+
+              {/* Comparable breakdown list */}
+              <div className="space-y-2.5 text-xs">
+                <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                  Indicated Value Contribution bawat Comparable
+                </p>
+                <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200/70">
+                  <div>
+                    <p className="font-bold text-slate-800">Comparable 1 ({realProp.comp1Location || 'Comp 1'})</p>
+                    <p className="text-[10px] text-slate-500">
+                      Selling Price: {fmt(realProp.comp1Price)} | Net Adj: {comp1AdjTotal - realProp.comp1Price >= 0 ? '+' : ''}{fmt(comp1AdjTotal - realProp.comp1Price)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-black text-slate-800">{fmt(comp1AdjTotal)}</p>
+                    <p className="text-[10px] text-emerald-700 font-bold">{fmt(comp1Ppsqm)}/sqm</p>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center pt-3 border-t-2 border-emerald-500/20 bg-emerald-50/50 p-3 rounded-xl">
-                  <span className="text-xs font-black uppercase text-emerald-900 tracking-wider">Average Market Value</span>
-                  <span className="text-base font-black text-emerald-900">{fmt(realAverageMarketValue)}</span>
+
+                <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200/70">
+                  <div>
+                    <p className="font-bold text-slate-800">Comparable 2 ({realProp.comp2Location || 'Comp 2'})</p>
+                    <p className="text-[10px] text-slate-500">
+                      Selling Price: {fmt(realProp.comp2Price)} | Net Adj: {comp2AdjTotal - realProp.comp2Price >= 0 ? '+' : ''}{fmt(comp2AdjTotal - realProp.comp2Price)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-black text-slate-800">{fmt(comp2AdjTotal)}</p>
+                    <p className="text-[10px] text-emerald-700 font-bold">{fmt(comp2Ppsqm)}/sqm</p>
+                  </div>
                 </div>
+
+                <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200/70">
+                  <div>
+                    <p className="font-bold text-slate-800">Comparable 3 ({realProp.comp3Location || 'Comp 3'})</p>
+                    <p className="text-[10px] text-slate-500">
+                      Selling Price: {fmt(realProp.comp3Price)} | Net Adj: {comp3AdjTotal - realProp.comp3Price >= 0 ? '+' : ''}{fmt(comp3AdjTotal - realProp.comp3Price)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-black text-slate-800">{fmt(comp3AdjTotal)}</p>
+                    <p className="text-[10px] text-emerald-700 font-bold">{fmt(comp3Ppsqm)}/sqm</p>
+                  </div>
+                </div>
+
+                {/* If borrower declared value is filled, show comparison */}
+                {realProp.declaredValue && realProp.declaredValue > 0 ? (
+                  <div className="mt-3 p-3 bg-amber-50/80 border border-amber-300/80 rounded-xl flex items-center justify-between text-xs">
+                    <div>
+                      <p className="font-bold text-amber-950">Borrower / Tax Dec Declared Value:</p>
+                      <p className="text-[10px] text-amber-800">Halaga ayon sa deklarasyon: {fmt(realProp.declaredValue)}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                        totalDeclaredMarketValue >= realProp.declaredValue ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                        {totalDeclaredMarketValue >= realProp.declaredValue ? 'Above Declared' : 'Below Declared'}
+                      </span>
+                      <p className="text-[10px] font-bold mt-0.5 text-slate-700">
+                        Diff: {totalDeclaredMarketValue - realProp.declaredValue >= 0 ? '+' : ''}{fmt(totalDeclaredMarketValue - realProp.declaredValue)} ({(((totalDeclaredMarketValue - realProp.declaredValue) / realProp.declaredValue) * 100).toFixed(1)}%)
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
 
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
               <h2 className="text-sm font-black text-emerald-900 uppercase tracking-widest border-b border-slate-100 pb-3 flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-emerald-600" /> VI. Loan Computation
+                <DollarSign className="w-4 h-4 text-emerald-600" /> VI. Loan Computation on Declared Property
               </h2>
 
               <div className="space-y-3">
                 <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-200/60">
-                  <span className="text-xs font-bold text-slate-600">Average Market Value</span>
-                  <span className="text-xs font-black text-slate-800">{fmt(realAverageMarketValue)}</span>
+                  <span className="text-xs font-bold text-slate-600">Total Appraised Declared Value</span>
+                  <span className="text-xs font-black text-slate-900">{fmt(totalDeclaredMarketValue)}</span>
                 </div>
                 <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-200/60">
-                  <span className="text-xs font-bold text-slate-600">Loan-to-Value (70%)</span>
-                  <span className="text-xs font-black text-teal-800">{fmt(realLtv70)}</span>
+                  <span className="text-xs font-bold text-slate-600">Loan-to-Value (70% LTV)</span>
+                  <span className="text-xs font-black text-teal-800">{fmt(totalDeclaredMarketValue * (realTargetLtv / 100))}</span>
                 </div>
                 <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-200/60">
-                  <span className="text-xs font-bold text-slate-600">Forced Sale Value (80% of LTV)</span>
-                  <span className="text-xs font-black text-amber-700">{fmt(realForcedSaleValue)}</span>
+                  <span className="text-xs font-bold text-slate-600">Forced Sale Value (FSV @ 70%)</span>
+                  <span className="text-xs font-black text-amber-700">{fmt(totalDeclaredForcedSaleValue)}</span>
                 </div>
 
                 <div className="pt-2">
@@ -2479,9 +2653,55 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
                 <input
                   type="number"
                   value={vehicle.mileage}
-                  onChange={e => setVehicle({ ...vehicle, mileage: Number(e.target.value) })}
+                  onChange={e => updateVehicle({ mileage: Number(e.target.value) })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 />
+              </div>
+
+              {/* Declared Vehicle Value Field */}
+              <div className="col-span-1 md:col-span-3 bg-emerald-50/70 p-4 rounded-xl border border-emerald-200/90 space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <label className="text-[11px] font-black text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
+                    <Scale className="w-4 h-4 text-emerald-700" />
+                    Declared Vehicle Value (Borrower / OR-CR Declared) (₱)
+                  </label>
+                  <span className="text-[10px] font-extrabold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300">
+                    Value Base sa Comps: {fmt(vehicleAverageMarketValue)}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                  <div>
+                    <input
+                      type="number"
+                      placeholder="Hal. 850,000 (Opsyonal na deklaradong halaga)"
+                      value={vehicle.declaredValue || ''}
+                      onChange={e => updateVehicle({ declaredValue: Number(e.target.value) })}
+                      className="w-full px-3 py-2.5 bg-white border-2 border-emerald-300/80 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      * Deklaradong halaga ayon sa may-ari, borrower, o OR-CR valuation.
+                    </p>
+                  </div>
+                  <div className="text-[11px] text-slate-700 bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-slate-600">Calculated base sa Comps:</span>
+                      <strong className="text-emerald-900 font-black">{fmt(vehicleAverageMarketValue)}</strong>
+                    </div>
+                    {vehicle.declaredValue && vehicle.declaredValue > 0 ? (
+                      <div className="flex justify-between items-center pt-1 border-t border-slate-100">
+                        <span className="font-bold text-slate-500">Variance:</span>
+                        <span className={`font-black ${vehicleAverageMarketValue >= vehicle.declaredValue ? 'text-emerald-700' : 'text-amber-700'}`}>
+                          {vehicleAverageMarketValue >= vehicle.declaredValue ? '▲ +' : '▼ '}
+                          {fmt(vehicleAverageMarketValue - vehicle.declaredValue)} ({(((vehicleAverageMarketValue - vehicle.declaredValue) / vehicle.declaredValue) * 100).toFixed(1)}%)
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 italic pt-0.5">
+                        Ipapakita rito ang variance kapag naglagay ng deklaradong halaga.
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -2578,8 +2798,15 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
                     <td className="p-3"><input type="text" value={vehicle.comp3Transmission} onChange={e => updateVehicle({ comp3Transmission: e.target.value })} className="w-full bg-white border border-slate-200 px-2 py-1 rounded-md text-xs" /></td>
                   </tr>
                   <tr className="bg-slate-50/50 font-bold">
-                    <td className="p-3 font-black text-slate-800">Selling Price</td>
-                    <td className="p-3 bg-emerald-100/50 text-slate-400 font-bold text-center">-</td>
+                    <td className="p-3 font-black text-slate-800">Selling Price / Value</td>
+                    <td className="p-3 bg-emerald-100/70 border-x border-emerald-300">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-black text-emerald-950">{fmt(vehicleAverageMarketValue)}</span>
+                        <span className="text-[9px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-200/80 px-1.5 py-0.5 rounded w-fit mt-0.5">
+                          Base sa Comps
+                        </span>
+                      </div>
+                    </td>
                     <td className="p-3"><input type="number" value={vehicle.comp1Price} onChange={e => updateVehicle({ comp1Price: Number(e.target.value) })} className="w-full bg-white border border-slate-300 font-bold text-emerald-800 px-2 py-1 rounded-md text-xs" /></td>
                     <td className="p-3"><input type="number" value={vehicle.comp2Price} onChange={e => updateVehicle({ comp2Price: Number(e.target.value) })} className="w-full bg-white border border-slate-300 font-bold text-emerald-800 px-2 py-1 rounded-md text-xs" /></td>
                     <td className="p-3"><input type="number" value={vehicle.comp3Price} onChange={e => updateVehicle({ comp3Price: Number(e.target.value) })} className="w-full bg-white border border-slate-300 font-bold text-emerald-800 px-2 py-1 rounded-md text-xs" /></td>
