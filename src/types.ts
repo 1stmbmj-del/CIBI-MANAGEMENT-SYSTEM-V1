@@ -617,6 +617,11 @@ export interface RealPropertyAppraisal {
   neighborhoodClassification: string;
   highestAndBestUse: string;
   descriptionRemarks: string;
+  lotShape?: string;
+  neighborhoodZoning?: string;
+  electricityAvailable?: boolean;
+  waterAvailable?: boolean;
+  averageMarketValue?: number;
 
   // Comparables
   subjectLocation: string;
@@ -758,6 +763,10 @@ export interface VehicleAppraisal {
   comp1AccessoriesAdj: number;
   comp2AccessoriesAdj: number;
   comp3AccessoriesAdj: number;
+
+  comp1TransmissionAdj?: number;
+  comp2TransmissionAdj?: number;
+  comp3TransmissionAdj?: number;
 
   comp1YearModelAdj: number;
   comp2YearModelAdj: number;

@@ -1306,6 +1306,69 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
     }
   };
 
+  // Generate and preview formal report directly from current calculations
+  const handlePrintCurrentRealProperty = () => {
+    const combinedMarketValue = realProp.houseImprovement?.enabled
+      ? (realAverageMarketValue + (realProp.houseImprovement?.recommendedImprovementValue || 2400000))
+      : realAverageMarketValue;
+    const finalRecLoan = realProp.houseImprovement?.enabled
+      ? (realProp.houseImprovement?.maxLoanableAmount || realProp.recommendedLoanAmount)
+      : realProp.recommendedLoanAmount;
+
+    const currentRecord: AppraisalRecord = {
+      id: 'current-real-prop',
+      userId: user.id,
+      reportNumber: `REP-RP-${Date.now().toString().slice(-6)}`,
+      appraiserName: realProp.appraiser || user.fullName || 'Certified Appraiser',
+      title: `Real Property Appraisal - ${realProp.borrower || 'Subject Property'}`,
+      reportType: 'real_property',
+      borrowerName: realProp.borrower || 'Subject Property',
+      marketValue: combinedMarketValue,
+      recommendedLoan: finalRecLoan,
+      appliedLoanAmount: appliedRealLoanAmount,
+      targetLtv: realTargetLtv,
+      riskLevel: calculateRiskLevel(appliedRealLoanAmount, combinedMarketValue, realTargetLtv),
+      status: 'PENDING_REVIEW',
+      data: {
+        ...realProp,
+        appliedLoanAmount: appliedRealLoanAmount,
+        targetLtv: realTargetLtv,
+        recommendedLoanAmount: finalRecLoan
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    setPrintModalRecord(currentRecord);
+  };
+
+  const handlePrintCurrentVehicle = () => {
+    const currentRecord: AppraisalRecord = {
+      id: 'current-vehicle',
+      userId: user.id,
+      reportNumber: `REP-VH-${Date.now().toString().slice(-6)}`,
+      appraiserName: vehicle.registeredOwner || user.fullName || 'Certified Appraiser',
+      title: `Vehicle Appraisal - ${vehicle.borrower || 'Subject Vehicle'}`,
+      reportType: 'vehicle',
+      borrowerName: vehicle.borrower || 'Subject Vehicle',
+      marketValue: vehicleAverageMarketValue,
+      recommendedLoan: vehicle.recommendedLoanAmount,
+      appliedLoanAmount: appliedVehicleLoanAmount,
+      targetLtv: vehicleTargetLtv,
+      riskLevel: calculateRiskLevel(appliedVehicleLoanAmount, vehicleAverageMarketValue, vehicleTargetLtv),
+      status: 'PENDING_REVIEW',
+      data: {
+        ...vehicle,
+        appliedLoanAmount: appliedVehicleLoanAmount,
+        targetLtv: vehicleTargetLtv
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    setPrintModalRecord(currentRecord);
+  };
+
   // Load Saved Report back into Calculator
   const handleLoadReportIntoCalculator = (rec: AppraisalRecord) => {
     if (rec.reportType === 'real_property') {
@@ -1511,12 +1574,21 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
                     : realProp.recommendedLoanAmount)}
                 </p>
               </div>
-              <button
-                onClick={handleSaveRealProperty}
-                className="mt-3 w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md"
-              >
-                <Save className="w-3.5 h-3.5" /> Save Real Property Report
-              </button>
+              <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                <button
+                  onClick={handleSaveRealProperty}
+                  className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md"
+                >
+                  <Save className="w-3.5 h-3.5" /> Save Report
+                </button>
+                <button
+                  onClick={handlePrintCurrentRealProperty}
+                  className="py-2 px-3 bg-white/10 hover:bg-white/20 border border-emerald-400/40 text-emerald-100 font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                  title="Print Formal Report (PDF)"
+                >
+                  <Printer className="w-3.5 h-3.5 text-emerald-300" /> Print Formal Report
+                </button>
+              </div>
             </div>
           </div>
 
@@ -2549,12 +2621,21 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
                 <span className="text-[10px] font-black uppercase text-emerald-400 tracking-wider">Recommended Loan Amount</span>
                 <p className="text-2xl font-black text-white mt-1">{fmt(vehicle.recommendedLoanAmount)}</p>
               </div>
-              <button
-                onClick={handleSaveVehicle}
-                className="mt-3 w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md"
-              >
-                <Save className="w-3.5 h-3.5" /> Save Vehicle Report
-              </button>
+              <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                <button
+                  onClick={handleSaveVehicle}
+                  className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md"
+                >
+                  <Save className="w-3.5 h-3.5" /> Save Report
+                </button>
+                <button
+                  onClick={handlePrintCurrentVehicle}
+                  className="py-2 px-3 bg-white/10 hover:bg-white/20 border border-emerald-400/40 text-emerald-100 font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                  title="Print Formal Report (PDF)"
+                >
+                  <Printer className="w-3.5 h-3.5 text-emerald-300" /> Print Formal Report
+                </button>
+              </div>
             </div>
           </div>
 
@@ -3269,80 +3350,386 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
       {/* PRINT / REPORT PREVIEW MODAL                              */}
       {/* ========================================================= */}
       {printModalRecord && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-8 shadow-2xl border border-slate-100 space-y-6 relative">
-            <button
-              onClick={() => setPrintModalRecord(null)}
-              className="absolute top-6 right-6 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer"
-            >
-              ✕ Close
-            </button>
+        <div className="fixed inset-0 bg-slate-900/85 backdrop-blur-md z-50 flex flex-col items-center justify-start p-2 sm:p-6 overflow-y-auto print:p-0 print:m-0 print:bg-white print:overflow-visible print:static animate-fade-in">
+          
+          {/* Action Header - STRICTLY HIDDEN ON PRINT */}
+          <div className="no-print print-hide max-w-5xl w-full bg-slate-900 text-white rounded-2xl p-4 mb-4 border border-slate-700 shadow-2xl flex flex-wrap items-center justify-between gap-3 sticky top-2 z-30">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-400 shrink-0">
+                <Printer className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-black uppercase tracking-wider text-white flex items-center gap-2">
+                  Formal Appraisal Report
+                  <span className="text-[10px] px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-full border border-emerald-500/30">
+                    {printModalRecord.reportType === 'real_property' ? 'Real Property' : 'Vehicle'}
+                  </span>
+                </h2>
+                <p className="text-[11px] text-slate-300">
+                  {printModalRecord.reportNumber || 'REP-OFFICIAL'} • Borrower: <strong className="text-white">{printModalRecord.borrowerName}</strong> (Tanging ang buong formal report lamang ang lalabas sa printout)
+                </p>
+              </div>
+            </div>
 
-            {/* Print trigger */}
-            <div className="flex justify-end pr-12">
+            <div className="flex items-center gap-2.5">
               <button
+                type="button"
                 onClick={() => window.print()}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-2 shadow-md"
+                className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-2 shadow-lg shadow-emerald-500/20"
+                title="Print or Save as PDF"
               >
                 <Printer className="w-4 h-4" /> Print Formal Report
               </button>
+              <button
+                type="button"
+                onClick={() => setPrintModalRecord(null)}
+                className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer border border-slate-600"
+              >
+                ✕ Close
+              </button>
             </div>
+          </div>
 
-            <div className="print-section space-y-6 font-serif">
-              <div className="text-center border-b-2 border-emerald-900 pb-4">
-                <h1 className="text-xl font-black text-emerald-900 uppercase tracking-widest">
-                  {printModalRecord.reportType === 'real_property' 
-                    ? 'REAL PROPERTY APPRAISAL REPORT' 
-                    : 'VEHICLE APPRAISAL REPORT'}
-                </h1>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-1">
-                  (Three Comparable Valuation Analysis)
-                </p>
-              </div>
+          {/* THE FORMAL APPRAISAL REPORT CONTAINER - ONLY THIS IS VISIBLE ON PRINT */}
+          <div
+            id="formal-appraisal-report"
+            className="bg-white text-slate-900 max-w-5xl w-full rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 p-8 sm:p-12 space-y-7 print:shadow-none print:border-none print:p-0 print:m-0 print:rounded-none font-sans"
+          >
+            {printModalRecord.reportType === 'real_property' ? (
+              (() => {
+                const d = printModalRecord.data as RealPropertyAppraisal;
+                const h = d.houseImprovement;
 
-              {printModalRecord.reportType === 'real_property' ? (
-                (() => {
-                  const d = printModalRecord.data as RealPropertyAppraisal;
-                  const h = d.houseImprovement;
-                  return (
-                    <div className="space-y-6 text-xs text-slate-800">
-                      <div>
-                        <h3 className="font-black uppercase tracking-wider text-emerald-900 mb-2 border-b border-slate-200 pb-1">I. General Information</h3>
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                          <p><strong>Borrower:</strong> {d.borrower}</p>
-                          <p><strong>Property Owner:</strong> {h?.propertyOwner || d.propertyOwner}</p>
-                          <p><strong>Address:</strong> {h?.propertyAddress || d.propertyAddress}</p>
-                          <p><strong>Inspection Date:</strong> {h?.inspectionDate || d.inspectionDate}</p>
-                          <p><strong>Appraiser:</strong> {h?.appraiser || d.appraiser}</p>
-                          <p><strong>Title No:</strong> {d.titleNo}</p>
-                          <p><strong>Tax Dec No:</strong> {d.taxDecNo}</p>
-                          <p><strong>Property Type:</strong> {h?.propertyType || d.propertyType}</p>
-                          <p><strong>Lot Area:</strong> {d.lotArea} sqm</p>
-                          <p><strong>Floor Area:</strong> {h?.floorArea || d.floorArea} sqm</p>
-                          {h?.enabled && (
-                            <>
-                              <p><strong>Construction Type:</strong> {h.constructionType}</p>
-                              <p><strong>Roof Type:</strong> {h.roofType}</p>
-                              <p><strong>Bedrooms / T&B:</strong> {h.noOfBedrooms} BR / {h.noOfToiletAndBath} T&B</p>
-                              <p><strong>Year Built / Age:</strong> {h.yearBuilt} ({h.estimatedAge} years)</p>
-                            </>
-                          )}
+                const comp1Adj = (d.comp1Price || 0) + (d.comp1LocationAdj || 0) + (d.comp1LotSizeAdj || 0) + (d.comp1BuildingSizeAdj || 0) + (d.comp1ConditionAdj || 0) + (d.comp1RoadAccessAdj || 0) + (d.comp1OtherAdj || 0);
+                const comp2Adj = (d.comp2Price || 0) + (d.comp2LocationAdj || 0) + (d.comp2LotSizeAdj || 0) + (d.comp2BuildingSizeAdj || 0) + (d.comp2ConditionAdj || 0) + (d.comp2RoadAccessAdj || 0) + (d.comp2OtherAdj || 0);
+                const comp3Adj = (d.comp3Price || 0) + (d.comp3LocationAdj || 0) + (d.comp3LotSizeAdj || 0) + (d.comp3BuildingSizeAdj || 0) + (d.comp3ConditionAdj || 0) + (d.comp3RoadAccessAdj || 0) + (d.comp3OtherAdj || 0);
+                const validComps = [comp1Adj, comp2Adj, comp3Adj].filter(val => val > 0);
+                const landReconciled = validComps.length > 0 ? Math.round(validComps.reduce((a, b) => a + b, 0) / validComps.length) : (d.averageMarketValue || 0);
+                const derivedRatePerSqm = d.lotArea > 0 ? Math.round(landReconciled / d.lotArea) : 0;
+                const improvementValue = h?.enabled ? (h.recommendedImprovementValue || 2400000) : 0;
+                const totalCombinedMarketValue = h?.enabled ? (landReconciled + improvementValue) : landReconciled;
+                const declaredVal = d.declaredValue || 0;
+                const varianceVal = totalCombinedMarketValue - declaredVal;
+                const variancePct = declaredVal > 0 ? ((varianceVal / declaredVal) * 100).toFixed(1) : null;
+
+                return (
+                  <div className="space-y-6 text-xs text-slate-800">
+                    {/* Institutional Header */}
+                    <div className="border-b-2 border-emerald-900 pb-4 text-center">
+                      <div className="flex items-center justify-center gap-2 text-emerald-900 font-black text-xs uppercase tracking-widest mb-1">
+                        <span>BANGKO KABAYAN / 1ST MOUNTAIN BANK</span>
+                        <span>•</span>
+                        <span>APPRAISAL & CREDIT INVESTIGATION DIVISION</span>
+                      </div>
+                      <h1 className="text-xl sm:text-2xl font-black text-emerald-950 uppercase tracking-tight">
+                        REAL PROPERTY APPRAISAL & VALUATION REPORT
+                      </h1>
+                      <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mt-0.5">
+                        Market Data Analysis & Three Comparable Valuation Approach
+                      </p>
+                      <div className="flex flex-wrap items-center justify-between mt-4 pt-3 border-t border-slate-200 text-[11px] text-slate-700">
+                        <div><strong>Report No.:</strong> <span className="font-mono font-bold text-slate-900">{printModalRecord.reportNumber || 'REP-RP-001'}</span></div>
+                        <div><strong>Appraisal Date:</strong> {d.inspectionDate || new Date().toISOString().split('T')[0]}</div>
+                        <div><strong>Status:</strong> <span className="font-bold text-emerald-800">{printModalRecord.status || 'PENDING_REVIEW'}</span></div>
+                        <div><strong>Appraiser:</strong> {d.appraiser || printModalRecord.appraiserName}</div>
+                      </div>
+                    </div>
+
+                    {/* Section I. General Information */}
+                    <div>
+                      <h3 className="font-black uppercase tracking-wider text-emerald-950 text-sm mb-2 border-b border-emerald-800/40 pb-1 flex items-center justify-between">
+                        <span>I. General & Declared Property Information</span>
+                        <span className="text-[10px] font-bold text-slate-500">Official Record</span>
+                      </h3>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                        <p><strong>Borrower:</strong> <span className="font-semibold text-slate-900">{d.borrower || '-'}</span></p>
+                        <p><strong>Property Owner:</strong> <span className="font-semibold text-slate-900">{h?.propertyOwner || d.propertyOwner || '-'}</span></p>
+                        <p><strong>Property Address:</strong> <span className="font-semibold text-slate-900">{h?.propertyAddress || d.propertyAddress || '-'}</span></p>
+                        <p><strong>Title No. (TCT/OCT):</strong> <span className="font-mono font-bold text-slate-900">{d.titleNo || '-'}</span></p>
+                        <p><strong>Tax Declaration No.:</strong> <span className="font-mono font-bold text-slate-900">{d.taxDecNo || '-'}</span></p>
+                        <p><strong>Property Type:</strong> <span className="font-semibold text-slate-900">{h?.propertyType || d.propertyType || '-'}</span></p>
+                        <p><strong>Lot Area:</strong> <span className="font-bold text-slate-900">{d.lotArea} sqm</span></p>
+                        <p><strong>Floor Area:</strong> <span className="font-bold text-slate-900">{h?.floorArea || d.floorArea || 0} sqm</span></p>
+                        <p><strong>Inspection Date:</strong> <span className="font-semibold text-slate-900">{h?.inspectionDate || d.inspectionDate || '-'}</span></p>
+                        <div className="col-span-2 md:col-span-3 pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-slate-700">
+                            <strong>Declared Property Value:</strong>{' '}
+                            <span className="font-black text-slate-900">{declaredVal > 0 ? fmt(declaredVal) : 'Hindi tinukoy / ₱0'}</span>
+                          </p>
+                          <p className="text-emerald-900">
+                            <strong>Appraised Market Value (Base sa Comps):</strong>{' '}
+                            <span className="font-black text-emerald-950 text-sm">{fmt(totalCombinedMarketValue)}</span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section II. Property Characteristics */}
+                    <div>
+                      <h3 className="font-black uppercase tracking-wider text-emerald-950 text-sm mb-2 border-b border-emerald-800/40 pb-1">
+                        II. Property Description & Neighborhood Environment
+                      </h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-white p-3 rounded-xl border border-slate-200">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Topography / Terrain</span>
+                          <span className="font-semibold text-slate-900">{d.terrain || 'Level / Flat'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Lot Shape</span>
+                          <span className="font-semibold text-slate-900">{d.lotShape || 'Regular'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Road Access</span>
+                          <span className="font-semibold text-slate-900">{d.roadAccess || 'Concrete Road'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Neighborhood Zoning</span>
+                          <span className="font-semibold text-slate-900">{d.neighborhoodZoning || 'Residential'}</span>
+                        </div>
+                        <div className="col-span-2 md:col-span-4 pt-1 flex gap-6 text-[11px]">
+                          <span><strong>Electricity:</strong> {d.electricityAvailable ? '✓ Available (Connected)' : '✕ Not connected'}</span>
+                          <span><strong>Water System:</strong> {d.waterAvailable ? '✓ Available (Water District / Deepwell)' : '✕ Not connected'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section III. Three (3) Market Comparable Sales Analysis */}
+                    <div>
+                      <h3 className="font-black uppercase tracking-wider text-emerald-950 text-sm mb-2 border-b border-emerald-800/40 pb-1 flex items-center justify-between">
+                        <span>III. Three (3) Market Comparable Sales Analysis</span>
+                        <span className="text-[10px] font-bold text-slate-500">Market Approach</span>
+                      </h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse border border-slate-300 text-[11px]">
+                          <thead>
+                            <tr className="bg-slate-100 uppercase font-black text-slate-800">
+                              <th className="p-2 border border-slate-300 w-1/4">Property Factor</th>
+                              <th className="p-2 border border-slate-300 bg-emerald-100/70 text-emerald-950 w-1/4">Subject / Declared Property</th>
+                              <th className="p-2 border border-slate-300 w-1/6">Comparable 1</th>
+                              <th className="p-2 border border-slate-300 w-1/6">Comparable 2</th>
+                              <th className="p-2 border border-slate-300 w-1/6">Comparable 3</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200">
+                            <tr>
+                              <td className="p-2 border border-slate-300 font-bold">Location</td>
+                              <td className="p-2 border border-slate-300 bg-emerald-50/40 font-semibold">{d.propertyAddress || 'Subject Location'}</td>
+                              <td className="p-2 border border-slate-300">{d.comp1Location || '-'}</td>
+                              <td className="p-2 border border-slate-300">{d.comp2Location || '-'}</td>
+                              <td className="p-2 border border-slate-300">{d.comp3Location || '-'}</td>
+                            </tr>
+                            <tr>
+                              <td className="p-2 border border-slate-300 font-bold">Distance from Subject</td>
+                              <td className="p-2 border border-slate-300 bg-emerald-50/40 font-bold">0.0 km (Subject)</td>
+                              <td className="p-2 border border-slate-300">{d.comp1Distance || '-'} km</td>
+                              <td className="p-2 border border-slate-300">{d.comp2Distance || '-'} km</td>
+                              <td className="p-2 border border-slate-300">{d.comp3Distance || '-'} km</td>
+                            </tr>
+                            <tr>
+                              <td className="p-2 border border-slate-300 font-bold">Date Sold / Analyzed</td>
+                              <td className="p-2 border border-slate-300 bg-emerald-50/40">{d.inspectionDate || '-'}</td>
+                              <td className="p-2 border border-slate-300">{d.comp1DateSold || '-'}</td>
+                              <td className="p-2 border border-slate-300">{d.comp2DateSold || '-'}</td>
+                              <td className="p-2 border border-slate-300">{d.comp3DateSold || '-'}</td>
+                            </tr>
+                            <tr>
+                              <td className="p-2 border border-slate-300 font-bold">Lot Area</td>
+                              <td className="p-2 border border-slate-300 bg-emerald-50/40 font-bold">{d.lotArea} sqm</td>
+                              <td className="p-2 border border-slate-300">{d.comp1LotArea || '-'} sqm</td>
+                              <td className="p-2 border border-slate-300">{d.comp2LotArea || '-'} sqm</td>
+                              <td className="p-2 border border-slate-300">{d.comp3LotArea || '-'} sqm</td>
+                            </tr>
+                            <tr className="bg-slate-50 font-bold">
+                              <td className="p-2 border border-slate-300">Selling Price / Value</td>
+                              <td className="p-2 border border-slate-300 bg-emerald-100 text-emerald-950 font-black">
+                                {fmt(landReconciled)} <span className="text-[9px] font-normal block text-emerald-800">(Base sa Comps)</span>
+                              </td>
+                              <td className="p-2 border border-slate-300 text-slate-900">{fmt(d.comp1Price || 0)}</td>
+                              <td className="p-2 border border-slate-300 text-slate-900">{fmt(d.comp2Price || 0)}</td>
+                              <td className="p-2 border border-slate-300 text-slate-900">{fmt(d.comp3Price || 0)}</td>
+                            </tr>
+                            <tr className="bg-emerald-50/40 font-bold">
+                              <td className="p-2 border border-slate-300">Price per sqm</td>
+                              <td className="p-2 border border-slate-300 bg-emerald-100 text-emerald-950 font-black">
+                                {fmt(derivedRatePerSqm)} / sqm
+                              </td>
+                              <td className="p-2 border border-slate-300">{fmt(d.comp1LotArea ? Math.round((d.comp1Price || 0) / d.comp1LotArea) : 0)} / sqm</td>
+                              <td className="p-2 border border-slate-300">{fmt(d.comp2LotArea ? Math.round((d.comp2Price || 0) / d.comp2LotArea) : 0)} / sqm</td>
+                              <td className="p-2 border border-slate-300">{fmt(d.comp3LotArea ? Math.round((d.comp3Price || 0) / d.comp3LotArea) : 0)} / sqm</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Section IV. Valuation Adjustments Matrix */}
+                    <div>
+                      <h3 className="font-black uppercase tracking-wider text-emerald-950 text-sm mb-2 border-b border-emerald-800/40 pb-1 flex items-center justify-between">
+                        <span>IV. Valuation Adjustments Matrix</span>
+                        <span className="text-[10px] font-bold text-slate-500">Market Grid Adjustments</span>
+                      </h3>
+                      <table className="w-full text-left border-collapse border border-slate-300 text-[11px]">
+                        <thead>
+                          <tr className="bg-slate-100 uppercase font-black text-slate-800">
+                            <th className="p-2 border border-slate-300 w-1/4">Adjustment Factor</th>
+                            <th className="p-2 border border-slate-300 w-1/4">Comparable 1</th>
+                            <th className="p-2 border border-slate-300 w-1/4">Comparable 2</th>
+                            <th className="p-2 border border-slate-300 w-1/4">Comparable 3</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          <tr>
+                            <td className="p-2 border border-slate-300 font-semibold">Location Adjustment</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp1LocationAdj || 0)}</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp2LocationAdj || 0)}</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp3LocationAdj || 0)}</td>
+                          </tr>
+                          <tr>
+                            <td className="p-2 border border-slate-300 font-semibold">Lot Size Adjustment</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp1LotSizeAdj || 0)}</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp2LotSizeAdj || 0)}</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp3LotSizeAdj || 0)}</td>
+                          </tr>
+                          <tr>
+                            <td className="p-2 border border-slate-300 font-semibold">Building Size Adjustment</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp1BuildingSizeAdj || 0)}</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp2BuildingSizeAdj || 0)}</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp3BuildingSizeAdj || 0)}</td>
+                          </tr>
+                          <tr>
+                            <td className="p-2 border border-slate-300 font-semibold">Condition & Age Adjustment</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp1ConditionAdj || 0)}</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp2ConditionAdj || 0)}</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp3ConditionAdj || 0)}</td>
+                          </tr>
+                          <tr>
+                            <td className="p-2 border border-slate-300 font-semibold">Road Access Adjustment</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp1RoadAccessAdj || 0)}</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp2RoadAccessAdj || 0)}</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp3RoadAccessAdj || 0)}</td>
+                          </tr>
+                          <tr>
+                            <td className="p-2 border border-slate-300 font-semibold">Other Adjustments</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp1OtherAdj || 0)}</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp2OtherAdj || 0)}</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp3OtherAdj || 0)}</td>
+                          </tr>
+                          <tr className="bg-slate-100 font-black text-slate-900">
+                            <td className="p-2 border border-slate-300">Total Adjusted Market Value</td>
+                            <td className="p-2 border border-slate-300 text-emerald-900">{fmt(comp1Adj)}</td>
+                            <td className="p-2 border border-slate-300 text-emerald-900">{fmt(comp2Adj)}</td>
+                            <td className="p-2 border border-slate-300 text-emerald-900">{fmt(comp3Adj)}</td>
+                          </tr>
+                          <tr className="bg-emerald-100 font-black text-emerald-950">
+                            <td colSpan={2} className="p-2.5 border border-slate-300 uppercase">
+                              Reconciled Declared Land Value (Average of Comps)
+                            </td>
+                            <td colSpan={2} className="p-2.5 border border-slate-300 text-right text-sm">
+                              {fmt(landReconciled)} ({fmt(derivedRatePerSqm)} / sqm)
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Section V. Value ng Declared Property Base sa Comparables */}
+                    <div className="bg-emerald-50/70 p-4 rounded-xl border-2 border-emerald-300/80 space-y-3">
+                      <h3 className="font-black uppercase tracking-wider text-emerald-950 text-sm border-b border-emerald-300 pb-1.5 flex items-center justify-between">
+                        <span>V. Value ng Declared Property Base sa Comparables</span>
+                        <span className="text-[10px] font-black uppercase text-emerald-800 bg-emerald-200/80 px-2 py-0.5 rounded">Reconciliation</span>
+                      </h3>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-center">
+                        <div className="bg-white p-3 rounded-lg border border-emerald-200 shadow-2xs">
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">1. Declared Land Value</span>
+                          <span className="text-base font-black text-slate-800">{fmt(landReconciled)}</span>
+                          <span className="text-[10px] text-slate-500 block mt-0.5">{d.lotArea} sqm × {fmt(derivedRatePerSqm)}/sqm</span>
+                        </div>
+                        <div className="bg-white p-3 rounded-lg border border-emerald-200 shadow-2xs">
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">2. Declared House / Improvement</span>
+                          <span className="text-base font-black text-teal-800">{fmt(improvementValue)}</span>
+                          <span className="text-[10px] text-slate-500 block mt-0.5">{h?.enabled ? 'Cost Approach Depreciated' : 'None / Vacant Lot'}</span>
+                        </div>
+                        <div className="bg-emerald-100 p-3 rounded-lg border border-emerald-400 shadow-2xs">
+                          <span className="text-[10px] uppercase font-black text-emerald-950 block">Kabuuang Appraised Value</span>
+                          <span className="text-lg font-black text-emerald-950">{fmt(totalCombinedMarketValue)}</span>
+                          <span className="text-[10px] text-emerald-800 font-bold block mt-0.5">Value Base sa 3 Comparables</span>
                         </div>
                       </div>
 
-                      {h?.enabled && h.physicalComponents && h.physicalComponents.length > 0 && (
+                      {/* Declared vs Comps Variance Comparison */}
+                      <div className="bg-white p-3 rounded-lg border border-emerald-200 flex flex-wrap items-center justify-between gap-3 text-[11px]">
                         <div>
-                          <h3 className="font-black uppercase tracking-wider text-emerald-900 mb-2 border-b border-slate-200 pb-1">II. Physical Inspection (Component Breakdown)</h3>
-                          <table className="w-full text-left border-collapse border border-slate-300">
+                          <span className="font-bold text-slate-600">Borrower Declared Value:</span>{' '}
+                          <strong className="text-slate-900">{declaredVal > 0 ? fmt(declaredVal) : 'Walang idineklarang halaga'}</strong>
+                        </div>
+                        {declaredVal > 0 && (
+                          <div>
+                            <span className="font-bold text-slate-600">Variance Analysis:</span>{' '}
+                            <span className={`font-black ${varianceVal >= 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                              {varianceVal >= 0 ? '▲ Mas mataas ang market value ng ' : '▼ Mas mababa ang market value ng '}
+                              {fmt(Math.abs(varianceVal))} ({variancePct}%) kumpara sa deklarasyon ng borrower.
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Section VI. Loan Computation & Lending Recommendation */}
+                    <div>
+                      <h3 className="font-black uppercase tracking-wider text-emerald-950 text-sm mb-2 border-b border-emerald-800/40 pb-1">
+                        VI. Lending Parameters & Loan Recommendation
+                      </h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
+                        <div className="p-2 bg-white rounded-lg border border-slate-200">
+                          <p className="text-[10px] uppercase font-bold text-slate-500">Appraised Market Value</p>
+                          <p className="text-sm font-black text-emerald-950 mt-0.5">{fmt(totalCombinedMarketValue)}</p>
+                        </div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200">
+                          <p className="text-[10px] uppercase font-bold text-slate-500">Loan-To-Value (70% Max)</p>
+                          <p className="text-sm font-black text-slate-800 mt-0.5">{fmt(Math.round(totalCombinedMarketValue * 0.70))}</p>
+                        </div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200">
+                          <p className="text-[10px] uppercase font-bold text-slate-500">Forced Sale Value (FSV @ 70%)</p>
+                          <p className="text-sm font-black text-amber-800 mt-0.5">{fmt(Math.round(totalCombinedMarketValue * 0.70))}</p>
+                        </div>
+                        <div className="p-2 bg-emerald-700 text-white rounded-lg shadow-sm">
+                          <p className="text-[10px] uppercase font-bold text-emerald-100">Recommended Loan</p>
+                          <p className="text-base font-black text-white mt-0.5">{fmt(printModalRecord.recommendedLoan)}</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 p-3 bg-white border border-slate-200 rounded-xl space-y-1">
+                        <p><strong>Appraiser Opinion:</strong> <span className="font-semibold text-slate-900">{d.opinion || 'RECOMMENDED'}</span></p>
+                        <p className="text-slate-600 italic">"{d.opinionRemarks || 'Property is suitable and acceptable as collateral guarantee within the recommended exposure ceiling.'}"</p>
+                      </div>
+                    </div>
+
+                    {/* Section VII. House & Improvements (if enabled) */}
+                    {h?.enabled && (
+                      <div className="space-y-3 page-break-inside-avoid">
+                        <h3 className="font-black uppercase tracking-wider text-emerald-950 text-sm border-b border-emerald-800/40 pb-1">
+                          VII. House & Improvement Physical Inspection Breakdown
+                        </h3>
+                        
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-3 rounded-lg border border-slate-200 text-[11px]">
+                          <div><span className="text-slate-500 font-bold block">Construction Type</span><span className="font-semibold">{h.constructionType}</span></div>
+                          <div><span className="text-slate-500 font-bold block">Roof Type</span><span className="font-semibold">{h.roofType}</span></div>
+                          <div><span className="text-slate-500 font-bold block">Bedrooms / T&B</span><span className="font-semibold">{h.noOfBedrooms} BR / {h.noOfToiletAndBath} T&B</span></div>
+                          <div><span className="text-slate-500 font-bold block">Year Built / Age</span><span className="font-semibold">{h.yearBuilt} ({h.estimatedAge} yrs)</span></div>
+                        </div>
+
+                        {h.physicalComponents && h.physicalComponents.length > 0 && (
+                          <table className="w-full text-left border-collapse border border-slate-300 text-[10px]">
                             <thead>
-                              <tr className="bg-slate-100 text-[10px] uppercase font-bold text-slate-700">
+                              <tr className="bg-slate-100 uppercase font-bold text-slate-700">
                                 <th className="p-1.5 border border-slate-300">Component</th>
-                                <th className="p-1.5 border border-slate-300">Description / Specs</th>
+                                <th className="p-1.5 border border-slate-300">Description / Specifications</th>
                                 <th className="p-1.5 border border-slate-300">Condition</th>
                                 <th className="p-1.5 border border-slate-300 text-center">Depr %</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-200 text-[11px]">
+                            <tbody className="divide-y divide-slate-200">
                               {h.physicalComponents.map(c => (
                                 <tr key={c.component}>
                                   <td className="p-1.5 border border-slate-300 font-bold">{c.component}</td>
@@ -3353,215 +3740,340 @@ export default function AppraisalCalculator({ user }: AppraisalCalculatorProps) 
                               ))}
                             </tbody>
                           </table>
-                        </div>
-                      )}
+                        )}
 
-                      {h?.enabled && (
-                        <div>
-                          <h3 className="font-black uppercase tracking-wider text-emerald-900 mb-2 border-b border-slate-200 pb-1">III. Cost Approach & Additional Improvements</h3>
-                          <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-200 mb-3">
-                            <div>
-                              <p><strong>Main Floor Area:</strong> {h.floorArea} sqm</p>
-                              <p><strong>Cost / sqm:</strong> {fmt(h.constructionCostPerSqm || 30000)}</p>
-                              <p><strong>Replacement Cost New (RCN):</strong> {fmt(h.replacementCostNew || 2400000)}</p>
-                            </div>
-                            <div>
-                              <p><strong>Effective Age / Life:</strong> {h.effectiveAge || 10} / {h.economicLifeYears || 50} yrs</p>
-                              <p><strong>Depreciation Rate:</strong> {h.straightLineDepreciationPct || 20}% (-{fmt(h.depreciationAmount || 480000)})</p>
-                              <p><strong>Depreciated Main House:</strong> {fmt(h.depreciatedMainHouseValue || 1920000)}</p>
-                            </div>
+                        <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-200 text-[11px]">
+                          <div>
+                            <p><strong>Main Floor Area:</strong> {h.floorArea} sqm</p>
+                            <p><strong>Replacement Cost New (RCN):</strong> {fmt(h.replacementCostNew || 2400000)}</p>
                           </div>
-
-                          {h.additionalImprovements && (
-                            <table className="w-full text-left border-collapse border border-slate-300 text-[11px]">
-                              <thead>
-                                <tr className="bg-slate-100 uppercase text-[10px] font-bold">
-                                  <th className="p-1.5 border border-slate-300">Improvement Item</th>
-                                  <th className="p-1.5 border border-slate-300">Qty / Area</th>
-                                  <th className="p-1.5 border border-slate-300">New Cost</th>
-                                  <th className="p-1.5 border border-slate-300">Depr %</th>
-                                  <th className="p-1.5 border border-slate-300">Depreciated Value</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {h.additionalImprovements.map(imp => (
-                                  <tr key={imp.id}>
-                                    <td className="p-1.5 border border-slate-300 font-bold">{imp.name}</td>
-                                    <td className="p-1.5 border border-slate-300">{imp.qtyArea}</td>
-                                    <td className="p-1.5 border border-slate-300">{fmt(imp.newCost)}</td>
-                                    <td className="p-1.5 border border-slate-300">{imp.depreciationPct}%</td>
-                                    <td className="p-1.5 border border-slate-300 font-bold">{fmt(imp.depreciatedValue)}</td>
-                                  </tr>
-                                ))}
-                                <tr className="bg-emerald-50 font-bold">
-                                  <td colSpan={4} className="p-1.5 border border-slate-300 uppercase">Total Depreciated Improvements (Cost Approach)</td>
-                                  <td className="p-1.5 border border-slate-300 font-black text-emerald-900">{fmt(h.totalDepreciatedImprovementValue || 2360500)}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          )}
+                          <div>
+                            <p><strong>Depreciation Rate:</strong> {h.straightLineDepreciationPct || 20}% (-{fmt(h.depreciationAmount || 480000)})</p>
+                            <p><strong>Depreciated Main House:</strong> {fmt(h.depreciatedMainHouseValue || 1920000)}</p>
+                          </div>
                         </div>
-                      )}
 
-                      <div>
-                        <h3 className="font-black uppercase tracking-wider text-emerald-900 mb-2 border-b border-slate-200 pb-1">
-                          {h?.enabled ? 'IV. Final Combined Valuation & Lending Parameters' : 'II. Final Valuation & Loan Computation'}
+                        {h.additionalImprovements && h.additionalImprovements.length > 0 && (
+                          <table className="w-full text-left border-collapse border border-slate-300 text-[10px]">
+                            <thead>
+                              <tr className="bg-slate-100 uppercase font-bold text-slate-700">
+                                <th className="p-1.5 border border-slate-300">Improvement Item</th>
+                                <th className="p-1.5 border border-slate-300">Qty / Area</th>
+                                <th className="p-1.5 border border-slate-300">New Cost</th>
+                                <th className="p-1.5 border border-slate-300">Depr %</th>
+                                <th className="p-1.5 border border-slate-300">Depreciated Value</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {h.additionalImprovements.map(imp => (
+                                <tr key={imp.id}>
+                                  <td className="p-1.5 border border-slate-300 font-bold">{imp.name}</td>
+                                  <td className="p-1.5 border border-slate-300">{imp.qtyArea}</td>
+                                  <td className="p-1.5 border border-slate-300">{fmt(imp.newCost)}</td>
+                                  <td className="p-1.5 border border-slate-300">{imp.depreciationPct}%</td>
+                                  <td className="p-1.5 border border-slate-300 font-bold">{fmt(imp.depreciatedValue)}</td>
+                                </tr>
+                              ))}
+                              <tr className="bg-emerald-50 font-bold">
+                                <td colSpan={4} className="p-1.5 border border-slate-300 uppercase">Total Depreciated Improvements</td>
+                                <td className="p-1.5 border border-slate-300 font-black text-emerald-900">{fmt(h.totalDepreciatedImprovementValue || 2360500)}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Section VIII. Cadastral Lot Boundary Plotting (if enabled) */}
+                    {d.lotPlottingEnabled !== false && d.lotPlotting && (
+                      <div className="space-y-3 page-break-inside-avoid">
+                        <h3 className="font-black uppercase tracking-wider text-emerald-950 text-sm border-b border-emerald-800/40 pb-1 flex items-center justify-between">
+                          <span>VIII. Cadastral Lot Technical Boundary & Traverse Analysis</span>
+                          <span className="text-[9px] px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-black uppercase">Verified Cadastral Survey Attached</span>
                         </h3>
-                        <div className="grid grid-cols-3 gap-3 bg-emerald-50 p-4 rounded-xl border border-emerald-200 text-center">
-                          <div>
-                            <p className="text-[10px] uppercase font-bold text-slate-500">1. Land Market Value</p>
-                            <p className="text-sm font-black text-slate-800">
-                              {fmt(h?.enabled ? (h.landMarketValue || (printModalRecord.marketValue - (h.recommendedImprovementValue || 2400000))) : printModalRecord.marketValue)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-[10px] uppercase font-bold text-slate-500">2. House Improvement Value</p>
-                            <p className="text-sm font-black text-teal-800">
-                              {fmt(h?.enabled ? (h.recommendedImprovementValue || 2400000) : 0)}
-                            </p>
-                          </div>
-                          <div className="bg-emerald-100 p-2 rounded-lg border border-emerald-300">
-                            <p className="text-[10px] uppercase font-black text-emerald-950">Total Combined Market Value</p>
-                            <p className="text-base font-black text-emerald-900">{fmt(printModalRecord.marketValue)}</p>
-                          </div>
+                        
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-[10px]">
+                          <div><span className="text-slate-500 font-bold block">Lot / Plan</span><span className="font-black text-slate-800">{d.lotPlotting.lotNo || 'Lot 123'} ({d.lotPlotting.surveyPlan || 'Survey'})</span></div>
+                          <div><span className="text-slate-500 font-bold block">Stated vs Computed</span><span className="font-black text-emerald-900">{d.lotPlotting.statedArea} sqm / {d.lotPlotting.computedArea ? `${d.lotPlotting.computedArea.toFixed(2)} sqm` : `${d.lotArea} sqm`}</span></div>
+                          <div><span className="text-slate-500 font-bold block">Shape / Corners</span><span className="font-black text-slate-800">{d.lotPlotting.lotShape || 'Regular'} ({d.lotPlotting.numberOfCorners || d.lotPlotting.traverses?.length || 4} Corners)</span></div>
+                          <div><span className="text-slate-500 font-bold block">Closure Ratio</span><span className="font-black text-teal-800">{d.lotPlotting.closureRatio || '1:10,000+'}</span></div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3 mt-3">
-                          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                            <p className="text-[10px] uppercase font-bold text-slate-500">Forced Sale Value (FSV @ 70%)</p>
-                            <p className="text-sm font-black text-amber-800">{fmt(Math.round(printModalRecord.marketValue * 0.70))}</p>
-                          </div>
-                          <div className="p-3 bg-emerald-600 text-white rounded-lg">
-                            <p className="text-[10px] uppercase font-bold text-emerald-100">Maximum Recommended Loan</p>
-                            <p className="text-base font-black text-white">{fmt(printModalRecord.recommendedLoan)}</p>
-                          </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-white p-2 rounded-lg border border-slate-200 text-[10px]">
+                          <div><span className="text-slate-500 font-bold">North:</span> <span className="font-semibold">{d.lotPlotting.boundaryNorth || 'Adjacent Lot'}</span></div>
+                          <div><span className="text-slate-500 font-bold">East:</span> <span className="font-semibold">{d.lotPlotting.boundaryEast || 'Adjacent Lot'}</span></div>
+                          <div><span className="text-slate-500 font-bold">South:</span> <span className="font-semibold">{d.lotPlotting.boundarySouth || 'Road Access'}</span></div>
+                          <div><span className="text-slate-500 font-bold">West:</span> <span className="font-semibold">{d.lotPlotting.boundaryWest || 'Adjacent Lot'}</span></div>
                         </div>
-                      </div>
 
-                      {d.lotPlottingEnabled !== false && d.lotPlotting && (
-                        <div>
-                          <h3 className="font-black uppercase tracking-wider text-emerald-900 mb-2 border-b border-slate-200 pb-1 flex items-center justify-between">
-                            <span>{h?.enabled ? 'V. Cadastral Lot Plotting & Technical Boundary Analysis' : 'III. Cadastral Lot Plotting & Technical Boundary Analysis'}</span>
-                            <span className="text-[9px] px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-black uppercase">Verified Cadastral Survey Attached</span>
-                          </h3>
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200 mb-2 text-[10px]">
-                            <div>
-                              <p className="text-slate-500 font-bold uppercase">Lot / Plan</p>
-                              <p className="font-black text-slate-800">{d.lotPlotting.lotNo || 'Lot 123'} ({d.lotPlotting.surveyPlan || 'Survey'})</p>
-                            </div>
-                            <div>
-                              <p className="text-slate-500 font-bold uppercase">Stated vs Computed Area</p>
-                              <p className="font-black text-emerald-900">{d.lotPlotting.statedArea} sqm / {d.lotPlotting.computedArea ? `${d.lotPlotting.computedArea.toFixed(2)} sqm` : `${d.lotArea} sqm`}</p>
-                            </div>
-                            <div>
-                              <p className="text-slate-500 font-bold uppercase">Shape / Corners</p>
-                              <p className="font-black text-slate-800">{d.lotPlotting.lotShape || 'Regular'} ({d.lotPlotting.numberOfCorners || d.lotPlotting.traverses?.length || 4} Corners)</p>
-                            </div>
-                            <div>
-                              <p className="text-slate-500 font-bold uppercase">Closure / Misclosure</p>
-                              <p className="font-black text-teal-800">{d.lotPlotting.closureRatio || '1:10,000+'} ({d.lotPlotting.linearMisclosure !== undefined ? `${d.lotPlotting.linearMisclosure.toFixed(4)}m` : '0.0000m'})</p>
-                            </div>
-                          </div>
-
-                          {/* Boundaries & Dimensions */}
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-white p-2 rounded-lg border border-slate-200 mb-2 text-[10px]">
-                            <div><span className="text-slate-500 font-bold">North:</span> <span className="font-semibold">{d.lotPlotting.boundaryNorth || 'Adjacent Lot'}</span></div>
-                            <div><span className="text-slate-500 font-bold">East:</span> <span className="font-semibold">{d.lotPlotting.boundaryEast || 'Adjacent Lot'}</span></div>
-                            <div><span className="text-slate-500 font-bold">South:</span> <span className="font-semibold">{d.lotPlotting.boundarySouth || 'Road Access'}</span></div>
-                            <div><span className="text-slate-500 font-bold">West:</span> <span className="font-semibold">{d.lotPlotting.boundaryWest || 'Adjacent Lot'}</span></div>
-                          </div>
-
-                          {d.lotPlotting.traverses && d.lotPlotting.traverses.length > 0 && (
-                            <table className="w-full text-left border-collapse border border-slate-300 text-[10px]">
-                              <thead>
-                                <tr className="bg-slate-100 uppercase font-bold text-slate-700">
-                                  <th className="p-1 border border-slate-300">Line</th>
-                                  <th className="p-1 border border-slate-300">Bearing</th>
-                                  <th className="p-1 border border-slate-300">Distance (m)</th>
-                                  <th className="p-1 border border-slate-300">Boundary Note / Adjoining</th>
+                        {d.lotPlotting.traverses && d.lotPlotting.traverses.length > 0 && (
+                          <table className="w-full text-left border-collapse border border-slate-300 text-[10px]">
+                            <thead>
+                              <tr className="bg-slate-100 uppercase font-bold text-slate-700">
+                                <th className="p-1 border border-slate-300">Line</th>
+                                <th className="p-1 border border-slate-300">Bearing</th>
+                                <th className="p-1 border border-slate-300">Distance (m)</th>
+                                <th className="p-1 border border-slate-300">Boundary Note / Adjoining</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200 font-mono">
+                              {d.lotPlotting.traverses.map((t, idx) => (
+                                <tr key={t.id || idx}>
+                                  <td className="p-1 border border-slate-300 font-bold">{t.fromPoint} - {t.toPoint}</td>
+                                  <td className="p-1 border border-slate-300 font-bold text-slate-800">{t.bearingString || `${t.quadrant?.charAt(0)} ${t.deg}° ${t.min}' ${t.quadrant?.slice(-1)}`}</td>
+                                  <td className="p-1 border border-slate-300 font-bold text-slate-800">{t.distance.toFixed(2)} m</td>
+                                  <td className="p-1 border border-slate-300 font-sans text-slate-600">{t.boundaryDescription || (idx === 0 ? 'Frontage along road' : 'Adjacent Property')}</td>
                                 </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-200">
-                                {d.lotPlotting.traverses.map((t, idx) => (
-                                  <tr key={t.id || idx}>
-                                    <td className="p-1 border border-slate-300 font-bold">{t.fromPoint} - {t.toPoint}</td>
-                                    <td className="p-1 border border-slate-300 font-mono font-bold text-slate-800">{t.bearingString || `${t.quadrant?.charAt(0)} ${t.deg}° ${t.min}' ${t.quadrant?.slice(-1)}`}</td>
-                                    <td className="p-1 border border-slate-300 font-mono font-bold text-slate-800">{t.distance.toFixed(2)} m</td>
-                                    <td className="p-1 border border-slate-300 text-slate-600">{t.boundaryDescription || (idx === 0 ? 'Frontage along road' : 'Adjacent Property')}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          )}
-                        </div>
-                      )}
-
-                      <div>
-                        <h3 className="font-black uppercase tracking-wider text-emerald-900 mb-2 border-b border-slate-200 pb-1">
-                          {d.lotPlottingEnabled !== false && d.lotPlotting && h?.enabled 
-                            ? 'VI. Appraiser\'s Opinion & Certification'
-                            : (h?.enabled || (d.lotPlottingEnabled !== false && d.lotPlotting)) 
-                            ? 'V. Appraiser\'s Opinion & Certification' 
-                            : 'III. Appraiser\'s Opinion & Remarks'}
-                        </h3>
-                        <p><strong>Opinion:</strong> {d.opinion}</p>
-                        <p className="mt-1 italic text-slate-600">"{d.opinionRemarks}"</p>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
                       </div>
-                    </div>
-                  );
-                })()
-              ) : (
-                (() => {
-                  const d = printModalRecord.data as VehicleAppraisal;
-                  return (
-                    <div className="space-y-6 text-xs text-slate-800">
-                      <div>
-                        <h3 className="font-black uppercase tracking-wider text-emerald-900 mb-2 border-b border-slate-200 pb-1">Vehicle Information</h3>
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                          <p><strong>Borrower:</strong> {d.borrower}</p>
-                          <p><strong>Registered Owner:</strong> {d.registeredOwner}</p>
-                          <p><strong>Make & Model:</strong> {d.make} {d.model} {d.variant}</p>
-                          <p><strong>Year Model:</strong> {d.yearModel}</p>
-                          <p><strong>Plate Number:</strong> {d.plateNumber}</p>
-                          <p><strong>Engine No:</strong> {d.engineNumber}</p>
-                          <p><strong>Chassis No:</strong> {d.chassisNumber}</p>
-                          <p><strong>Mileage:</strong> {d.mileage.toLocaleString()} km</p>
-                        </div>
-                      </div>
+                    )}
 
-                      <div>
-                        <h3 className="font-black uppercase tracking-wider text-emerald-900 mb-2 border-b border-slate-200 pb-1">Final Valuation</h3>
-                        <div className="grid grid-cols-2 gap-4 bg-emerald-50 p-4 rounded-xl border border-emerald-200">
-                          <div>
-                            <p className="text-[10px] uppercase font-bold text-slate-500">Average Market Value</p>
-                            <p className="text-sm font-black text-emerald-900">{fmt(printModalRecord.marketValue)}</p>
+                    {/* Section IX. Appraiser Certification & Signatures */}
+                    <div className="pt-8 page-break-inside-avoid space-y-6">
+                      <p className="text-[10px] text-slate-500 text-justify leading-relaxed border-t border-slate-200 pt-3">
+                        <strong>Certification & Professional Declaration:</strong> I hereby certify that I have conducted an ocular inspection of the subject property, examined the pertinent collateral records, and verified the prevailing comparable market values. The valuations and credit lending parameters presented in this formal appraisal report reflect an objective, independent professional assessment in accordance with sound credit and appraisal guidelines.
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-8 text-center pt-4">
+                        <div>
+                          <div className="border-b border-slate-800 w-52 mx-auto font-black text-xs pb-1">
+                            {d.appraiser || printModalRecord.appraiserName || 'Certified Appraiser'}
                           </div>
-                          <div>
-                            <p className="text-[10px] uppercase font-bold text-slate-500">Recommended Loan Amount</p>
-                            <p className="text-sm font-black text-teal-900">{fmt(printModalRecord.recommendedLoan)}</p>
+                          <p className="text-[10px] uppercase font-bold text-slate-500 mt-1">Certified Real Estate Appraiser / CI Officer</p>
+                          <p className="text-[9px] text-slate-400">Date Signed: {d.inspectionDate || new Date().toISOString().split('T')[0]}</p>
+                        </div>
+                        <div>
+                          <div className="border-b border-slate-800 w-52 mx-auto font-black text-xs pb-1">
+                            CreCom Reviewer / Supervisor
                           </div>
+                          <p className="text-[10px] uppercase font-bold text-slate-500 mt-1">Credit Committee (CreCom) Chairperson</p>
+                          <p className="text-[9px] text-slate-400">Date Verified: {new Date().toISOString().split('T')[0]}</p>
                         </div>
                       </div>
                     </div>
-                  );
-                })()
-              )}
+                  </div>
+                );
+              })()
+            ) : (
+              (() => {
+                const d = printModalRecord.data as VehicleAppraisal;
+                const comp1Adj = (d.comp1Price || 0) + (d.comp1MileageAdj || 0) + (d.comp1ConditionAdj || 0) + (d.comp1TransmissionAdj || 0);
+                const comp2Adj = (d.comp2Price || 0) + (d.comp2MileageAdj || 0) + (d.comp2ConditionAdj || 0) + (d.comp2TransmissionAdj || 0);
+                const comp3Adj = (d.comp3Price || 0) + (d.comp3MileageAdj || 0) + (d.comp3ConditionAdj || 0) + (d.comp3TransmissionAdj || 0);
+                const validComps = [comp1Adj, comp2Adj, comp3Adj].filter(val => val > 0);
+                const vehicleReconciled = validComps.length > 0 ? Math.round(validComps.reduce((a, b) => a + b, 0) / validComps.length) : printModalRecord.marketValue;
+                const declaredVehicleVal = d.declaredValue || 0;
+                const vehicleVariance = vehicleReconciled - declaredVehicleVal;
+                const vehicleVariancePct = declaredVehicleVal > 0 ? ((vehicleVariance / declaredVehicleVal) * 100).toFixed(1) : null;
 
-              <div className="pt-12 grid grid-cols-2 gap-8 text-center border-t border-slate-300">
-                <div>
-                  <div className="border-b border-slate-800 w-48 mx-auto font-bold text-xs pb-1">
-                    {printModalRecord.appraiserName}
+                return (
+                  <div className="space-y-6 text-xs text-slate-800">
+                    {/* Institutional Header */}
+                    <div className="border-b-2 border-emerald-900 pb-4 text-center">
+                      <div className="flex items-center justify-center gap-2 text-emerald-900 font-black text-xs uppercase tracking-widest mb-1">
+                        <span>BANGKO KABAYAN / 1ST MOUNTAIN BANK</span>
+                        <span>•</span>
+                        <span>APPRAISAL & CREDIT INVESTIGATION DIVISION</span>
+                      </div>
+                      <h1 className="text-xl sm:text-2xl font-black text-emerald-950 uppercase tracking-tight">
+                        VEHICLE APPRAISAL & VALUATION REPORT
+                      </h1>
+                      <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mt-0.5">
+                        Motor Vehicle Collateral Inspection & Three Comparable Sales Valuation
+                      </p>
+                      <div className="flex flex-wrap items-center justify-between mt-4 pt-3 border-t border-slate-200 text-[11px] text-slate-700">
+                        <div><strong>Report No.:</strong> <span className="font-mono font-bold text-slate-900">{printModalRecord.reportNumber || 'REP-VH-001'}</span></div>
+                        <div><strong>Appraisal Date:</strong> {new Date().toISOString().split('T')[0]}</div>
+                        <div><strong>Status:</strong> <span className="font-bold text-emerald-800">{printModalRecord.status || 'PENDING_REVIEW'}</span></div>
+                        <div><strong>Appraiser:</strong> {printModalRecord.appraiserName}</div>
+                      </div>
+                    </div>
+
+                    {/* Section I. Vehicle & Borrower Identification */}
+                    <div>
+                      <h3 className="font-black uppercase tracking-wider text-emerald-950 text-sm mb-2 border-b border-emerald-800/40 pb-1">
+                        I. Vehicle & Borrower Identification
+                      </h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                        <p><strong>Borrower:</strong> <span className="font-semibold text-slate-900">{d.borrower || '-'}</span></p>
+                        <p><strong>Registered Owner:</strong> <span className="font-semibold text-slate-900">{d.registeredOwner || '-'}</span></p>
+                        <p><strong>Make & Model:</strong> <span className="font-semibold text-slate-900">{d.make} {d.model} {d.variant}</span></p>
+                        <p><strong>Year Model:</strong> <span className="font-semibold text-slate-900">{d.yearModel}</span></p>
+                        <p><strong>Plate No.:</strong> <span className="font-mono font-bold text-slate-900">{d.plateNumber}</span></p>
+                        <p><strong>Engine No.:</strong> <span className="font-mono font-bold text-slate-900">{d.engineNumber}</span></p>
+                        <p><strong>Chassis No.:</strong> <span className="font-mono font-bold text-slate-900">{d.chassisNumber}</span></p>
+                        <p><strong>Mileage:</strong> <span className="font-bold text-slate-900">{d.mileage ? d.mileage.toLocaleString() : 0} km</span></p>
+                        <div className="col-span-2 md:col-span-4 pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-slate-700">
+                            <strong>Declared Vehicle Value (Borrower/OR-CR):</strong>{' '}
+                            <span className="font-black text-slate-900">{declaredVehicleVal > 0 ? fmt(declaredVehicleVal) : 'Hindi tinukoy / ₱0'}</span>
+                          </p>
+                          <p className="text-emerald-900">
+                            <strong>Appraised Value (Base sa Comps):</strong>{' '}
+                            <span className="font-black text-emerald-950 text-sm">{fmt(vehicleReconciled)}</span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section II. Three (3) Market Comparables Analysis */}
+                    <div>
+                      <h3 className="font-black uppercase tracking-wider text-emerald-950 text-sm mb-2 border-b border-emerald-800/40 pb-1">
+                        II. Three (3) Market Comparable Sales Grid
+                      </h3>
+                      <table className="w-full text-left border-collapse border border-slate-300 text-[11px]">
+                        <thead>
+                          <tr className="bg-slate-100 uppercase font-black text-slate-800">
+                            <th className="p-2 border border-slate-300 w-1/4">Factor</th>
+                            <th className="p-2 border border-slate-300 bg-emerald-100/70 text-emerald-950 w-1/4">Subject Vehicle</th>
+                            <th className="p-2 border border-slate-300 w-1/6">Comparable 1</th>
+                            <th className="p-2 border border-slate-300 w-1/6">Comparable 2</th>
+                            <th className="p-2 border border-slate-300 w-1/6">Comparable 3</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          <tr>
+                            <td className="p-2 border border-slate-300 font-bold">Source / Listing</td>
+                            <td className="p-2 border border-slate-300 bg-emerald-50/40">Subject Appraisal</td>
+                            <td className="p-2 border border-slate-300">{d.comp1Source || '-'}</td>
+                            <td className="p-2 border border-slate-300">{d.comp2Source || '-'}</td>
+                            <td className="p-2 border border-slate-300">{d.comp3Source || '-'}</td>
+                          </tr>
+                          <tr>
+                            <td className="p-2 border border-slate-300 font-bold">Year Model</td>
+                            <td className="p-2 border border-slate-300 bg-emerald-50/40">{d.yearModel}</td>
+                            <td className="p-2 border border-slate-300">{d.comp1Year || '-'}</td>
+                            <td className="p-2 border border-slate-300">{d.comp2Year || '-'}</td>
+                            <td className="p-2 border border-slate-300">{d.comp3Year || '-'}</td>
+                          </tr>
+                          <tr>
+                            <td className="p-2 border border-slate-300 font-bold">Mileage (km)</td>
+                            <td className="p-2 border border-slate-300 bg-emerald-50/40">{d.mileage ? d.mileage.toLocaleString() : 0} km</td>
+                            <td className="p-2 border border-slate-300">{d.comp1Mileage ? d.comp1Mileage.toLocaleString() : 0} km</td>
+                            <td className="p-2 border border-slate-300">{d.comp2Mileage ? d.comp2Mileage.toLocaleString() : 0} km</td>
+                            <td className="p-2 border border-slate-300">{d.comp3Mileage ? d.comp3Mileage.toLocaleString() : 0} km</td>
+                          </tr>
+                          <tr className="bg-slate-50 font-bold">
+                            <td className="p-2 border border-slate-300">Selling Price / Value</td>
+                            <td className="p-2 border border-slate-300 bg-emerald-100 text-emerald-950 font-black">
+                              {fmt(vehicleReconciled)} <span className="text-[9px] font-normal block text-emerald-800">(Base sa Comps)</span>
+                            </td>
+                            <td className="p-2 border border-slate-300 text-slate-900">{fmt(d.comp1Price || 0)}</td>
+                            <td className="p-2 border border-slate-300 text-slate-900">{fmt(d.comp2Price || 0)}</td>
+                            <td className="p-2 border border-slate-300 text-slate-900">{fmt(d.comp3Price || 0)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Section III. Vehicle Adjustments Matrix */}
+                    <div>
+                      <h3 className="font-black uppercase tracking-wider text-emerald-950 text-sm mb-2 border-b border-emerald-800/40 pb-1">
+                        III. Vehicle Adjustments Matrix
+                      </h3>
+                      <table className="w-full text-left border-collapse border border-slate-300 text-[11px]">
+                        <thead>
+                          <tr className="bg-slate-100 uppercase font-black text-slate-800">
+                            <th className="p-2 border border-slate-300 w-1/4">Adjustment Type</th>
+                            <th className="p-2 border border-slate-300 w-1/4">Comparable 1</th>
+                            <th className="p-2 border border-slate-300 w-1/4">Comparable 2</th>
+                            <th className="p-2 border border-slate-300 w-1/4">Comparable 3</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          <tr>
+                            <td className="p-2 border border-slate-300 font-semibold">Mileage Adjustment</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp1MileageAdj || 0)}</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp2MileageAdj || 0)}</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp3MileageAdj || 0)}</td>
+                          </tr>
+                          <tr>
+                            <td className="p-2 border border-slate-300 font-semibold">Condition Adjustment</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp1ConditionAdj || 0)}</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp2ConditionAdj || 0)}</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp3ConditionAdj || 0)}</td>
+                          </tr>
+                          <tr>
+                            <td className="p-2 border border-slate-300 font-semibold">Transmission / Accessories</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp1TransmissionAdj || 0)}</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp2TransmissionAdj || 0)}</td>
+                            <td className="p-2 border border-slate-300">{fmt(d.comp3TransmissionAdj || 0)}</td>
+                          </tr>
+                          <tr className="bg-slate-100 font-black text-slate-900">
+                            <td className="p-2 border border-slate-300">Adjusted Total Value</td>
+                            <td className="p-2 border border-slate-300 text-emerald-900">{fmt(comp1Adj)}</td>
+                            <td className="p-2 border border-slate-300 text-emerald-900">{fmt(comp2Adj)}</td>
+                            <td className="p-2 border border-slate-300 text-emerald-900">{fmt(comp3Adj)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Section IV. Final Valuation & Loan Parameters */}
+                    <div className="space-y-3">
+                      <h3 className="font-black uppercase tracking-wider text-emerald-950 text-sm border-b border-emerald-800/40 pb-1">
+                        IV. Final Valuation & Lending Parameters
+                      </h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-emerald-50 p-4 rounded-xl border border-emerald-200 text-center">
+                        <div className="p-2 bg-white rounded-lg border border-emerald-200">
+                          <p className="text-[10px] uppercase font-bold text-slate-500">Average Market Value</p>
+                          <p className="text-sm font-black text-emerald-950 mt-0.5">{fmt(vehicleReconciled)}</p>
+                        </div>
+                        <div className="p-2 bg-white rounded-lg border border-emerald-200">
+                          <p className="text-[10px] uppercase font-bold text-slate-500">70% Loan Value</p>
+                          <p className="text-sm font-black text-slate-800 mt-0.5">{fmt(Math.round(vehicleReconciled * 0.70))}</p>
+                        </div>
+                        <div className="p-2 bg-white rounded-lg border border-emerald-200">
+                          <p className="text-[10px] uppercase font-bold text-slate-500">Forced Sale Value (80%)</p>
+                          <p className="text-sm font-black text-amber-800 mt-0.5">{fmt(Math.round(vehicleReconciled * 0.70 * 0.80))}</p>
+                        </div>
+                        <div className="p-2 bg-emerald-700 text-white rounded-lg">
+                          <p className="text-[10px] uppercase font-bold text-emerald-100">Recommended Loan</p>
+                          <p className="text-base font-black text-white mt-0.5">{fmt(printModalRecord.recommendedLoan)}</p>
+                        </div>
+                      </div>
+
+                      {declaredVehicleVal > 0 && (
+                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-[11px] flex justify-between items-center">
+                          <span><strong>Declared Vehicle Value:</strong> {fmt(declaredVehicleVal)}</span>
+                          <span className={`font-black ${vehicleVariance >= 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                            {vehicleVariance >= 0 ? '▲ +' : '▼ '}
+                            {fmt(vehicleVariance)} ({vehicleVariancePct}%) vs Deklarasyon
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Section V. Certification & Signatures */}
+                    <div className="pt-8 page-break-inside-avoid space-y-6">
+                      <p className="text-[10px] text-slate-500 text-justify leading-relaxed border-t border-slate-200 pt-3">
+                        <strong>Certification:</strong> I hereby certify that I have thoroughly examined the vehicle specifications, verified engine/chassis physical numbers and registration authenticity, and cross-referenced comparable sales data in the regional auto market.
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-8 text-center pt-4">
+                        <div>
+                          <div className="border-b border-slate-800 w-52 mx-auto font-black text-xs pb-1">
+                            {printModalRecord.appraiserName || 'Certified Appraiser'}
+                          </div>
+                          <p className="text-[10px] uppercase font-bold text-slate-500 mt-1">Certified Vehicle Appraiser</p>
+                          <p className="text-[9px] text-slate-400">Date: {new Date().toISOString().split('T')[0]}</p>
+                        </div>
+                        <div>
+                          <div className="border-b border-slate-800 w-52 mx-auto font-black text-xs pb-1">
+                            CreCom Reviewer / Supervisor
+                          </div>
+                          <p className="text-[10px] uppercase font-bold text-slate-500 mt-1">Approved & Verified By</p>
+                          <p className="text-[9px] text-slate-400">Date: {new Date().toISOString().split('T')[0]}</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-[10px] uppercase font-bold text-slate-500 mt-1">Certified Appraiser</p>
-                </div>
-                <div>
-                  <div className="border-b border-slate-800 w-48 mx-auto font-bold text-xs pb-1">
-                    CreCom Reviewer / Supervisor
-                  </div>
-                  <p className="text-[10px] uppercase font-bold text-slate-500 mt-1">Approved & Verified By</p>
-                </div>
-              </div>
-            </div>
+                );
+              })()
+            )}
           </div>
         </div>
       )}
