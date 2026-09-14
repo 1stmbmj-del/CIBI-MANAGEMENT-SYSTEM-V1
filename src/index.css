@@ -173,12 +173,13 @@
 }
 
 /* ========================================================= */
-/* FORMAL REPORT PRINT STYLES                                */
-/* Only display the formal appraisal report on print         */
+/* FORMAL REPORT & EVALUATION PRINT STYLES                   */
+/* Only display the formal appraisal report / evaluation     */
 /* ========================================================= */
 @media print {
   html, body {
     background: #ffffff !important;
+    background-color: #ffffff !important;
     color: #000000 !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -189,26 +190,22 @@
     print-color-adjust: exact !important;
   }
 
-  /* Hide all elements on the screen by default */
-  body * {
-    visibility: hidden !important;
+  /* Hide root and all standard app elements when a print container is mounted */
+  body > *:not(.appraisal-print-portal):not(.print-container) {
+    display: none !important;
   }
 
-  /* Make only the formal report container and its children visible */
-  #formal-appraisal-report,
-  #formal-appraisal-report * {
+  /* Make formal appraisal print portal fully visible, block, unclipped */
+  .appraisal-print-portal,
+  body > div.appraisal-print-portal,
+  body > div.print-container {
+    display: block !important;
     visibility: visible !important;
-  }
-
-  /* Reset positioning so formal report occupies the printed page cleanly */
-  #formal-appraisal-report {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
+    position: static !important;
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
-    padding: 10mm 15mm !important;
+    padding: 6mm 10mm !important;
     box-sizing: border-box !important;
     background: #ffffff !important;
     color: #0f172a !important;
@@ -216,6 +213,23 @@
     border: none !important;
     border-radius: 0 !important;
     overflow: visible !important;
+  }
+
+  .appraisal-print-portal *,
+  .print-container * {
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Fallback if rendered within root */
+  #formal-appraisal-report {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
   }
 
   /* Strictly hide all interactive elements, toolbars, buttons, and backgrounds */
@@ -235,7 +249,9 @@
     break-before: page !important;
   }
 
-  .page-break-inside-avoid {
+  .page-break-inside-avoid,
+  tr,
+  table {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
