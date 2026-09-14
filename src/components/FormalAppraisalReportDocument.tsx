@@ -113,7 +113,10 @@ export default function FormalAppraisalReportDocument({
                     </span>
                   </div>
                   <div>
-                    <strong>Appraiser:</strong> {record.appraiserName || d.appraiser || 'Certified Appraiser'}
+                    <strong>CI Officer:</strong>{' '}
+                    <span className="font-semibold text-slate-900">
+                      {record.appraiserName || d.appraiser || 'CI Officer'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -576,10 +579,10 @@ export default function FormalAppraisalReportDocument({
                 <div className="grid grid-cols-2 gap-8 text-center pt-4">
                   <div>
                     <div className="border-b border-slate-800 w-52 mx-auto font-black text-xs pb-1">
-                      {d.appraiser || record.appraiserName || 'Certified Appraiser'}
+                      {d.appraiser || record.appraiserName || 'CI Officer'}
                     </div>
                     <p className="text-[10px] uppercase font-bold text-slate-500 mt-1">
-                      Certified Real Estate Appraiser / CI Officer
+                      CI Officer
                     </p>
                     <p className="text-[9px] text-slate-400">
                       Date Signed: {d.inspectionDate || new Date().toISOString().split('T')[0]}
@@ -676,7 +679,10 @@ export default function FormalAppraisalReportDocument({
                     </span>
                   </div>
                   <div>
-                    <strong>Appraiser:</strong> {record.appraiserName || 'Certified Appraiser'}
+                    <strong>CI Officer:</strong>{' '}
+                    <span className="font-semibold text-slate-900">
+                      {record.appraiserName || 'CI Officer'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -887,10 +893,10 @@ export default function FormalAppraisalReportDocument({
                 <div className="grid grid-cols-2 gap-8 text-center pt-4">
                   <div>
                     <div className="border-b border-slate-800 w-52 mx-auto font-black text-xs pb-1">
-                      {record.appraiserName || 'Certified Appraiser'}
+                      {record.appraiserName || 'CI Officer'}
                     </div>
                     <p className="text-[10px] uppercase font-bold text-slate-500 mt-1">
-                      Certified Vehicle Appraiser
+                      CI Officer
                     </p>
                     <p className="text-[9px] text-slate-400">Date: {new Date().toISOString().split('T')[0]}</p>
                   </div>
