@@ -418,7 +418,15 @@ const api = {
     try {
       if (path === '/api/assignments') {
         const docRef = doc(collection(db, 'assignments'));
-        await setDoc(docRef, { ...data, createdAt: new Date().toISOString() });
+        const now = new Date().toISOString();
+        const clientTimestamp = (data.timestamp as string) || (data.createdAt as string) || now;
+        await setDoc(docRef, { 
+          ...data, 
+          createdAt: clientTimestamp,
+          timestamp: clientTimestamp,
+          storedAt: now,
+          updatedAt: now
+        });
         return { id: docRef.id };
       }
       if (path === '/api/admin-keys') {
@@ -2757,6 +2765,155 @@ const calculateTAT = (timeline: TimelineStep[]) => {
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
   return `${hours}h ${minutes}m${isCompleted ? '' : ' (ONGOING)'}`;
 };
+
+interface FullHistoryWorkflowLogProps {
+  assignment: Assignment;
+  showTAT?: boolean;
+}
+
+function FullHistoryWorkflowLog({ assignment, showTAT = true }: FullHistoryWorkflowLogProps) {
+  const currentIndex = steps.indexOf(assignment.status);
+  const progressPercent = assignment.status === 'Archived' 
+    ? 0 
+    : currentIndex >= 0 
+      ? (currentIndex / (steps.length - 1)) * 100 
+      : 0;
+
+  // Build complete chronological timeline
+  const timelineEntries = useMemo(() => {
+    const list: TimelineStep[] = assignment.timeline && assignment.timeline.length > 0 
+      ? [...assignment.timeline] 
+      : [];
+
+    // Ensure initial assignment entry exists
+    const hasAssigned = list.some(t => 
+      t.step === 'Assigned' || 
+      (t as any).status === 'Assigned' || 
+      t.note?.toLowerCase().includes('account assigned')
+    );
+    if (!hasAssigned) {
+      list.unshift({
+        step: 'Assigned',
+        note: `Account assigned to ${assignment.ciOfficerName || 'Officer'} on ${assignment.assignedDate || (assignment.createdAt ? assignment.createdAt.split('T')[0] : '')}`,
+        timestamp: assignment.createdAt || new Date().toISOString()
+      });
+    }
+
+    // Sort chronologically
+    list.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    return list;
+  }, [assignment]);
+
+  return (
+    <div className="space-y-8 select-none">
+      {/* Visual Stepper */}
+      <div className="relative pt-6 pb-4 overflow-x-auto scrollbar-none">
+        <div className="min-w-[720px] relative px-6">
+          {/* Background Connecting Line */}
+          <div className="absolute top-4 left-10 right-10 h-1 bg-gray-100 -translate-y-1/2" />
+          
+          {/* Completed Green Line */}
+          <div 
+            className="absolute top-4 left-10 h-1 bg-emerald-500 -translate-y-1/2 transition-all duration-500" 
+            style={{ 
+              width: currentIndex <= 0 ? '0%' : `calc(${progressPercent}% * (100% - 5rem) / 100)` 
+            }}
+          />
+
+          {/* Stepper Nodes */}
+          <div className="relative flex justify-between items-start">
+            {steps.map((step, idx) => {
+              const isCompleted = assignment.status !== 'Archived' && currentIndex >= idx;
+              const isCurrent = assignment.status === step;
+
+              return (
+                <div key={step} className="flex flex-col items-center space-y-3.5 z-10 w-20">
+                  <div className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300",
+                    isCompleted 
+                      ? "bg-emerald-500 text-white shadow-xs" 
+                      : "bg-white border-2 border-gray-200 text-transparent",
+                    isCurrent && "ring-8 ring-emerald-100 shadow-sm"
+                  )}>
+                    {isCompleted ? (
+                      <Check size={14} className="text-white stroke-[3]" />
+                    ) : (
+                      <div className="w-2 h-2 rounded-full bg-transparent" />
+                    )}
+                  </div>
+                  <span className={cn(
+                    "text-[9px] font-black uppercase tracking-tight text-center leading-tight",
+                    isCompleted ? "text-emerald-700" : "text-gray-300"
+                  )}>
+                    {step}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* FULL HISTORY LOG Section */}
+      <div className="space-y-4">
+        <div className="border-b border-gray-100 pb-3">
+          <h4 className="text-xs font-black uppercase text-gray-400 tracking-widest text-left">
+            Full History Log
+          </h4>
+        </div>
+
+        <div className="space-y-3">
+          {timelineEntries.map((entry, idx) => {
+            const isInitialAssignment = 
+              idx === 0 && 
+              (entry.note?.toLowerCase().includes('account assigned') || (!entry.step || entry.step === 'Assigned'));
+
+            return (
+              <div 
+                key={idx} 
+                className="bg-slate-50/70 hover:bg-slate-50/90 rounded-2xl px-6 py-4.5 border border-slate-100/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 transition-colors text-left"
+              >
+                <div className="flex-1">
+                  {isInitialAssignment && entry.note ? (
+                    <p className="text-xs text-slate-500 italic font-medium leading-relaxed">
+                      {entry.note}
+                    </p>
+                  ) : (
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-wider text-emerald-900">
+                        {entry.step || (entry as any).status || 'Status Updated'}
+                      </p>
+                      {entry.note && (
+                        <p className="text-[11px] text-slate-400 italic mt-0.5 leading-relaxed">
+                          {entry.note}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <span className="text-xs font-mono font-bold text-slate-500 shrink-0">
+                  {format(new Date(entry.timestamp), 'MMM d, yyyy | h:mm:ss a')}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {showTAT && timelineEntries.length > 0 && (
+          <div className="pt-6 border-t border-gray-100 flex justify-between items-center text-left">
+            <span className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">
+              Total Turn Around Time:
+            </span>
+            <span className="text-sm font-black text-gray-900">
+              {calculateTAT(timelineEntries)}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const calcAmort = (rec: { loanAmount: number; term: string | number; rate: number }) => {
   const months = Number(rec.term) || 1;
@@ -6871,64 +7028,8 @@ function AccountStatus({ user }: { user: UserProfile }) {
                 </div>
               </div>
             ) : null}
-            <div className="relative pt-12 pb-8">
-              <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-100 -translate-y-1/2" />
-              <div 
-                className="absolute top-1/2 left-0 h-1 bg-green-500 -translate-y-1/2 transition-all duration-500" 
-                style={{ width: `${selected.status === 'Archived' ? 0 : (steps.indexOf(selected.status) / (steps.length - 1)) * 100}%` }}
-              />
-              <div className="relative flex justify-between">
-                {steps.map((step, idx) => {
-                  const isCompleted = selected.status !== 'Archived' && steps.indexOf(selected.status) >= idx;
-                  const isCurrent = selected.status === step;
-                  return (
-                    <div key={step} className="flex flex-col items-center space-y-4">
-                      <div className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center border-4 transition-all duration-300 z-10",
-                        isCompleted ? "bg-green-500 border-green-100" : "bg-white border-gray-100",
-                        isCurrent && "ring-4 ring-green-100"
-                      )}>
-                        {isCompleted && <Check size={14} className="text-white" />}
-                      </div>
-                      <span className={cn(
-                        "text-[8px] font-black uppercase tracking-tighter text-center w-16",
-                        isCompleted ? "text-green-600" : "text-gray-300"
-                      )}>
-                        {step}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Timeline List */}
-            <div className="space-y-4">
-              <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-2">Full History Log</h4>
-              <div className="space-y-3">
-                {[...selected.timeline].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()).map((entry, idx) => (
-                  <div key={idx} className="flex flex-col space-y-1 p-3 bg-gray-50 rounded-xl">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-black uppercase tracking-widest text-emerald-800">
-                        {entry.step}
-                      </span>
-                      <span className="text-[10px] font-mono font-bold text-gray-500">
-                        {format(new Date(entry.timestamp), 'MMM d, yyyy | h:mm:ss a')}
-                      </span>
-                    </div>
-                    {entry.note && (
-                      <p className="text-[10px] text-gray-400 italic">
-                        {entry.note}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <div className="pt-6 border-t border-gray-100 flex justify-between items-center">
-                <span className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Total Turn Around Time:</span>
-                <span className="text-sm font-black text-gray-900">{calculateTAT(selected.timeline)}</span>
-              </div>
-            </div>
+            {/* Visual Stepper & Full History Log */}
+            <FullHistoryWorkflowLog assignment={selected} showTAT={true} />
 
             {/* Performance History Graph */}
             {selected.cashflowHistory && selected.cashflowHistory.length > 0 && (
@@ -7308,7 +7409,7 @@ function AiAccountAnalysis({ assignment }: { assignment: Assignment }) {
  }
 
 function AccountDossierModal({ assignment, onClose }: { assignment: Assignment, onClose: () => void }) {
-  const [activeTab, setActiveTab] = useState<'general' | 'scoring' | 'cashflow' | 'recommendation' | 'committee' | 'ai'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'history' | 'scoring' | 'cashflow' | 'recommendation' | 'committee' | 'ai'>('general');
 
   const hasScoring = !!assignment.creditScore || !!assignment.mclCreditScore;
   const hasCashflow = !!assignment.cashflowReport;
@@ -7344,9 +7445,12 @@ function AccountDossierModal({ assignment, onClose }: { assignment: Assignment, 
         {/* Dossier Header */}
         <div className="bg-linear-to-r from-emerald-800 to-emerald-900 p-6 text-white flex justify-between items-center shrink-0">
            <div>
-             <div className="flex items-center gap-2">
+             <div className="flex items-center gap-2 flex-wrap">
                <span className="px-2 py-0.5 bg-emerald-700/60 rounded-md text-[8px] font-black uppercase tracking-widest border border-emerald-500/20">
                  Dossier ID: {assignment.id.slice(0, 8)}
+               </span>
+               <span className="px-2 py-0.5 bg-emerald-700/60 rounded-md text-[8px] font-black uppercase tracking-widest border border-emerald-500/20 flex items-center gap-1 font-mono">
+                 <Clock size={10} /> Timestamp: {format(new Date(assignment.createdAt), 'MMM d, yyyy • h:mm:ss a')}
                </span>
                {assignment.status === 'Approved' ? (
                  <span className="px-2 py-0.5 bg-green-600/90 text-[8px] font-black uppercase rounded-md tracking-wider">
@@ -7374,6 +7478,7 @@ function AccountDossierModal({ assignment, onClose }: { assignment: Assignment, 
         <div className="bg-gray-50/80 border-b border-gray-100 px-6 py-2 flex items-center gap-1 overflow-x-auto shrink-0 scrollbar-none">
           {[
             { id: 'general', label: 'General Info', icon: <User size={14} />, alert: false },
+            { id: 'history', label: 'History & Full Log', icon: <Clock size={14} />, alert: false },
             { id: 'scoring', label: 'Credit Scoring', icon: <ListChecks size={14} />, alert: hasScoring },
             { id: 'cashflow', label: 'Cashflow Diagnostic', icon: <FileBarChart size={14} />, alert: hasCashflow },
             { id: 'recommendation', label: 'CI Recommendation', icon: <ClipboardCheck size={14} />, alert: hasRecommendation },
@@ -7407,6 +7512,7 @@ function AccountDossierModal({ assignment, onClose }: { assignment: Assignment, 
               <div className="space-y-5">
                 {[
                   { label: 'Name of Borrower', value: assignment.borrowerName },
+                  { label: 'Client Record Timestamp', value: assignment.createdAt ? format(new Date(assignment.createdAt), 'MMM d, yyyy • h:mm:ss a') : '-' },
                   { label: 'Mobile Number', value: assignment.mobileNumber, placeholder: 'e.g. 09123456789' },
                   { label: 'Location', value: assignment.location },
                   { label: 'Business Pin.', value: assignment.businessPin || '-' },
@@ -7908,6 +8014,12 @@ function AccountDossierModal({ assignment, onClose }: { assignment: Assignment, 
             </div>
           )}
 
+          {activeTab === 'history' && (
+            <div className="bg-white p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-xs">
+              <FullHistoryWorkflowLog assignment={assignment} showTAT={true} />
+            </div>
+          )}
+
           {activeTab === 'ai' && (
             <div className="space-y-6">
               <AiAccountAnalysis assignment={assignment} />
@@ -7948,7 +8060,8 @@ function ConsolidatedBorrowerModal({
   onClose,
   onViewSingleAssignment
 }: ConsolidatedBorrowerModalProps) {
-  const [activeTab, setActiveTab] = useState<'approval' | 'sales' | 'cashflow' | 'scoring' | 'ci_recommendation' | 'all_dossiers'>('approval');
+  const [activeTab, setActiveTab] = useState<'full_log' | 'approval' | 'sales' | 'cashflow' | 'scoring' | 'ci_recommendation' | 'all_dossiers'>('full_log');
+  const [selectedRecordId, setSelectedRecordId] = useState<string>('');
 
   // Chronologically sorted (newest first)
   const sortedRecords = useMemo(() => {
@@ -7956,6 +8069,7 @@ function ConsolidatedBorrowerModal({
   }, [assignments]);
 
   const latestRecord = sortedRecords[0];
+  const currentRecord = (selectedRecordId && sortedRecords.find(r => r.id === selectedRecordId)) || latestRecord || sortedRecords[0];
 
   // Helper function to extract approval date
   const getApprovalDate = (assignment: Assignment): string | null => {
@@ -8008,12 +8122,21 @@ function ConsolidatedBorrowerModal({
             <h3 className="text-2xl font-black uppercase tracking-tight mt-1.5 text-white flex items-center gap-2">
               {borrowerName}
             </h3>
-            <p className="text-[10px] text-emerald-200/80 font-bold uppercase tracking-[0.25em] mt-0.5 flex items-center gap-3">
+            <p className="text-[10px] text-emerald-200/80 font-bold uppercase tracking-[0.25em] mt-0.5 flex items-center gap-3 flex-wrap">
               <span>Mobile: {latestRecord?.mobileNumber || '-'}</span>
               <span>•</span>
               <span>Location: {latestRecord?.location || '-'}</span>
               <span>•</span>
               <span>Tribe: {latestRecord?.tribe || 'NCR'}</span>
+              {latestRecord?.createdAt && (
+                <>
+                  <span>•</span>
+                  <span className="flex items-center gap-1 text-emerald-200">
+                    <Clock size={11} className="text-emerald-300" />
+                    Timestamp: {format(new Date(latestRecord.createdAt), 'MMM d, yyyy • h:mm:ss a')}
+                  </span>
+                </>
+              )}
             </p>
           </div>
           <button 
@@ -8025,10 +8148,21 @@ function ConsolidatedBorrowerModal({
         </div>
 
         {/* Highlight KPI Bar */}
-        <div className="bg-emerald-50/60 border-b border-emerald-100/80 px-6 py-3.5 grid grid-cols-2 md:grid-cols-4 gap-4 shrink-0 text-left">
+        <div className="bg-emerald-50/60 border-b border-emerald-100/80 px-6 py-3.5 grid grid-cols-2 md:grid-cols-5 gap-4 shrink-0 text-left">
           <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-xs">
             <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-0.5">Total Applications</span>
             <span className="text-base font-black text-emerald-900">{sortedRecords.length} Accounts</span>
+          </div>
+          <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-xs">
+            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-0.5 flex items-center gap-1">
+              <Clock size={10} className="text-emerald-600" /> Client Timestamp
+            </span>
+            <span className="text-sm font-black text-emerald-900 block font-mono">
+              {latestRecord?.createdAt ? format(new Date(latestRecord.createdAt), 'MMM d, yyyy') : '-'}
+            </span>
+            <span className="text-[9px] font-bold text-gray-500 font-mono block">
+              {latestRecord?.createdAt ? format(new Date(latestRecord.createdAt), 'h:mm:ss a') : ''}
+            </span>
           </div>
           <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-xs">
             <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-0.5">Most Recent Approval Date</span>
@@ -8055,6 +8189,7 @@ function ConsolidatedBorrowerModal({
         {/* Tab Navigation */}
         <div className="bg-gray-50/90 border-b border-gray-200/80 px-6 py-2.5 flex items-center gap-1.5 overflow-x-auto shrink-0 scrollbar-none">
           {[
+            { id: 'full_log', label: 'Workflow & Full History Log', icon: <Clock size={15} /> },
             { id: 'approval', label: '1. Date Approved & Status', icon: <Calendar size={15} /> },
             { id: 'sales', label: '2. History of Sales', icon: <TrendingUp size={15} /> },
             { id: 'cashflow', label: '3. History of Cashflow', icon: <FileBarChart size={15} /> },
@@ -8080,6 +8215,37 @@ function ConsolidatedBorrowerModal({
 
         {/* Content Pane */}
         <div className="p-6 md:p-8 overflow-y-auto flex-1 text-left bg-slate-50/50 space-y-6">
+          {/* TAB 0: WORKFLOW & FULL HISTORY LOG */}
+          {activeTab === 'full_log' && currentRecord && (
+            <div className="bg-white p-6 sm:p-8 rounded-2xl border border-gray-200/80 shadow-xs space-y-6">
+              {sortedRecords.length > 1 && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-emerald-50/60 p-4 rounded-xl border border-emerald-100">
+                  <div>
+                    <span className="text-[10px] font-black uppercase text-emerald-800 tracking-wider block">
+                      Account Progression Selection
+                    </span>
+                    <p className="text-xs text-gray-500 font-semibold">
+                      This client has {sortedRecords.length} historical applications. Choose account to view full history log:
+                    </p>
+                  </div>
+                  <select
+                    className="p-2.5 bg-white border border-emerald-200 rounded-xl text-xs font-bold uppercase text-emerald-950 focus:outline-none cursor-pointer"
+                    value={currentRecord.id}
+                    onChange={(e) => setSelectedRecordId(e.target.value)}
+                  >
+                    {sortedRecords.map((rec) => (
+                      <option key={rec.id} value={rec.id}>
+                        {rec.accountType} ({rec.status}) • CID: {rec.id.slice(0, 8)} • {format(new Date(rec.createdAt), 'MMM d, yyyy')}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <FullHistoryWorkflowLog assignment={currentRecord} showTAT={true} />
+            </div>
+          )}
+
           {/* TAB 1: DATE APPROVED & APPROVAL HISTORY */}
           {activeTab === 'approval' && (
             <div className="space-y-6">
@@ -8101,7 +8267,7 @@ function ConsolidatedBorrowerModal({
                       <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-200">
                         <th className="p-3">Application / CID</th>
                         <th className="p-3">Account Type</th>
-                        <th className="p-3">Application Date</th>
+                        <th className="p-3">Application Timestamp</th>
                         <th className="p-3 text-emerald-900">Date Approved</th>
                         <th className="p-3 text-right">Requested / Approved</th>
                         <th className="p-3">Terms & Rates</th>
@@ -8123,8 +8289,13 @@ function ConsolidatedBorrowerModal({
                                 {r.accountType}
                               </span>
                             </td>
-                            <td className="p-3 text-gray-600">
-                              {r.createdAt ? format(new Date(r.createdAt), 'MMM d, yyyy') : '-'}
+                            <td className="p-3 text-gray-700">
+                              <p className="font-bold text-gray-900">
+                                {r.createdAt ? format(new Date(r.createdAt), 'MMM d, yyyy') : '-'}
+                              </p>
+                              <p className="text-[10px] text-gray-400 font-mono">
+                                {r.createdAt ? format(new Date(r.createdAt), 'h:mm:ss a') : ''}
+                              </p>
                             </td>
                             <td className="p-3">
                               {appDate ? (
@@ -8230,7 +8401,7 @@ function ConsolidatedBorrowerModal({
                   <table className="w-full text-left border-collapse min-w-[700px]">
                     <thead>
                       <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-200">
-                        <th className="p-3">Evaluation Date</th>
+                        <th className="p-3">Evaluation Timestamp</th>
                         <th className="p-3">Account Type / CID</th>
                         <th className="p-3 text-right">Gross Sales / Revenue</th>
                         <th className="p-3 text-right text-red-500">Business Expenses</th>
@@ -8248,8 +8419,9 @@ function ConsolidatedBorrowerModal({
 
                         return (
                           <tr key={r.id} className="hover:bg-emerald-50/30 transition-colors">
-                            <td className="p-3 text-gray-800 font-bold">
-                              {r.createdAt ? format(new Date(r.createdAt), 'MMM d, yyyy') : '-'}
+                            <td className="p-3 text-gray-800">
+                              <p className="font-bold text-gray-900">{r.createdAt ? format(new Date(r.createdAt), 'MMM d, yyyy') : '-'}</p>
+                              <p className="text-[10px] text-gray-400 font-mono">{r.createdAt ? format(new Date(r.createdAt), 'h:mm a') : ''}</p>
                             </td>
                             <td className="p-3">
                               <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-black text-[10px] uppercase rounded">
@@ -8300,7 +8472,7 @@ function ConsolidatedBorrowerModal({
                   <table className="w-full text-left border-collapse min-w-[750px]">
                     <thead>
                       <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-200">
-                        <th className="p-3">Assessment Date</th>
+                        <th className="p-3">Assessment Timestamp</th>
                         <th className="p-3">Account Type</th>
                         <th className="p-3 text-right">Gross Income</th>
                         <th className="p-3 text-right text-red-500">Household Expenses</th>
@@ -8321,8 +8493,9 @@ function ConsolidatedBorrowerModal({
 
                         return (
                           <tr key={r.id} className="hover:bg-emerald-50/30 transition-colors">
-                            <td className="p-3 text-gray-800 font-bold">
-                              {r.createdAt ? format(new Date(r.createdAt), 'MMM d, yyyy') : '-'}
+                            <td className="p-3 text-gray-800">
+                              <p className="font-bold text-gray-900">{r.createdAt ? format(new Date(r.createdAt), 'MMM d, yyyy') : '-'}</p>
+                              <p className="text-[10px] text-gray-400 font-mono">{r.createdAt ? format(new Date(r.createdAt), 'h:mm a') : ''}</p>
                             </td>
                             <td className="p-3">
                               <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-black text-[10px] uppercase rounded">
@@ -8420,7 +8593,7 @@ function ConsolidatedBorrowerModal({
                   <table className="w-full text-left border-collapse min-w-[700px]">
                     <thead>
                       <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-200">
-                        <th className="p-3">Scoring Date</th>
+                        <th className="p-3">Scoring Timestamp</th>
                         <th className="p-3">Account Type</th>
                         <th className="p-3">Scoring System</th>
                         <th className="p-3 text-right">Total Score / Grade</th>
@@ -8441,8 +8614,9 @@ function ConsolidatedBorrowerModal({
 
                         return (
                           <tr key={r.id} className="hover:bg-emerald-50/30 transition-colors">
-                            <td className="p-3 text-gray-800 font-bold">
-                              {r.createdAt ? format(new Date(r.createdAt), 'MMM d, yyyy') : '-'}
+                            <td className="p-3 text-gray-800">
+                              <p className="font-bold text-gray-900">{r.createdAt ? format(new Date(r.createdAt), 'MMM d, yyyy') : '-'}</p>
+                              <p className="text-[10px] text-gray-400 font-mono">{r.createdAt ? format(new Date(r.createdAt), 'h:mm a') : ''}</p>
                             </td>
                             <td className="p-3">
                               <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-black text-[10px] uppercase rounded">
@@ -8494,7 +8668,7 @@ function ConsolidatedBorrowerModal({
                   <table className="w-full text-left border-collapse min-w-[750px]">
                     <thead>
                       <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-200">
-                        <th className="p-3">Proposal Date</th>
+                        <th className="p-3">Proposal Timestamp</th>
                         <th className="p-3">Account Type</th>
                         <th className="p-3">CI Investigator</th>
                         <th className="p-3 text-right">Recommended Loan</th>
@@ -8508,8 +8682,9 @@ function ConsolidatedBorrowerModal({
                         const ciRec = r.cashflowReport?.ciRecommendation;
                         return (
                           <tr key={r.id} className="hover:bg-emerald-50/30 transition-colors">
-                            <td className="p-3 text-gray-800 font-bold">
-                              {r.createdAt ? format(new Date(r.createdAt), 'MMM d, yyyy') : '-'}
+                            <td className="p-3 text-gray-800">
+                              <p className="font-bold text-gray-900">{r.createdAt ? format(new Date(r.createdAt), 'MMM d, yyyy') : '-'}</p>
+                              <p className="text-[10px] text-gray-400 font-mono">{r.createdAt ? format(new Date(r.createdAt), 'h:mm a') : ''}</p>
                             </td>
                             <td className="p-3">
                               <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-black text-[10px] uppercase rounded">
@@ -8550,7 +8725,10 @@ function ConsolidatedBorrowerModal({
                     <div>
                       <span className="text-[10px] font-mono text-gray-400 font-bold">CID: {r.id}</span>
                       <h5 className="text-sm font-black text-gray-900 uppercase mt-0.5">{r.accountType} Application</h5>
-                      <p className="text-[10px] text-gray-400 font-bold">Created: {format(new Date(r.createdAt), 'MMM d, yyyy h:mm a')}</p>
+                      <p className="text-[10px] text-gray-500 font-mono font-bold flex items-center gap-1 mt-0.5">
+                        <Clock size={11} className="text-emerald-600 shrink-0" />
+                        Timestamp: {format(new Date(r.createdAt), 'MMM d, yyyy • h:mm:ss a')}
+                      </p>
                     </div>
                     <span className={cn(
                       "px-2.5 py-1 text-[9px] font-black uppercase rounded-full border",
@@ -11835,6 +12013,7 @@ function DataStorage({ user }: { user: UserProfile }) {
     return Array.from(map.entries()).map(([normKey, list]) => {
       const sorted = [...list].sort((x, y) => new Date(y.createdAt).getTime() - new Date(x.createdAt).getTime());
       const latest = sorted[0];
+      const earliest = sorted[sorted.length - 1];
 
       // Extract approval date if any
       let latestApprovalDate: string | null = null;
@@ -11853,6 +12032,8 @@ function DataStorage({ user }: { user: UserProfile }) {
 
       const accountTypes = Array.from(new Set(sorted.map(s => s.accountType).filter(Boolean)));
       const ciOfficersList = Array.from(new Set(sorted.map(s => s.ciOfficerName).filter(Boolean)));
+      const clientTimestamp = latest.timestamp || latest.createdAt || latest.storedAt || '';
+      const initialTimestamp = (earliest && (earliest.timestamp || earliest.createdAt || earliest.storedAt)) || '';
 
       return {
         borrowerName: latest.borrowerName,
@@ -11864,11 +12045,58 @@ function DataStorage({ user }: { user: UserProfile }) {
         accountTypes,
         ciOfficersList,
         latestApprovalDate,
+        clientTimestamp,
+        initialTimestamp,
         totalRequested: sorted.reduce((sum, s) => sum + (s.requestedAmount || 0), 0),
         totalApproved: sorted.reduce((sum, s) => sum + (s.approvedAmount || (s.status === 'Approved' ? s.requestedAmount : 0)), 0),
       };
     });
   }, [filtered]);
+
+  const handleExportCSV = () => {
+    if (consolidatedBorrowers.length === 0) {
+      alert('No client records in storage to export.');
+      return;
+    }
+    const headers = [
+      'Borrower Name',
+      'Client Stored Timestamp',
+      'Initial Record Timestamp',
+      'Total Records',
+      'Account Types',
+      'Total Approved (PHP)',
+      'Total Requested (PHP)',
+      'Location',
+      'Tribe',
+      'Assigned CI Officers',
+      'Status',
+      'Approval Timestamp',
+      'Mobile Number'
+    ];
+    const rows = consolidatedBorrowers.map(b => [
+      `"${(b.borrowerName || '').replace(/"/g, '""')}"`,
+      `"${b.clientTimestamp ? format(new Date(b.clientTimestamp), 'yyyy-MM-dd HH:mm:ss') : ''}"`,
+      `"${b.initialTimestamp ? format(new Date(b.initialTimestamp), 'yyyy-MM-dd HH:mm:ss') : ''}"`,
+      b.records.length,
+      `"${b.accountTypes.join(', ')}"`,
+      b.totalApproved,
+      b.totalRequested,
+      `"${(b.location || '').replace(/"/g, '""')}"`,
+      `"${b.tribe}"`,
+      `"${b.ciOfficersList.join(', ')}"`,
+      `"${b.latestRecord.status}"`,
+      `"${b.latestApprovalDate ? format(new Date(b.latestApprovalDate), 'yyyy-MM-dd HH:mm:ss') : 'N/A'}"`,
+      `"${b.mobileNumber}"`
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `client_data_storage_${format(new Date(), 'yyyyMMdd_HHmmss')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   if (loading) return (
     <div className="h-64 flex items-center justify-center">
@@ -11886,15 +12114,24 @@ function DataStorage({ user }: { user: UserProfile }) {
               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" /> Consolidated Borrower Archive ({consolidatedBorrowers.length} Unique Clients)
             </p>
           </div>
-          <div className="relative w-full lg:w-96">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input 
-              type="text" 
-              placeholder="Search by borrower name or CI officer..."
-              className="w-full pl-12 pr-6 py-3.5 bg-gray-50 border-2 border-transparent rounded-2xl text-sm focus:outline-none focus:border-emerald-500/20 font-medium transition-all"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+          <div className="flex items-center gap-3 w-full lg:w-auto">
+            <div className="relative w-full lg:w-80">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <input 
+                type="text" 
+                placeholder="Search by borrower name or CI officer..."
+                className="w-full pl-12 pr-6 py-3.5 bg-gray-50 border-2 border-transparent rounded-2xl text-sm focus:outline-none focus:border-emerald-500/20 font-medium transition-all"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <button
+              onClick={handleExportCSV}
+              className="px-4 py-3.5 bg-emerald-800 text-white rounded-2xl hover:bg-emerald-900 transition-all font-black text-xs flex items-center gap-2 shadow-xs shrink-0 cursor-pointer"
+              title="Export Client Data Storage with Timestamps as CSV"
+            >
+              <Download size={16} /> Export CSV
+            </button>
           </div>
         </div>
         
@@ -11951,6 +12188,7 @@ function DataStorage({ user }: { user: UserProfile }) {
                 <th className="px-6 py-5">Location & Tribe</th>
                 <th className="px-6 py-5">Assigned CI Officers</th>
                 <th className="px-6 py-5">Date Approved & Status</th>
+                <th className="px-6 py-5">Client Timestamp</th>
                 <th className="px-6 py-5 text-right">Actions</th>
               </tr>
             </thead>
@@ -11977,6 +12215,12 @@ function DataStorage({ user }: { user: UserProfile }) {
                           <p className="text-[10px] text-gray-400 font-bold flex items-center gap-1 mt-1">
                             <Phone size={11} className="text-gray-400" /> {b.mobileNumber}
                           </p>
+                          {b.clientTimestamp && (
+                            <div className="flex items-center gap-1 text-[10px] text-emerald-800 font-mono font-bold mt-1.5 bg-emerald-50/80 px-2 py-0.5 rounded border border-emerald-200/50 w-fit">
+                              <Clock size={10} className="text-emerald-600 shrink-0" />
+                              <span>Stored: {format(new Date(b.clientTimestamp), 'MMM d, yyyy • h:mm a')}</span>
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-5">
@@ -12035,11 +12279,30 @@ function DataStorage({ user }: { user: UserProfile }) {
                             )}>
                               {b.latestRecord.status}
                             </span>
-                            <p className="text-[8px] text-gray-400 mt-1 font-mono">
-                              {format(new Date(b.latestRecord.createdAt), 'MMM d, yyyy')}
+                            <p className="text-[9px] text-gray-500 mt-1 font-mono flex items-center gap-1">
+                              <Clock size={10} className="text-gray-400 shrink-0" />
+                              {format(new Date(b.latestRecord.createdAt), 'MMM d, yyyy h:mm a')}
                             </p>
                           </div>
                         )}
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <Clock size={13} className="text-emerald-700 shrink-0" />
+                            <span className="text-xs font-black text-gray-900">
+                              {b.clientTimestamp ? format(new Date(b.clientTimestamp), 'MMM d, yyyy') : '-'}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-gray-500 font-mono block pl-4.5 font-bold">
+                            {b.clientTimestamp ? format(new Date(b.clientTimestamp), 'h:mm:ss a') : ''}
+                          </span>
+                          {b.records.length > 1 && b.initialTimestamp && (
+                            <span className="text-[9px] text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded font-mono font-bold block w-fit border border-emerald-200/60 mt-0.5">
+                              1st: {format(new Date(b.initialTimestamp), 'MM/dd/yy h:mm a')}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-5 text-right">
                         <div className="flex justify-end items-center gap-2">
@@ -12064,7 +12327,7 @@ function DataStorage({ user }: { user: UserProfile }) {
                     {/* Expandable Sub-list for Individual Applications */}
                     {isExpanded && (
                       <tr className="bg-slate-50/80 border-b border-gray-200">
-                        <td colSpan={7} className="p-4 sm:p-6">
+                        <td colSpan={8} className="p-4 sm:p-6">
                           <div className="bg-white p-4 sm:p-5 rounded-2xl border border-emerald-100 shadow-sm space-y-3">
                             <div className="flex justify-between items-center border-b border-gray-100 pb-2">
                               <h5 className="text-xs font-black text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
@@ -12087,9 +12350,14 @@ function DataStorage({ user }: { user: UserProfile }) {
                                     </span>
                                     <div>
                                       <p className="text-xs font-extrabold text-gray-900 font-mono">CID: {r.id}</p>
-                                      <p className="text-[10px] text-gray-400 font-bold">
-                                        Applied: {format(new Date(r.createdAt), 'MMM d, yyyy')} • CI: {r.ciOfficerName}
-                                      </p>
+                                      <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold text-gray-500 mt-0.5">
+                                        <span className="flex items-center gap-1 text-emerald-900 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-mono font-bold">
+                                          <Clock size={11} className="text-emerald-600 shrink-0" />
+                                          Timestamp: {format(new Date(r.createdAt), 'MMM d, yyyy • h:mm:ss a')}
+                                        </span>
+                                        <span>•</span>
+                                        <span>CI: {r.ciOfficerName}</span>
+                                      </div>
                                     </div>
                                   </div>
 

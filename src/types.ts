@@ -37,6 +37,8 @@ export type AssignmentStatus =
 export interface TimelineStep {
   step: string;
   timestamp: string;
+  status?: string;
+  note?: string;
 }
 
 export interface ValidationResults {
@@ -281,6 +283,9 @@ export interface Assignment {
   isMCLReferral?: boolean;
   aiAnalysis?: string;
   createdAt: string;
+  timestamp?: string;
+  storedAt?: string;
+  updatedAt?: string;
   assignedDate?: string;
   cashflowHistory?: CashflowReport[];
   survey?: {
