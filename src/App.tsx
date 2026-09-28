@@ -76,7 +76,13 @@ import {
   BadgeCheck,
   Trophy,
   Award,
-  Medal
+  Medal,
+  Lock,
+  ShieldAlert,
+  Eye,
+  EyeOff,
+  AlertTriangle,
+  CheckSquare
 } from 'lucide-react';
 import pptxgen from "pptxgenjs";
 import { motion, AnimatePresence } from 'framer-motion';
@@ -1282,7 +1288,7 @@ function Dashboard({
     if (isAdmin) {
       return [
         { id: 'DASHBOARD', label: 'Home', icon: LayoutDashboard },
-        { id: 'ATTENDANCE CALENDAR', label: 'Calendar', icon: CalendarDays },
+        { id: 'TASK CALENDAR', label: 'Calendar', icon: CalendarDays },
         { id: 'ACCOUNT STATUS', label: 'Accounts', icon: ClipboardList },
         { id: 'CRECOM APPROVAL', label: 'Approvals', icon: CheckCircle2 },
         { id: 'PROFILE', label: 'Profile', icon: User }
@@ -1290,15 +1296,15 @@ function Dashboard({
     } else if (isCoordinator || isSupervisor) {
       return [
         { id: 'DASHBOARD', label: 'Home', icon: LayoutDashboard },
-        { id: 'ATTENDANCE', label: 'Punch-In', icon: Fingerprint },
-        { id: 'ATTENDANCE CALENDAR', label: 'Calendar', icon: CalendarDays },
+        { id: 'TASK', label: 'Task', icon: Fingerprint },
+        { id: 'TASK CALENDAR', label: 'Calendar', icon: CalendarDays },
         { id: 'ACCOUNT STATUS', label: 'Accounts', icon: ClipboardList },
         { id: 'PROFILE', label: 'Profile', icon: User }
       ];
     } else {
       return [
         { id: 'DASHBOARD', label: 'Home', icon: LayoutDashboard },
-        { id: 'ATTENDANCE', label: 'Punch-In', icon: Fingerprint },
+        { id: 'TASK', label: 'Task', icon: Fingerprint },
         { id: 'ACCOUNT STATUS', label: 'Accounts', icon: ClipboardList },
         { id: 'LEAVES', label: 'Leaves', icon: CalendarDays },
         { id: 'PROFILE', label: 'Profile', icon: User }
@@ -1391,8 +1397,8 @@ function Dashboard({
       id: 'HR', 
       icon: Users,
       children: [
-        { id: 'ATTENDANCE', icon: Fingerprint },
-        { id: 'ATTENDANCE CALENDAR', icon: CalendarRange },
+        { id: 'TASK', icon: Fingerprint },
+        { id: 'TASK CALENDAR', icon: CalendarRange },
         { id: 'REVIEW REQUESTS', icon: ClipboardCheck },
         { id: 'HR REPORTS', icon: FileBarChart },
         { id: 'EVALUATION', icon: Star },
@@ -1410,11 +1416,11 @@ function Dashboard({
     { id: 'ADMIN KEYS', icon: Key },
     { id: 'APPRAISAL CALCULATOR', icon: Calculator },
     { id: 'PROFILE', icon: User },
-  ] : (isCoordinator || isSupervisor) ? [
+  ] : isCoordinator ? [
     { id: 'DASHBOARD', icon: LayoutDashboard },
     { id: 'LEADERBOARD', icon: Trophy },
-    { id: 'ATTENDANCE', icon: Fingerprint },
-    { id: 'ATTENDANCE CALENDAR', icon: CalendarRange },
+    { id: 'TASK', icon: Fingerprint },
+    { id: 'TASK CALENDAR', icon: CalendarRange },
     { id: 'LEAVES', icon: CalendarDays },
     { id: 'OVERTIME', icon: Timer },
     { id: 'OB FILLING', icon: Briefcase },
@@ -1430,16 +1436,34 @@ function Dashboard({
     { id: 'SCORING CONFIG', icon: Settings2 },
     { id: 'APPRAISAL CALCULATOR', icon: Calculator },
     { id: 'PROFILE', icon: User },
+  ] : isSupervisor ? [
+    { id: 'DASHBOARD', icon: LayoutDashboard },
+    { id: 'LEADERBOARD', icon: Trophy },
+    { id: 'TASK', icon: Fingerprint },
+    { id: 'TASK CALENDAR', icon: CalendarRange },
+    { id: 'LEAVES', icon: CalendarDays },
+    { id: 'OVERTIME', icon: Timer },
+    { id: 'OB FILLING', icon: Briefcase },
+    { id: 'REVIEW REQUESTS', icon: ClipboardCheck },
+    { id: 'HR REPORTS', icon: FileBarChart },
+    { id: 'ASSIGN ACCOUNT', icon: UserPlus },
+    { id: 'ACCOUNT STATUS', icon: ClipboardList },
+    { id: 'CRECOM APPROVAL', icon: CheckCircle2 },
+    { id: 'VALIDATION & SURVEY', icon: Star },
+    { id: 'EVALUATION', icon: Star },
+    { id: 'DATA STORAGE', icon: Database },
+    { id: 'SCORING CONFIG', icon: Settings2 },
+    { id: 'APPRAISAL CALCULATOR', icon: Calculator },
+    { id: 'PROFILE', icon: User },
   ] : [
     { id: 'DASHBOARD', icon: LayoutDashboard },
     { id: 'LEADERBOARD', icon: Trophy },
-    { id: 'ATTENDANCE', icon: Fingerprint },
-    { id: 'ATTENDANCE CALENDAR', icon: CalendarRange },
+    { id: 'TASK', icon: Fingerprint },
+    { id: 'TASK CALENDAR', icon: CalendarRange },
     { id: 'LEAVES', icon: CalendarDays },
     { id: 'OVERTIME', icon: Timer },
     { id: 'OB FILLING', icon: Briefcase },
     { id: 'ACCOUNT STATUS', icon: ClipboardList },
-    { id: 'FOR VALIDATION & SURVEY', icon: CheckCircle2 },
     { id: 'EVALUATION', icon: Star },
     { id: 'REPORTS', icon: FileText },
     { id: 'APPRAISAL CALCULATOR', icon: Calculator },
@@ -1771,8 +1795,8 @@ function Dashboard({
             <AnimatePresence mode="wait">
               {activeTab === 'DASHBOARD' && ((isAdmin || isCoordinator || user.role === 'supervisor') ? <DashboardOverview user={user} /> : <CIDashboard user={user} />)}
               {activeTab === 'LEADERBOARD' && <LeaderboardModule user={user} />}
-              {activeTab === 'ATTENDANCE' && <AttendanceModule user={user} />}
-              {activeTab === 'ATTENDANCE CALENDAR' && <AttendanceCalendar user={user} />}
+              {(activeTab === 'TASK' || activeTab === 'ATTENDANCE') && <AttendanceModule user={user} />}
+              {(activeTab === 'TASK CALENDAR' || activeTab === 'ATTENDANCE CALENDAR') && <AttendanceCalendar user={user} />}
               {activeTab === 'LEAVES' && <LeaveModule user={user} />}
               {activeTab === 'OVERTIME' && <OvertimeModule user={user} />}
               {activeTab === 'OB FILLING' && !isAdmin && <OBFillingModule user={user} />}
@@ -1788,7 +1812,7 @@ function Dashboard({
               {activeTab === 'DATA STORAGE' && <DataStorage user={user} />}
               {activeTab === 'SCORING CONFIG' && <AdminScoringSettings />}
               {activeTab === 'ADMIN KEYS' && <AdminKeys user={user} />}
-              {activeTab === 'FOR VALIDATION & SURVEY' && <ValidationSurvey user={user} />}
+              {(activeTab === 'FOR VALIDATION & SURVEY' && (isAdmin || isCoordinator)) && <ValidationSurvey user={user} />}
               {activeTab === 'APPRAISAL CALCULATOR' && <AppraisalCalculator user={user} />}
               {activeTab === 'PROFILE' && <ProfileSettings user={user} setUser={setUser} />}
             </AnimatePresence>
@@ -4769,7 +4793,16 @@ function AttendanceModule({ user }: { user: UserProfile }) {
   const [plannedTasksInput, setPlannedTasksInput] = useState('');
 
   const now = new Date();
-  const isAfterCutoff = now.getHours() > 18 || (now.getHours() === 18 && now.getMinutes() >= 30);
+  const currentHour = now.getHours();
+  const currentMinutes = now.getMinutes();
+
+  // Task In is allowed between 8:00 AM and 3:00 PM
+  const isBeforeTaskInWindow = currentHour < 8;
+  const isAfterTaskInWindow = currentHour > 15 || (currentHour === 15 && currentMinutes > 0);
+  const isTaskInAllowed = !isBeforeTaskInWindow && !isAfterTaskInWindow;
+
+  // End Task cutoff after 6:30 PM
+  const isAfterCutoff = currentHour > 18 || (currentHour === 18 && currentMinutes >= 30);
 
   useEffect(() => {
     const isAdminOrCoordinator = user.role === 'admin' || user.role === 'coordinator' || user.role === 'supervisor';
@@ -4799,22 +4832,28 @@ function AttendanceModule({ user }: { user: UserProfile }) {
       toast.error("Please fill in both daily itinerary and tasks");
       return;
     }
-    setIsSubmittingAction(true);
-    const now = new Date();
-    const today = format(now, 'yyyy-MM-dd');
-    const timeStr = format(now, 'HH:mm:ss');
 
-    const hour = now.getHours();
-    const minutes = now.getMinutes();
-    const isSaturday = now.getDay() === 6;
+    const checkNow = new Date();
+    const ch = checkNow.getHours();
+    const cm = checkNow.getMinutes();
+    if (ch < 8 || ch > 15 || (ch === 15 && cm > 0)) {
+      toast.error("Task In is only allowed between 8:00 AM and 3:00 PM");
+      return;
+    }
+
+    setIsSubmittingAction(true);
+    const today = format(checkNow, 'yyyy-MM-dd');
+    const timeStr = format(checkNow, 'HH:mm:ss');
+
+    const isSaturday = checkNow.getDay() === 6;
     let status: 'LATE' | 'ON TIME' = 'ON TIME';
     
     if (isSaturday) {
-      if (hour > 9 || (hour === 9 && minutes >= 1)) {
+      if (ch > 9 || (ch === 9 && cm >= 1)) {
         status = 'LATE';
       }
     } else {
-      if (hour >= 8) {
+      if (ch >= 8) {
         status = 'LATE';
       }
     }
@@ -4830,9 +4869,9 @@ function AttendanceModule({ user }: { user: UserProfile }) {
         tasks: '',
         itinerary: itineraryInput.trim(),
         plannedTasks: plannedTasksInput.trim(),
-        createdAt: now.toISOString()
+        createdAt: checkNow.toISOString()
       });
-      toast.success("Timed in successfully with itinerary!");
+      toast.success("Task In recorded successfully with itinerary!");
       setShowTimeInModal(false);
       setItineraryInput('');
       setPlannedTasksInput('');
@@ -4848,11 +4887,19 @@ function AttendanceModule({ user }: { user: UserProfile }) {
     const now = new Date();
     const today = format(now, 'yyyy-MM-dd');
     const timeStr = format(now, 'HH:mm:ss');
+    const hour = now.getHours();
+    const minutes = now.getMinutes();
     
     try {
       if (type === 'in') {
         if (todayRecord) {
-          toast.error("Already timed in for today");
+          toast.error("Already recorded Task In for today");
+          return;
+        }
+
+        // Validate 8:00 AM to 3:00 PM window
+        if (hour < 8 || hour > 15 || (hour === 15 && minutes > 0)) {
+          toast.error("Task In is only allowed between 8:00 AM and 3:00 PM");
           return;
         }
 
@@ -4863,8 +4910,6 @@ function AttendanceModule({ user }: { user: UserProfile }) {
         }
 
         setIsSubmittingAction(true);
-        const hour = now.getHours();
-        const minutes = now.getMinutes();
         const isSaturday = now.getDay() === 6;
         let status: 'LATE' | 'ON TIME' = 'ON TIME';
         
@@ -4891,7 +4936,7 @@ function AttendanceModule({ user }: { user: UserProfile }) {
             tasks: '',
             createdAt: now.toISOString()
           });
-          toast.success("Timed in successfully");
+          toast.success("Task In recorded successfully");
         } catch (err) {
           handleFirestoreError(err, OperationType.CREATE, 'attendance');
         } finally {
@@ -4899,18 +4944,16 @@ function AttendanceModule({ user }: { user: UserProfile }) {
         }
       } else {
         if (!todayRecord) {
-          toast.error("You must time in first");
+          toast.error("You must perform Task In first");
           return;
         }
         if (todayRecord.timeOut) {
-          toast.error("Already timed out for today");
+          toast.error("Already ended task for today");
           return;
         }
         
-        const hour = now.getHours();
-        const minutes = now.getMinutes();
         if (hour > 18 || (hour === 18 && minutes >= 30)) {
-          toast.error("Time out is disabled after 6:30 PM");
+          toast.error("End Task is disabled after 6:30 PM");
           return;
         }
         
@@ -4924,7 +4967,7 @@ function AttendanceModule({ user }: { user: UserProfile }) {
 
   const confirmTimeOut = async () => {
     if (!taskLog.trim()) {
-      toast.error("Please fill in your task log before timing out");
+      toast.error("Please fill in your task log before ending task");
       return;
     }
     if (!todayRecord) return;
@@ -4938,12 +4981,12 @@ function AttendanceModule({ user }: { user: UserProfile }) {
         timeOut: timeStr,
         tasks: taskLog
       });
-      toast.success("Timed out successfully");
+      toast.success("End Task recorded successfully");
       setShowTaskLog(false);
       setTaskLog('');
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `attendance/${todayRecord.id}`);
-      toast.error("Time out failed");
+      toast.error("End Task failed");
     } finally {
       setIsSubmittingTask(false);
     }
@@ -5009,22 +5052,35 @@ function AttendanceModule({ user }: { user: UserProfile }) {
             )}
           >
              <div className="z-10">
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Entry Activity</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Entry Activity</p>
+                  <span className="text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/10 text-white/80">8:00 AM – 3:00 PM</span>
+                </div>
                 <h3 className={cn("text-xl sm:text-2xl md:text-4xl font-black uppercase tracking-tighter mt-1 truncate", todayRecord ? "text-emerald-900" : "text-white")}>
-                    {todayRecord ? "Time In" : "Ready to Start"}
+                    {todayRecord ? "Task In" : "Ready to Start"}
                 </h3>
              </div>
              <div className="z-10 flex items-center justify-between">
                 {todayRecord?.timeIn ? (
-                  <span className="text-xl sm:text-2xl font-mono text-emerald-600 font-black">{todayRecord.timeIn}</span>
+                  <div>
+                    <span className="text-xl sm:text-2xl font-mono text-emerald-600 font-black">{todayRecord.timeIn}</span>
+                    <p className="text-[8px] font-bold text-emerald-700 uppercase tracking-widest mt-0.5">Task In Recorded</p>
+                  </div>
                 ) : (
-                  <button 
-                    onClick={() => handleTimeAction('in')}
-                    disabled={isSubmittingAction}
-                    className="bg-white text-black px-4 sm:px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50"
-                  >
-                    {isSubmittingAction ? "Processing..." : "Time In Now"}
-                  </button>
+                  <div className="flex flex-col gap-1">
+                    <button 
+                      onClick={() => handleTimeAction('in')}
+                      disabled={isSubmittingAction || !isTaskInAllowed}
+                      className="bg-white text-black px-4 sm:px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isSubmittingAction ? "Processing..." : isBeforeTaskInWindow ? "Opens at 8:00 AM" : isAfterTaskInWindow ? "Closed (3:00 PM Cutoff)" : "Task In Now"}
+                    </button>
+                    {!isTaskInAllowed && (
+                      <span className="text-[8px] text-amber-300 font-bold uppercase tracking-wider">
+                        {isBeforeTaskInWindow ? "Available 8:00 AM – 3:00 PM" : "Task In closed after 3:00 PM"}
+                      </span>
+                    )}
+                  </div>
                 )}
                 <TrendingUp size={24} className="opacity-20 translate-x-4 sm:size-8" />
              </div>
@@ -5041,19 +5097,22 @@ function AttendanceModule({ user }: { user: UserProfile }) {
              <div className="z-10">
                 <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Exit Activity</p>
                 <h3 className={cn("text-xl sm:text-2xl md:text-4xl font-black uppercase tracking-tighter mt-1 truncate", todayRecord?.timeOut ? "text-indigo-900" : "text-white")}>
-                    {todayRecord?.timeOut ? "Time Out" : "Duty in Progress"}
+                    {todayRecord?.timeOut ? "End Task" : "Duty in Progress"}
                 </h3>
              </div>
              <div className="z-10 flex items-center justify-between">
                 {todayRecord?.timeOut ? (
-                  <span className="text-xl sm:text-2xl font-mono text-indigo-600 font-black">{todayRecord.timeOut}</span>
+                  <div>
+                    <span className="text-xl sm:text-2xl font-mono text-indigo-600 font-black">{todayRecord.timeOut}</span>
+                    <p className="text-[8px] font-bold text-indigo-700 uppercase tracking-widest mt-0.5">End Task Recorded</p>
+                  </div>
                 ) : (
                   <button 
                     onClick={() => handleTimeAction('out')}
                     disabled={!todayRecord || isAfterCutoff}
                     className="bg-white text-indigo-900 px-4 sm:px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50"
                   >
-                    {isAfterCutoff ? "Cutoff Reached" : "Time Out Now"}
+                    {isAfterCutoff ? "Cutoff Reached" : "End Task Now"}
                   </button>
                 )}
                 <Clock size={24} className="opacity-20 translate-x-4 sm:size-8" />
@@ -5090,7 +5149,6 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                 <th className="p-4">Employee</th>
                 <th className="p-4">Date</th>
                 <th className="p-4">Action</th>
-                <th className="p-4">Status</th>
                 <th className="p-4">Day Plan / Itinerary</th>
                 <th className="p-4">Log Out Tasks</th>
                 {(isAdmin || user.role === 'coordinator' || user.role === 'supervisor') && <th className="p-4">Coord Remarks</th>}
@@ -5110,17 +5168,12 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                   <td className="p-4">
                     <div className="flex gap-2">
                        {r.timeIn && (
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[8px] font-black uppercase tracking-tighter">In</span>
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[8px] font-black uppercase tracking-tighter">Task In</span>
                        )}
                        {r.timeOut && (
-                          <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[8px] font-black uppercase tracking-tighter">Out</span>
+                          <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[8px] font-black uppercase tracking-tighter">End Task</span>
                        )}
                     </div>
-                  </td>
-                  <td className="p-4 font-black text-[9px] uppercase tracking-widest">
-                    <span className={cn(
-                      r.status === 'ON TIME' ? "text-emerald-500" : "text-amber-500"
-                    )}>{r.status}</span>
                   </td>
                   <td className="p-4 text-[10px] text-gray-600">
                     <div className="space-y-1 max-w-[220px]">
@@ -5201,16 +5254,12 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                   <p className="text-[10px] font-bold text-gray-500 mt-0.5">{format(new Date(r.date), 'MMMM dd, yyyy')}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
-                  <span className={cn(
-                    "px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider",
-                    r.status === 'ON TIME' ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
-                  )}>{r.status}</span>
                   <div className="flex gap-1">
                     {r.timeIn && (
-                      <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[8px] font-black uppercase">In: {r.timeIn.substring(0, 5)}</span>
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[8px] font-black uppercase">Task In: {r.timeIn.substring(0, 5)}</span>
                     )}
                     {r.timeOut && (
-                      <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[8px] font-black uppercase">Out: {r.timeOut.substring(0, 5)}</span>
+                      <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[8px] font-black uppercase">End Task: {r.timeOut.substring(0, 5)}</span>
                     )}
                   </div>
                 </div>
@@ -5285,7 +5334,7 @@ function AttendanceModule({ user }: { user: UserProfile }) {
         )}
       </div>
 
-       {/* Time-In Planner Modal */}
+       {/* Task In Planner Modal */}
       <AnimatePresence>
         {showTimeInModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto no-scrollbar">
@@ -5306,9 +5355,9 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                    <Calendar size={24} className="text-emerald-600 sm:size-8" />
                 </div>
                 <h3 className="text-lg sm:text-2xl font-black text-emerald-900 uppercase tracking-tighter leading-tight">
-                  {user.role === 'supervisor' ? 'Supervisor' : user.role === 'coordinator' ? 'Coordinator' : 'Officer'} Time-In Planner
+                  {user.role === 'supervisor' ? 'Supervisor' : user.role === 'coordinator' ? 'Coordinator' : 'Officer'} Task In Planner
                 </h3>
-                <p className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest">Provide your itinerary and tasks before recording time-in</p>
+                <p className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest">Provide your itinerary and tasks before recording Task In (8:00 AM – 3:00 PM)</p>
               </div>
 
               <div className="space-y-4">
@@ -5350,7 +5399,7 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                     disabled={isSubmittingAction || !itineraryInput.trim() || !plannedTasksInput.trim()}
                     className="flex-1 h-10 sm:h-12 bg-emerald-800 text-white rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-950/20 active:scale-95 transition-all disabled:opacity-50"
                   >
-                    {isSubmittingAction ? "Recording..." : "Verify & Time In"}
+                    {isSubmittingAction ? "Recording..." : "Verify & Task In"}
                   </button>
                 </div>
               </div>
@@ -5381,7 +5430,7 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                    <ClipboardList size={32} className="text-emerald-600" />
                 </div>
                 <h3 className="text-2xl font-black text-emerald-900 uppercase tracking-tighter">Task Log Required</h3>
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Please summarize your activities today before timing out</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Please summarize your activities today before ending task</p>
               </div>
 
               <div className="space-y-4">
@@ -5405,7 +5454,7 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                     disabled={isSubmittingTask || !taskLog.trim()}
                     className="flex-1 h-12 bg-emerald-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-950/20 active:scale-95 transition-all disabled:opacity-50"
                   >
-                    {isSubmittingTask ? "Processing..." : "Complete & Time Out"}
+                    {isSubmittingTask ? "Processing..." : "Complete & End Task"}
                   </button>
                 </div>
               </div>
@@ -8052,16 +8101,32 @@ interface ConsolidatedBorrowerModalProps {
   assignments: Assignment[];
   onClose: () => void;
   onViewSingleAssignment?: (assignment: Assignment) => void;
+  user?: UserProfile;
+  onRequestDelete?: (target: {
+    type: 'single' | 'consolidated' | 'batch';
+    borrowerName: string;
+    records: Assignment[];
+    recordId?: string;
+    title: string;
+    batchNames?: string[];
+  }) => void;
 }
 
 function ConsolidatedBorrowerModal({
   borrowerName,
   assignments,
   onClose,
-  onViewSingleAssignment
+  onViewSingleAssignment,
+  user,
+  onRequestDelete
 }: ConsolidatedBorrowerModalProps) {
   const [activeTab, setActiveTab] = useState<'full_log' | 'approval' | 'sales' | 'cashflow' | 'scoring' | 'ci_recommendation' | 'all_dossiers'>('full_log');
   const [selectedRecordId, setSelectedRecordId] = useState<string>('');
+  const [selectedApprovalIds, setSelectedApprovalIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    setSelectedApprovalIds(prev => prev.filter(id => assignments.some(a => a.id === id)));
+  }, [assignments]);
 
   // Chronologically sorted (newest first)
   const sortedRecords = useMemo(() => {
@@ -8139,12 +8204,29 @@ function ConsolidatedBorrowerModal({
               )}
             </p>
           </div>
-          <button 
-            onClick={onClose} 
-            className="hover:rotate-90 transition-transform bg-white/10 hover:bg-white/20 p-2.5 rounded-2xl cursor-pointer"
-          >
-            <X size={22} />
-          </button>
+          <div className="flex items-center gap-3">
+            {user?.role === 'admin' && onRequestDelete && (
+              <button
+                onClick={() => onRequestDelete({
+                  type: 'consolidated',
+                  borrowerName,
+                  records: sortedRecords,
+                  title: `Consolidated Account Approval for ${borrowerName} (${sortedRecords.length} Record${sortedRecords.length > 1 ? 's' : ''})`
+                })}
+                className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-all border border-rose-400/40 cursor-pointer active:scale-95"
+                title="Delete Account Approval & Data (Requires Admin Password 101917)"
+              >
+                <Trash2 size={14} />
+                <span className="hidden sm:inline">Delete Account Approval</span>
+              </button>
+            )}
+            <button 
+              onClick={onClose} 
+              className="hover:rotate-90 transition-transform bg-white/10 hover:bg-white/20 p-2.5 rounded-2xl cursor-pointer"
+            >
+              <X size={22} />
+            </button>
+          </div>
         </div>
 
         {/* Highlight KPI Bar */}
@@ -8250,7 +8332,7 @@ function ConsolidatedBorrowerModal({
           {activeTab === 'approval' && (
             <div className="space-y-6">
               <div className="bg-white p-6 rounded-2xl border border-gray-200/80 shadow-xs space-y-4">
-                <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-gray-100 pb-3 gap-2">
                   <div>
                     <h4 className="text-sm font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-emerald-600" /> Account Approval Dates & Status Timeline
@@ -8259,12 +8341,81 @@ function ConsolidatedBorrowerModal({
                       Chronological history of loan approval dates, terms, and committee verdicts
                     </p>
                   </div>
+                  {user?.role === 'admin' && onRequestDelete && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-gray-400 font-bold uppercase">
+                        Admin Select Mode
+                      </span>
+                    </div>
+                  )}
                 </div>
+
+                {/* Batch Selection Action Banner for Admin */}
+                {user?.role === 'admin' && onRequestDelete && selectedApprovalIds.length > 0 && (
+                  <div className="bg-rose-50 border border-rose-200 p-3.5 rounded-2xl flex items-center justify-between gap-3 animate-in fade-in duration-150">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-1.5 bg-rose-100 text-rose-700 rounded-lg">
+                        <CheckSquare size={16} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-rose-950 uppercase">
+                          {selectedApprovalIds.length} Account Approval Record{selectedApprovalIds.length > 1 ? 's' : ''} Selected
+                        </p>
+                        <p className="text-[10px] text-rose-700 font-bold uppercase">
+                          Requires Admin PIN 101917 to authorize permanent deletion
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedApprovalIds([])}
+                        className="px-3 py-1.5 text-[10px] font-bold text-gray-500 hover:text-gray-700 uppercase cursor-pointer"
+                      >
+                        Clear Selection
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const selectedRecs = sortedRecords.filter(r => selectedApprovalIds.includes(r.id));
+                          onRequestDelete({
+                            type: 'batch',
+                            borrowerName,
+                            batchNames: [borrowerName],
+                            records: selectedRecs,
+                            title: `${selectedRecs.length} Selected Account Approval Record(s) for ${borrowerName}`
+                          });
+                        }}
+                        className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm cursor-pointer active:scale-95"
+                      >
+                        <Trash2 size={13} />
+                        <span>Delete Selected Approvals ({selectedApprovalIds.length})</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse min-w-[750px]">
                     <thead>
                       <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-200">
+                        {user?.role === 'admin' && onRequestDelete && (
+                          <th className="p-3 w-10 text-center">
+                            <input
+                              type="checkbox"
+                              checked={sortedRecords.length > 0 && selectedApprovalIds.length === sortedRecords.length}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedApprovalIds(sortedRecords.map(r => r.id));
+                                } else {
+                                  setSelectedApprovalIds([]);
+                                }
+                              }}
+                              className="w-4 h-4 rounded border-gray-300 text-rose-600 focus:ring-rose-500 cursor-pointer accent-rose-600"
+                              title="Select all approval records to delete"
+                            />
+                          </th>
+                        )}
                         <th className="p-3">Application / CID</th>
                         <th className="p-3">Account Type</th>
                         <th className="p-3">Application Timestamp</th>
@@ -8273,13 +8424,37 @@ function ConsolidatedBorrowerModal({
                         <th className="p-3">Terms & Rates</th>
                         <th className="p-3">Status</th>
                         <th className="p-3">Committee Verdict / Remarks</th>
+                        {user?.role === 'admin' && onRequestDelete && (
+                          <th className="p-3 text-right">Action</th>
+                        )}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 text-xs font-semibold">
                       {sortedRecords.map((r) => {
                         const appDate = getApprovalDate(r);
+                        const isSelected = selectedApprovalIds.includes(r.id);
                         return (
-                          <tr key={r.id} className="hover:bg-emerald-50/30 transition-colors">
+                          <tr key={r.id} className={cn(
+                            "hover:bg-emerald-50/30 transition-colors",
+                            isSelected && "bg-rose-50/50"
+                          )}>
+                            {user?.role === 'admin' && onRequestDelete && (
+                              <td className="p-3 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedApprovalIds(prev => [...prev, r.id]);
+                                    } else {
+                                      setSelectedApprovalIds(prev => prev.filter(id => id !== r.id));
+                                    }
+                                  }}
+                                  className="w-4 h-4 rounded border-gray-300 text-rose-600 focus:ring-rose-500 cursor-pointer accent-rose-600"
+                                  title={`Select CID ${r.id.slice(0, 8)} to delete`}
+                                />
+                              </td>
+                            )}
                             <td className="p-3">
                               <span className="font-mono font-bold text-gray-800 block">CID: {r.id.slice(0, 8)}</span>
                               <span className="text-[10px] text-gray-400 font-bold uppercase">{r.loanCategory}</span>
@@ -8352,6 +8527,24 @@ function ConsolidatedBorrowerModal({
                                 <span className="text-gray-400 italic">No committee remarks logged</span>
                               )}
                             </td>
+                            {user?.role === 'admin' && onRequestDelete && (
+                              <td className="p-3 text-right">
+                                <button
+                                  onClick={() => onRequestDelete({
+                                    type: 'single',
+                                    recordId: r.id,
+                                    borrowerName: r.borrowerName,
+                                    records: [r],
+                                    title: `Account Approval Record CID: ${r.id.slice(0, 8)} (${r.accountType} • ${r.status})`
+                                  })}
+                                  className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer inline-flex items-center gap-1 border border-transparent hover:border-rose-200"
+                                  title="Delete Account Approval Record (Requires Admin Password 101917)"
+                                >
+                                  <Trash2 size={14} />
+                                  <span className="text-[10px] font-bold hidden xl:inline">Delete</span>
+                                </button>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
@@ -8718,47 +8911,133 @@ function ConsolidatedBorrowerModal({
 
           {/* TAB 6: RAW RECORDS */}
           {activeTab === 'all_dossiers' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {sortedRecords.map((r) => (
-                <div key={r.id} className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col justify-between space-y-3">
-                  <div className="flex justify-between items-start">
+            <div className="space-y-4">
+              {user?.role === 'admin' && onRequestDelete && selectedApprovalIds.length > 0 && (
+                <div className="bg-rose-50 border border-rose-200 p-3.5 rounded-2xl flex items-center justify-between gap-3 animate-in fade-in duration-150">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-1.5 bg-rose-100 text-rose-700 rounded-lg">
+                      <CheckSquare size={16} />
+                    </div>
                     <div>
-                      <span className="text-[10px] font-mono text-gray-400 font-bold">CID: {r.id}</span>
-                      <h5 className="text-sm font-black text-gray-900 uppercase mt-0.5">{r.accountType} Application</h5>
-                      <p className="text-[10px] text-gray-500 font-mono font-bold flex items-center gap-1 mt-0.5">
-                        <Clock size={11} className="text-emerald-600 shrink-0" />
-                        Timestamp: {format(new Date(r.createdAt), 'MMM d, yyyy • h:mm:ss a')}
+                      <p className="text-xs font-black text-rose-950 uppercase">
+                        {selectedApprovalIds.length} Application Record{selectedApprovalIds.length > 1 ? 's' : ''} Selected
+                      </p>
+                      <p className="text-[10px] text-rose-700 font-bold uppercase">
+                        Requires Admin Password 101917 to delete
                       </p>
                     </div>
-                    <span className={cn(
-                      "px-2.5 py-1 text-[9px] font-black uppercase rounded-full border",
-                      r.status === 'Approved' ? "bg-green-100 text-green-700 border-green-200" : "bg-amber-100 text-amber-800 border-amber-200"
-                    )}>
-                      {r.status}
-                    </span>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-xs bg-gray-50 p-3 rounded-xl border border-gray-100">
-                    <div>
-                      <span className="text-[9px] font-black text-gray-400 uppercase block">Requested</span>
-                      <span className="font-extrabold text-emerald-900">₱{r.requestedAmount.toLocaleString()}</span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] font-black text-gray-400 uppercase block">Term & Rate</span>
-                      <span className="font-extrabold text-gray-800">{r.term} Mos @ {r.intRate}%</span>
-                    </div>
-                  </div>
-
-                  {onViewSingleAssignment && (
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => onViewSingleAssignment(r)}
-                      className="w-full py-2.5 bg-emerald-800 text-white font-black text-xs uppercase tracking-wider rounded-xl hover:bg-emerald-900 transition-all cursor-pointer flex items-center justify-center gap-2"
+                      type="button"
+                      onClick={() => setSelectedApprovalIds([])}
+                      className="px-3 py-1.5 text-[10px] font-bold text-gray-500 hover:text-gray-700 uppercase cursor-pointer"
                     >
-                      <FileText size={14} /> Open Single Account Dossier
+                      Clear Selection
                     </button>
-                  )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const selectedRecs = sortedRecords.filter(r => selectedApprovalIds.includes(r.id));
+                        onRequestDelete({
+                          type: 'batch',
+                          borrowerName,
+                          batchNames: [borrowerName],
+                          records: selectedRecs,
+                          title: `${selectedRecs.length} Selected Application Record(s) for ${borrowerName}`
+                        });
+                      }}
+                      className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm cursor-pointer active:scale-95"
+                    >
+                      <Trash2 size={13} />
+                      <span>Delete Selected ({selectedApprovalIds.length})</span>
+                    </button>
+                  </div>
                 </div>
-              ))}
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {sortedRecords.map((r) => {
+                  const isCardSelected = selectedApprovalIds.includes(r.id);
+                  return (
+                    <div key={r.id} className={cn(
+                      "bg-white p-5 rounded-2xl border shadow-xs flex flex-col justify-between space-y-3 transition-colors",
+                      isCardSelected ? "border-rose-300 bg-rose-50/30" : "border-gray-200/80"
+                    )}>
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-start gap-2.5">
+                          {user?.role === 'admin' && onRequestDelete && (
+                            <input
+                              type="checkbox"
+                              checked={isCardSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedApprovalIds(prev => [...prev, r.id]);
+                                } else {
+                                  setSelectedApprovalIds(prev => prev.filter(id => id !== r.id));
+                                }
+                              }}
+                              className="mt-1 w-4 h-4 rounded border-gray-300 text-rose-600 focus:ring-rose-500 cursor-pointer accent-rose-600"
+                              title={`Select CID ${r.id.slice(0, 8)} to delete`}
+                            />
+                          )}
+                          <div>
+                            <span className="text-[10px] font-mono text-gray-400 font-bold">CID: {r.id}</span>
+                            <h5 className="text-sm font-black text-gray-900 uppercase mt-0.5">{r.accountType} Application</h5>
+                            <p className="text-[10px] text-gray-500 font-mono font-bold flex items-center gap-1 mt-0.5">
+                              <Clock size={11} className="text-emerald-600 shrink-0" />
+                              Timestamp: {format(new Date(r.createdAt), 'MMM d, yyyy • h:mm:ss a')}
+                            </p>
+                          </div>
+                        </div>
+                        <span className={cn(
+                          "px-2.5 py-1 text-[9px] font-black uppercase rounded-full border",
+                          r.status === 'Approved' ? "bg-green-100 text-green-700 border-green-200" : "bg-amber-100 text-amber-800 border-amber-200"
+                        )}>
+                          {r.status}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs bg-gray-50 p-3 rounded-xl border border-gray-100">
+                        <div>
+                          <span className="text-[9px] font-black text-gray-400 uppercase block">Requested</span>
+                          <span className="font-extrabold text-emerald-900">₱{r.requestedAmount.toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] font-black text-gray-400 uppercase block">Term & Rate</span>
+                          <span className="font-extrabold text-gray-800">{r.term} Mos @ {r.intRate}%</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {onViewSingleAssignment && (
+                          <button
+                            onClick={() => onViewSingleAssignment(r)}
+                            className="flex-1 py-2.5 bg-emerald-800 text-white font-black text-xs uppercase tracking-wider rounded-xl hover:bg-emerald-900 transition-all cursor-pointer flex items-center justify-center gap-2"
+                          >
+                            <FileText size={14} /> Open Single Account Dossier
+                          </button>
+                        )}
+                        {user?.role === 'admin' && onRequestDelete && (
+                          <button
+                            onClick={() => onRequestDelete({
+                              type: 'single',
+                              recordId: r.id,
+                              borrowerName: r.borrowerName,
+                              records: [r],
+                              title: `Account Record CID: ${r.id.slice(0, 8)} (${r.accountType})`
+                            })}
+                            className="p-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl transition-all cursor-pointer shrink-0"
+                            title="Delete Account Approval & Data (Requires Admin Password 101917)"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
@@ -10423,13 +10702,216 @@ function CashflowModule({ assignment, user, isReadOnly: forceReadOnly }: { assig
   );
 }
 
+interface DeleteApprovalTarget {
+  type: 'single' | 'consolidated' | 'batch';
+  borrowerName: string;
+  records: Assignment[];
+  recordId?: string;
+  title: string;
+  batchNames?: string[];
+}
+
+function AdminDeleteApprovalPasswordModal({
+  isOpen,
+  target,
+  onClose,
+  onConfirm,
+  passwordValue,
+  setPasswordValue,
+  error,
+  setError,
+  isDeleting,
+  showPassword,
+  setShowPassword
+}: {
+  isOpen: boolean;
+  target: DeleteApprovalTarget | null;
+  onClose: () => void;
+  onConfirm: (e?: React.FormEvent) => void;
+  passwordValue: string;
+  setPasswordValue: (val: string) => void;
+  error: string;
+  setError: (err: string) => void;
+  isDeleting: boolean;
+  showPassword: boolean;
+  setShowPassword: (val: boolean) => void;
+}) {
+  if (!isOpen || !target) return null;
+
+  return (
+    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-[120] flex items-center justify-center p-4 select-none">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 15 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 15 }}
+        className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-rose-100 flex flex-col text-left"
+      >
+        {/* Banner Header */}
+        <div className="bg-gradient-to-r from-rose-950 via-rose-900 to-red-900 p-6 text-white flex justify-between items-start">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-rose-500/20 border border-rose-400/30 rounded-2xl text-rose-300">
+              <ShieldAlert size={24} />
+            </div>
+            <div>
+              <span className="px-2 py-0.5 bg-rose-800/80 rounded-md text-[9px] font-black uppercase tracking-widest border border-rose-400/30 text-rose-200">
+                Admin Authorization Required
+              </span>
+              <h3 className="text-xl font-black uppercase tracking-tight mt-1 text-white">
+                Delete Account Approval
+              </h3>
+              <p className="text-[10px] text-rose-200 font-bold uppercase tracking-wider mt-0.5">
+                Protected Data Storage Operation
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={isDeleting}
+            className="hover:rotate-90 transition-transform bg-white/10 hover:bg-white/20 p-2 rounded-xl text-white/80 hover:text-white cursor-pointer"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Content Form */}
+        <form onSubmit={onConfirm} className="p-6 space-y-5">
+          {/* Target Summary Box */}
+          <div className="bg-rose-50/70 p-4 rounded-2xl border border-rose-100/90 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] font-black uppercase tracking-widest text-rose-800">
+                Target To Delete
+              </span>
+              <span className="px-2 py-0.5 bg-rose-200/80 text-rose-900 text-[9px] font-black uppercase rounded-md">
+                {target.type === 'batch'
+                  ? `${target.records.length} Total Record(s) • ${target.batchNames?.length || 1} Account(s)`
+                  : target.type === 'consolidated' 
+                  ? `${target.records.length} Account Record(s)` 
+                  : 'Single Account Record'}
+              </span>
+            </div>
+            <p className="text-sm font-black text-gray-900 uppercase">
+              {target.type === 'batch' && target.batchNames && target.batchNames.length > 1
+                ? `${target.batchNames.length} Selected Account Approvals`
+                : target.borrowerName}
+            </p>
+            {target.type === 'batch' && target.batchNames && target.batchNames.length > 0 && (
+              <div className="space-y-1 pt-1">
+                <span className="text-[9px] font-black uppercase tracking-wider text-rose-800">
+                  Selected Borrowers ({target.batchNames.length}):
+                </span>
+                <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1.5 bg-white/80 rounded-xl border border-rose-200/60">
+                  {target.batchNames.map(name => (
+                    <span key={name} className="px-2 py-0.5 bg-rose-100 text-rose-900 text-[10px] font-bold rounded-md border border-rose-200 uppercase">
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            <p className="text-xs text-rose-900 font-semibold">
+              {target.title}
+            </p>
+            <div className="flex items-center gap-2 pt-1 text-[10px] text-rose-700 font-bold">
+              <AlertTriangle size={13} className="shrink-0" />
+              <span>Warning: This will permanently delete {target.type === 'batch' ? 'the selected account approvals' : 'this account approval'} and client data from storage.</span>
+            </div>
+          </div>
+
+          {/* Password Input */}
+          <div className="space-y-1.5">
+            <div className="flex justify-between items-center">
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-700 flex items-center gap-1.5">
+                <Lock size={12} className="text-rose-600" /> Admin Security Password
+              </label>
+              <span className="text-[9px] font-bold text-gray-400">
+                Security PIN: 101917
+              </span>
+            </div>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                autoFocus
+                placeholder="Enter admin password (101917) to delete..."
+                value={passwordValue}
+                onChange={(e) => {
+                  setPasswordValue(e.target.value);
+                  if (error) setError('');
+                }}
+                disabled={isDeleting}
+                className={cn(
+                  "w-full px-4 py-3 bg-gray-50 border-2 rounded-2xl text-sm font-mono tracking-wider focus:outline-none transition-all pr-12",
+                  error ? "border-rose-400 bg-rose-50/30 text-rose-900" : "border-gray-200 focus:border-rose-500"
+                )}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                title={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+            {error ? (
+              <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1.5 mt-1 bg-rose-50 p-2.5 rounded-xl border border-rose-200">
+                <AlertTriangle size={14} className="shrink-0 text-rose-600" />
+                <span>{error}</span>
+              </p>
+            ) : (
+              <p className="text-[10px] text-gray-400 font-medium">
+                Admin confirmation required. Enter <span className="font-mono font-bold text-gray-600">101917</span> to authorize permanent deletion.
+              </p>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isDeleting}
+              className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isDeleting || !passwordValue.trim()}
+              className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-300 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md hover:shadow-rose-900/20 active:scale-95 flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+            >
+              {isDeleting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Deleting Data...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 size={14} />
+                  <span>Authorize & Delete Permanently</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
+
 function CrecomApproval({ user }: { user: UserProfile }) {
+  const isAdmin = user.role === 'admin';
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [approvedList, setApprovedList] = useState<Assignment[]>([]);
   const [selected, setSelected] = useState<Assignment | null>(null);
   const [isViewingAccount, setIsViewingAccount] = useState(false);
   const [modalTab, setModalTab] = useState<'all' | 'scoring' | 'cashflow' | 'ai'>('all');
   const [search, setSearch] = useState('');
+  const [selectedApprovalIds, setSelectedApprovalIds] = useState<string[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteApprovalTarget | null>(null);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deletePasswordError, setDeletePasswordError] = useState('');
+  const [isDeletingApproval, setIsDeletingApproval] = useState(false);
+  const [showDeletePassword, setShowDeletePassword] = useState(false);
   const [processData, setProcessData] = useState({
     amount: '',
     term: '',
@@ -10540,6 +11022,103 @@ function CrecomApproval({ user }: { user: UserProfile }) {
     a.ciOfficerName.toLowerCase().includes(search.toLowerCase())
   );
 
+  const toggleSelectApproval = (id: string) => {
+    setSelectedApprovalIds(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllQueue = () => {
+    const queueIds = filtered.map(a => a.id);
+    const allSelected = queueIds.length > 0 && queueIds.every(id => selectedApprovalIds.includes(id));
+    if (allSelected) {
+      setSelectedApprovalIds(prev => prev.filter(id => !queueIds.includes(id)));
+    } else {
+      setSelectedApprovalIds(prev => Array.from(new Set([...prev, ...queueIds])));
+    }
+  };
+
+  const handleSelectAllApproved = () => {
+    const approvedIds = approvedList.map(a => a.id);
+    const allSelected = approvedIds.length > 0 && approvedIds.every(id => selectedApprovalIds.includes(id));
+    if (allSelected) {
+      setSelectedApprovalIds(prev => prev.filter(id => !approvedIds.includes(id)));
+    } else {
+      setSelectedApprovalIds(prev => Array.from(new Set([...prev, ...approvedIds])));
+    }
+  };
+
+  const handleInitiateDeleteSelected = () => {
+    if (selectedApprovalIds.length === 0) return;
+    const allAccounts = [...assignments, ...approvedList];
+    const recsToDelete = allAccounts.filter(a => selectedApprovalIds.includes(a.id));
+    const uniqueNames = Array.from(new Set(recsToDelete.map(r => r.borrowerName)));
+
+    setDeletePassword('');
+    setDeletePasswordError('');
+    setDeleteTarget({
+      type: 'batch',
+      borrowerName: uniqueNames.length === 1 ? uniqueNames[0] : `${uniqueNames.length} Selected Account Approvals`,
+      batchNames: uniqueNames,
+      records: recsToDelete,
+      title: `Batch Deletion of ${selectedApprovalIds.length} Selected Account Approval(s)`
+    });
+  };
+
+  const handleInitiateDeleteSingle = (record: Assignment) => {
+    setDeletePassword('');
+    setDeletePasswordError('');
+    setDeleteTarget({
+      type: 'single',
+      borrowerName: record.borrowerName,
+      recordId: record.id,
+      records: [record],
+      title: `Deletion of Account Approval for ${record.borrowerName}`
+    });
+  };
+
+  const handleExecuteDeleteApproval = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!deleteTarget) return;
+
+    if (!isAdmin) {
+      setDeletePasswordError('Access Denied: Only administrators are authorized to delete account approval data.');
+      return;
+    }
+
+    if (deletePassword.trim() !== '101917') {
+      setDeletePasswordError('Incorrect admin security password! You must enter 101917 to authorize deletion of data.');
+      return;
+    }
+
+    setDeletePasswordError('');
+    setIsDeletingApproval(true);
+
+    try {
+      if (deleteTarget.type === 'single' && deleteTarget.recordId) {
+        await api.delete(`/api/assignments/${deleteTarget.recordId}`);
+      } else {
+        for (const rec of deleteTarget.records) {
+          await api.delete(`/api/assignments/${rec.id}`);
+        }
+      }
+
+      toast.success(`Successfully deleted ${deleteTarget.records.length} account approval record(s).`);
+
+      setSelectedApprovalIds(prev => prev.filter(id => !deleteTarget.records.some(r => r.id === id)));
+      if (selected && deleteTarget.records.some(r => r.id === selected.id)) {
+        setSelected(null);
+      }
+      setDeleteTarget(null);
+      setDeletePassword('');
+    } catch (err: any) {
+      console.error('Failed to delete account approval:', err);
+      setDeletePasswordError(err?.message || 'Failed to delete record. Please check permissions.');
+    } finally {
+      setIsDeletingApproval(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
@@ -10547,34 +11126,104 @@ function CrecomApproval({ user }: { user: UserProfile }) {
           <h2 className="text-2xl font-black text-emerald-800 uppercase tracking-tight">Crecom Approval Queue</h2>
           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em]">Final Review & Funding Decision</p>
         </div>
-        <div className="relative w-full md:w-96">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input 
-            type="text" 
-            placeholder="Search queue..."
-            className="w-full pl-12 pr-6 py-3.5 bg-gray-50 border-2 border-transparent rounded-2xl text-sm focus:outline-none focus:border-emerald-500/20 font-medium transition-all"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+          {isAdmin && filtered.length > 0 && (
+            <button
+              type="button"
+              onClick={handleSelectAllQueue}
+              className="px-4 py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all border border-emerald-200 shrink-0"
+            >
+              {filtered.length > 0 && filtered.every(a => selectedApprovalIds.includes(a.id)) ? 'Deselect Queue' : 'Select All in Queue'}
+            </button>
+          )}
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input 
+              type="text" 
+              placeholder="Search queue..."
+              className="w-full pl-12 pr-6 py-3.5 bg-gray-50 border-2 border-transparent rounded-2xl text-sm focus:outline-none focus:border-emerald-500/20 font-medium transition-all"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
       </div>
+
+      {/* Selected Account Approvals Batch Action Bar */}
+      {isAdmin && selectedApprovalIds.length > 0 && (
+        <div className="bg-rose-50 border border-rose-200 p-4 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm animate-in fade-in duration-200">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-rose-100 text-rose-700 rounded-xl">
+              <CheckSquare size={18} />
+            </div>
+            <div>
+              <p className="text-xs font-black text-rose-950 uppercase tracking-tight">
+                {selectedApprovalIds.length} Account Approval{selectedApprovalIds.length > 1 ? 's' : ''} Selected
+              </p>
+              <p className="text-[10px] text-rose-700 font-bold uppercase tracking-wider">
+                Admin password authorization required to delete (101917)
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              onClick={() => setSelectedApprovalIds([])}
+              className="px-3.5 py-2 text-[10px] font-bold text-gray-500 hover:text-gray-700 uppercase tracking-wider cursor-pointer"
+            >
+              Clear Selection
+            </button>
+            <button
+              type="button"
+              onClick={handleInitiateDeleteSelected}
+              className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all cursor-pointer active:scale-95"
+            >
+              <Trash2 size={14} />
+              <span>Delete Selected Approvals ({selectedApprovalIds.length})</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {filtered.map(a => {
           const preApprovalStep = a.timeline.find(t => t.step === 'Pre-approved');
           const preApprovalDate = preApprovalStep ? format(new Date(preApprovalStep.timestamp), 'MMM d, yyyy h:mm a') : 'N/A';
+          const isSelected = selectedApprovalIds.includes(a.id);
           
           return (
             <motion.div 
               key={a.id} 
               layoutId={a.id}
               onClick={() => setSelected(a)}
-              className="bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl transition-all cursor-pointer relative overflow-hidden group flex flex-col"
+              className={cn(
+                "bg-white rounded-3xl border shadow-sm hover:shadow-xl transition-all cursor-pointer relative overflow-hidden group flex flex-col",
+                isSelected ? "border-rose-400 ring-2 ring-rose-400/50" : "border-gray-100"
+              )}
             >
               <div className="bg-emerald-800 p-5 flex justify-between items-center text-white">
-                <div>
-                  <h4 className="font-black text-lg uppercase tracking-tight">{a.borrowerName}</h4>
-                  <p className="text-[9px] text-white/60 uppercase tracking-[0.2em] font-bold">Pre-approved: {preApprovalDate}</p>
+                <div className="flex items-center gap-3">
+                  {isAdmin && (
+                    <div 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleSelectApproval(a.id);
+                      }}
+                      className="p-1 rounded-lg hover:bg-white/20 cursor-pointer flex items-center justify-center transition-colors"
+                      title={isSelected ? "Deselect account approval" : "Select account approval to delete"}
+                    >
+                      <input 
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => {}}
+                        className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 border-white/60 bg-white/10 cursor-pointer accent-rose-600"
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <h4 className="font-black text-lg uppercase tracking-tight">{a.borrowerName}</h4>
+                    <p className="text-[9px] text-white/60 uppercase tracking-[0.2em] font-bold">Pre-approved: {preApprovalDate}</p>
+                  </div>
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   <div className="flex flex-col items-end">
@@ -10644,6 +11293,17 @@ function CrecomApproval({ user }: { user: UserProfile }) {
           <table className="w-full text-left">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
+                {isAdmin && (
+                  <th className="px-4 py-4 text-center w-12">
+                    <input 
+                      type="checkbox"
+                      checked={approvedList.length > 0 && approvedList.every(a => selectedApprovalIds.includes(a.id))}
+                      onChange={handleSelectAllApproved}
+                      className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 border-gray-300 cursor-pointer accent-rose-600"
+                      title="Select all recently approved accounts"
+                    />
+                  </th>
+                )}
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Date Approve</th>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Borrower / Details</th>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Amount</th>
@@ -10657,8 +11317,20 @@ function CrecomApproval({ user }: { user: UserProfile }) {
               {approvedList.map(a => {
                 const approvalStep = a.timeline.find(t => t.step === 'Approved');
                 const approvalDate = approvalStep ? format(new Date(approvalStep.timestamp), 'MMM d, yyyy') : 'N/A';
+                const isSelected = selectedApprovalIds.includes(a.id);
                 return (
-                  <tr key={a.id} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => setSelected(a)}>
+                  <tr key={a.id} className={cn("hover:bg-gray-50/50 transition-colors cursor-pointer", isSelected && "bg-rose-50/40")} onClick={() => setSelected(a)}>
+                    {isAdmin && (
+                      <td className="px-4 py-4 text-center" onClick={(e) => e.stopPropagation()}>
+                        <input 
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelectApproval(a.id)}
+                          className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 border-gray-300 cursor-pointer accent-rose-600"
+                          title="Select account approval to delete"
+                        />
+                      </td>
+                    )}
                     <td className="px-6 py-4 text-[10px] font-bold text-gray-400">{approvalDate}</td>
                     <td className="px-6 py-4">
                       <p className="text-sm font-black text-emerald-800 uppercase">{a.borrowerName}</p>
@@ -10684,7 +11356,7 @@ function CrecomApproval({ user }: { user: UserProfile }) {
               })}
               {approvedList.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-300 font-bold uppercase text-[10px] tracking-widest">No recently approved accounts found</td>
+                  <td colSpan={isAdmin ? 8 : 7} className="px-6 py-12 text-center text-gray-300 font-bold uppercase text-[10px] tracking-widest">No recently approved accounts found</td>
                 </tr>
               )}
             </tbody>
@@ -10932,6 +11604,15 @@ function CrecomApproval({ user }: { user: UserProfile }) {
                   <div className="pt-8 flex flex-col gap-4 mt-auto">
                     {(user.role === 'admin' || user.role === 'supervisor') ? (
                       <>
+                        {user.role === 'admin' && (
+                          <button 
+                            type="button"
+                            onClick={() => handleInitiateDeleteSingle(selected)}
+                            className="w-full py-4 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 text-[10px] font-black rounded-2xl transition-all uppercase tracking-[0.25em] flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                          >
+                            <Trash2 size={14} /> Delete Account Approval
+                          </button>
+                        )}
                         <button 
                           onClick={handleDeny}
                           className="w-full py-5 bg-red-50 text-red-600 text-[10px] font-black rounded-2xl hover:bg-red-500 hover:text-white transition-all uppercase tracking-[0.3em] active:scale-95"
@@ -10962,6 +11643,24 @@ function CrecomApproval({ user }: { user: UserProfile }) {
           />
         )}
       </AnimatePresence>
+
+      <AdminDeleteApprovalPasswordModal
+        isOpen={!!deleteTarget}
+        target={deleteTarget}
+        onClose={() => {
+          setDeleteTarget(null);
+          setDeletePassword('');
+          setDeletePasswordError('');
+        }}
+        onConfirm={handleExecuteDeleteApproval}
+        passwordValue={deletePassword}
+        setPasswordValue={setDeletePassword}
+        error={deletePasswordError}
+        setError={setDeletePasswordError}
+        isDeleting={isDeletingApproval}
+        showPassword={showDeletePassword}
+        setShowPassword={setShowDeletePassword}
+      />
     </div>
   );
 }
@@ -11054,7 +11753,8 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
     didAnswerCalls: false,
     didReceiveProceeds: false,
     didExplainPN: false,
-    didExplainDeductions: false
+    didExplainDeductions: false,
+    wasFavorOrBenefitRequested: false
   });
   const [survey, setSurvey] = useState({
     satisfaction: 5,
@@ -11172,7 +11872,8 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
           didAnswerCalls: validation.didAnswerCalls,
           didReceiveProceeds: validation.didReceiveProceeds,
           didExplainPN: validation.didExplainPN,
-          didExplainDeductions: validation.didExplainDeductions
+          didExplainDeductions: validation.didExplainDeductions,
+          wasFavorOrBenefitRequested: validation.wasFavorOrBenefitRequested
         },
         survey: {
           ...survey,
@@ -11182,7 +11883,7 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
         timeline: [...selected.timeline, { 
           step: 'Completed', 
           timestamp: new Date().toISOString(),
-          note: 'CI Officer submitted validation and satisfaction survey results'
+          note: `${user.role === 'admin' ? 'Admin' : user.role === 'coordinator' ? 'Coordinator' : 'Officer'} submitted validation and satisfaction survey results`
         }]
       });
 
@@ -11192,7 +11893,7 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
         createNotification(
           adminDoc.id,
           'Validation & Survey Completed',
-          `CI Officer ${user.fullName} completed validation and survey for ${selected.borrowerName}`,
+          `${user.role === 'admin' ? 'Admin' : user.role === 'coordinator' ? 'Coordinator' : 'Officer'} ${user.fullName} completed validation and survey for ${selected.borrowerName}`,
           'status_change',
           selected.id
         );
@@ -11204,7 +11905,8 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
         didAnswerCalls: false,
         didReceiveProceeds: false,
         didExplainPN: false,
-        didExplainDeductions: false
+        didExplainDeductions: false,
+        wasFavorOrBenefitRequested: false
       });
       setSurvey({
         satisfaction: 5,
@@ -11396,21 +12098,36 @@ function ValidationSurvey({ user }: { user: UserProfile }) {
                           { id: 'didAnswerCalls', label: 'Did client answer all verification calls?' },
                           { id: 'didReceiveProceeds', label: 'Did the client receive full loan proceeds?' },
                           { id: 'didExplainPN', label: 'Did you explain the Promissory Note properly?' },
-                          { id: 'didExplainDeductions', label: 'Were all deductions clearly explained?' }
+                          { id: 'didExplainDeductions', label: 'Were all deductions clearly explained?' },
+                          { id: 'wasFavorOrBenefitRequested', label: 'Was any favor, cash, or other benefit requested from or involving any of our staff or officers?' }
                         ].map(q => (
                           <label key={q.id} className="flex items-center justify-between p-4 bg-white rounded-2xl cursor-pointer hover:shadow-md transition-all border border-gray-50 group">
-                            <span className="text-[11px] font-bold text-gray-600 uppercase tracking-tight group-hover:text-emerald-700 transition-colors">{q.label}</span>
-                            <div className={cn(
-                              "w-6 h-6 rounded-lg flex items-center justify-center transition-all",
-                              (validation as any)[q.id] ? "bg-emerald-600 text-white" : "bg-gray-100 text-transparent"
-                            )}>
-                              <Check size={14} strokeWidth={4} />
-                              <input 
-                                type="checkbox" 
-                                className="hidden"
-                                checked={(validation as any)[q.id]}
-                                onChange={e => setValidation({...validation, [q.id]: e.target.checked})}
-                              />
+                            <span className="text-[11px] font-bold text-gray-600 uppercase tracking-tight group-hover:text-emerald-700 transition-colors pr-3">{q.label}</span>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {q.id === 'wasFavorOrBenefitRequested' && (
+                                <span className={cn(
+                                  "text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider",
+                                  (validation as any)[q.id] ? "bg-rose-100 text-rose-700 border border-rose-200" : "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                                )}>
+                                  {(validation as any)[q.id] ? "Yes (Flagged)" : "No"}
+                                </span>
+                              )}
+                              <div className={cn(
+                                "w-6 h-6 rounded-lg flex items-center justify-center transition-all",
+                                q.id === 'wasFavorOrBenefitRequested' && (validation as any)[q.id]
+                                  ? "bg-rose-600 text-white shadow-sm"
+                                  : (validation as any)[q.id] 
+                                    ? "bg-emerald-600 text-white" 
+                                    : "bg-gray-100 text-transparent"
+                              )}>
+                                <Check size={14} strokeWidth={4} />
+                                <input 
+                                  type="checkbox" 
+                                  className="hidden"
+                                  checked={(validation as any)[q.id]}
+                                  onChange={e => setValidation({...validation, [q.id]: e.target.checked})}
+                                />
+                              </div>
                             </div>
                           </label>
                         ))}
@@ -11896,21 +12613,42 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
 
                         <div className="pt-4 border-t border-gray-50">
                           <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-4">Internal Validation Checkpoints</p>
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                              {[
                                { label: 'Answered Calls', val: selected.validationResults?.didAnswerCalls },
                                { label: 'Received Proceeds', val: selected.validationResults?.didReceiveProceeds },
                                { label: 'PN Explained', val: selected.validationResults?.didExplainPN },
                                { label: 'Deductions Explained', val: selected.validationResults?.didExplainDeductions },
+                               { 
+                                 label: 'Staff Favor / Cash / Benefit Requested', 
+                                 val: selected.validationResults?.wasFavorOrBenefitRequested,
+                                 isAlert: true
+                               },
                              ].map(check => (
-                               <div key={check.label} className="flex items-center gap-2">
+                               <div key={check.label} className={cn("flex items-center gap-2", check.isAlert && "sm:col-span-2 pt-1")}>
                                  <div className={cn(
-                                   "w-4 h-4 rounded-md flex items-center justify-center",
-                                   check.val ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"
+                                   "w-4 h-4 rounded-md flex items-center justify-center shrink-0",
+                                   check.isAlert
+                                     ? (check.val ? "bg-rose-100 text-rose-600" : "bg-emerald-100 text-emerald-600")
+                                     : (check.val ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600")
                                  )}>
-                                   {check.val ? <Check size={10} strokeWidth={4} /> : <X size={10} strokeWidth={4} />}
+                                   {check.isAlert
+                                     ? (check.val ? <X size={10} strokeWidth={4} /> : <Check size={10} strokeWidth={4} />)
+                                     : (check.val ? <Check size={10} strokeWidth={4} /> : <X size={10} strokeWidth={4} />)
+                                   }
                                  </div>
-                                 <span className="text-[10px] font-bold text-gray-600 uppercase tracking-tight">{check.label}</span>
+                                 <span className="text-[10px] font-bold text-gray-600 uppercase tracking-tight">{check.label}:</span>
+                                 <span className={cn(
+                                   "text-[10px] font-black uppercase tracking-wider",
+                                   check.isAlert
+                                     ? (check.val ? "text-rose-600 font-extrabold" : "text-emerald-600")
+                                     : (check.val ? "text-green-700" : "text-red-500")
+                                 )}>
+                                   {check.isAlert
+                                     ? (check.val ? "YES (FLAGGED)" : "NO (NONE REPORTED)")
+                                     : (check.val ? "YES" : "NO")
+                                   }
+                                 </span>
                                </div>
                              ))}
                           </div>
@@ -11944,6 +12682,7 @@ function ValidationSurveyResults({ user }: { user: UserProfile }) {
 
 function DataStorage({ user }: { user: UserProfile }) {
   console.log("Accessing Data Storage repository for user authenticated email:", user.email);
+  const isAdmin = user.role === 'admin';
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -11956,6 +12695,15 @@ function DataStorage({ user }: { user: UserProfile }) {
   const [viewingConsolidated, setViewingConsolidated] = useState<{ borrowerName: string; assignments: Assignment[] } | null>(null);
   const [ciOfficers, setCiOfficers] = useState<UserProfile[]>([]);
   const [expandedBorrower, setExpandedBorrower] = useState<string | null>(null);
+
+  // Admin delete account approval states
+  const [deleteTarget, setDeleteTarget] = useState<DeleteApprovalTarget | null>(null);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deletePasswordError, setDeletePasswordError] = useState('');
+  const [isDeletingApproval, setIsDeletingApproval] = useState(false);
+  const [showDeletePassword, setShowDeletePassword] = useState(false);
+  const [selectedBorrowers, setSelectedBorrowers] = useState<string[]>([]);
+  const [selectedSubRecordIds, setSelectedSubRecordIds] = useState<string[]>([]);
 
   useEffect(() => {
     const q = query(collection(db, 'users'));
@@ -11980,14 +12728,64 @@ function DataStorage({ user }: { user: UserProfile }) {
     };
   }, []);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to permanently delete this client data?')) return;
+  const handleExecuteDeleteApproval = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!deleteTarget) return;
+
+    if (!isAdmin) {
+      setDeletePasswordError('Access Denied: Only administrators are authorized to delete account approval data.');
+      return;
+    }
+
+    if (deletePassword.trim() !== '101917') {
+      setDeletePasswordError('Incorrect admin security password! You must enter 101917 to authorize deletion of data.');
+      return;
+    }
+
+    setDeletePasswordError('');
+    setIsDeletingApproval(true);
+
     try {
-      await api.delete(`/api/assignments/${id}`);
-      alert('Data deleted successfully.');
+      if (deleteTarget.type === 'single' && deleteTarget.recordId) {
+        await api.delete(`/api/assignments/${deleteTarget.recordId}`);
+      } else {
+        for (const rec of deleteTarget.records) {
+          await api.delete(`/api/assignments/${rec.id}`);
+        }
+      }
+
+      if (deleteTarget.type === 'batch') {
+        toast.success(`Successfully deleted ${deleteTarget.batchNames?.length || 1} selected account approval(s) (${deleteTarget.records.length} records).`);
+      } else {
+        toast.success(`Account approval data for "${deleteTarget.borrowerName}" deleted successfully.`);
+      }
+
+      // Clear multi-selections
+      setSelectedBorrowers(prev => prev.filter(name => !deleteTarget.records.some(r => r.borrowerName?.trim().toUpperCase() === name.trim().toUpperCase())));
+      setSelectedSubRecordIds(prev => prev.filter(id => !deleteTarget.records.some(r => r.id === id)));
+
+      if (viewingConsolidated && deleteTarget.records.some(r => r.borrowerName?.trim().toUpperCase() === viewingConsolidated.borrowerName.trim().toUpperCase())) {
+        const remaining = viewingConsolidated.assignments.filter(a => !deleteTarget.records.some(r => r.id === a.id));
+        if (remaining.length === 0) {
+          setViewingConsolidated(null);
+        } else {
+          setViewingConsolidated({ ...viewingConsolidated, assignments: remaining });
+        }
+      }
+      if (selected && deleteTarget.records.some(r => r.id === selected.id)) {
+        setSelected(null);
+        setIsViewing(false);
+        setIsEditing(false);
+      }
+
+      setDeleteTarget(null);
+      setDeletePassword('');
+      setShowDeletePassword(false);
     } catch (err) {
-      console.error(err);
-      alert('Failed to delete data.');
+      console.error('Failed to delete account approval:', err);
+      setDeletePasswordError('Failed to delete data from storage database. Please check connection and try again.');
+    } finally {
+      setIsDeletingApproval(false);
     }
   };
 
@@ -12052,6 +12850,40 @@ function DataStorage({ user }: { user: UserProfile }) {
       };
     });
   }, [filtered]);
+
+  // Derived selection metrics for batch delete
+  const selectedConsolidatedList = useMemo(() => {
+    return consolidatedBorrowers.filter(b => selectedBorrowers.includes(b.borrowerName));
+  }, [consolidatedBorrowers, selectedBorrowers]);
+
+  const allSelectedAssignments = useMemo(() => {
+    const fromBorrowers = selectedConsolidatedList.flatMap(b => b.records);
+    const individualRecs = assignments.filter(a => selectedSubRecordIds.includes(a.id));
+    const combinedMap = new Map<string, Assignment>();
+    fromBorrowers.forEach(r => combinedMap.set(r.id, r));
+    individualRecs.forEach(r => combinedMap.set(r.id, r));
+    return Array.from(combinedMap.values());
+  }, [selectedConsolidatedList, assignments, selectedSubRecordIds]);
+
+  const totalSelectedRecords = allSelectedAssignments.length;
+
+  const totalSelectedApprovedAmount = useMemo(() => {
+    return allSelectedAssignments.reduce((sum, b) => sum + (b.approvedAmount || (b.status === 'Approved' ? b.requestedAmount : 0)), 0);
+  }, [allSelectedAssignments]);
+
+  const handleInitiateBatchDelete = () => {
+    if (allSelectedAssignments.length === 0) return;
+    const uniqueNames = Array.from(new Set(allSelectedAssignments.map(r => r.borrowerName).filter(Boolean)));
+    setDeletePassword('');
+    setDeletePasswordError('');
+    setDeleteTarget({
+      type: 'batch',
+      borrowerName: uniqueNames.length === 1 ? uniqueNames[0] : `${uniqueNames.length} Selected Account Approvals`,
+      batchNames: uniqueNames,
+      records: allSelectedAssignments,
+      title: `Batch Deletion of ${allSelectedAssignments.length} Selected Account Approval Record(s)`
+    });
+  };
 
   const handleExportCSV = () => {
     if (consolidatedBorrowers.length === 0) {
@@ -12176,12 +13008,74 @@ function DataStorage({ user }: { user: UserProfile }) {
         </div>
       </div>
 
+      {/* Batch Selection Action Bar for Admin */}
+      {isAdmin && allSelectedAssignments.length > 0 && (
+        <div className="bg-rose-50 border border-rose-200 p-4 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm animate-in fade-in duration-200">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-rose-100 text-rose-700 rounded-xl">
+              <CheckSquare size={18} />
+            </div>
+            <div>
+              <p className="text-xs font-black text-rose-950 uppercase tracking-tight">
+                {allSelectedAssignments.length} Account Approval Record{allSelectedAssignments.length > 1 ? 's' : ''} Selected
+                {selectedBorrowers.length > 0 && (
+                  <span className="text-rose-800 font-bold ml-1">
+                    ({selectedBorrowers.length} Borrower Group{selectedBorrowers.length > 1 ? 's' : ''})
+                  </span>
+                )}
+              </p>
+              <p className="text-[10px] text-rose-700 font-bold uppercase tracking-wider">
+                Admin password authorization required to delete (PIN: 101917)
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedBorrowers([]);
+                setSelectedSubRecordIds([]);
+              }}
+              className="px-3.5 py-2 text-[10px] font-bold text-gray-500 hover:text-gray-700 uppercase tracking-wider cursor-pointer"
+            >
+              Clear Selection
+            </button>
+            <button
+              type="button"
+              onClick={handleInitiateBatchDelete}
+              className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all cursor-pointer active:scale-95"
+            >
+              <Trash2 size={14} />
+              <span>Delete Selected Approvals ({allSelectedAssignments.length})</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Consolidated Table */}
       <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden text-left">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
+                {isAdmin && (
+                  <th className="px-4 py-5 text-center w-12">
+                    <input
+                      type="checkbox"
+                      checked={consolidatedBorrowers.length > 0 && selectedBorrowers.length === consolidatedBorrowers.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedBorrowers(consolidatedBorrowers.map(b => b.borrowerName));
+                        } else {
+                          setSelectedBorrowers([]);
+                          setSelectedSubRecordIds([]);
+                        }
+                      }}
+                      className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 border-gray-300 cursor-pointer accent-rose-600"
+                      title="Select all account approvals to delete"
+                    />
+                  </th>
+                )}
                 <th className="px-6 py-5">Consolidated Borrower Name</th>
                 <th className="px-6 py-5">Account Progression</th>
                 <th className="px-6 py-5">Total Financials</th>
@@ -12195,10 +13089,31 @@ function DataStorage({ user }: { user: UserProfile }) {
             <tbody className="divide-y divide-gray-100">
               {consolidatedBorrowers.map((b) => {
                 const isExpanded = expandedBorrower === b.borrowerName;
+                const isRowSelected = selectedBorrowers.includes(b.borrowerName) || b.records.some(r => selectedSubRecordIds.includes(r.id));
 
                 return (
                   <React.Fragment key={b.borrowerName}>
-                    <tr className="hover:bg-emerald-50/20 group transition-colors">
+                    <tr className={cn(
+                      "hover:bg-emerald-50/20 group transition-colors",
+                      isRowSelected && "bg-rose-50/40"
+                    )}>
+                      {isAdmin && (
+                        <td className="px-4 py-5 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedBorrowers.includes(b.borrowerName)}
+                            onChange={() => {
+                              setSelectedBorrowers(prev => 
+                                prev.includes(b.borrowerName)
+                                  ? prev.filter(name => name !== b.borrowerName)
+                                  : [...prev, b.borrowerName]
+                              );
+                            }}
+                            className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 border-gray-300 cursor-pointer accent-rose-600"
+                            title={`Select all account approval records for ${b.borrowerName}`}
+                          />
+                        </td>
+                      )}
                       <td className="px-6 py-5">
                         <div 
                           className="cursor-pointer group/name" 
@@ -12313,6 +13228,25 @@ function DataStorage({ user }: { user: UserProfile }) {
                           >
                             <Sparkles size={14} /> Full History
                           </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => {
+                                setDeletePassword('');
+                                setDeletePasswordError('');
+                                setDeleteTarget({
+                                  type: 'consolidated',
+                                  borrowerName: b.borrowerName,
+                                  records: b.records,
+                                  title: `Consolidated Account Approval for ${b.borrowerName} (${b.records.length} Record${b.records.length > 1 ? 's' : ''})`
+                                });
+                              }}
+                              className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-xl transition-all font-black text-xs flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 shrink-0"
+                              title="Delete Account Approval & Data (Requires Admin Password 101917)"
+                            >
+                              <Trash2 size={14} className="text-rose-600" />
+                              <span className="hidden xl:inline">Delete Approval</span>
+                            </button>
+                          )}
                           <button
                             onClick={() => setExpandedBorrower(isExpanded ? null : b.borrowerName)}
                             className="p-2 text-gray-500 hover:text-emerald-800 hover:bg-emerald-50 rounded-xl transition-all border border-gray-200 cursor-pointer"
@@ -12327,7 +13261,7 @@ function DataStorage({ user }: { user: UserProfile }) {
                     {/* Expandable Sub-list for Individual Applications */}
                     {isExpanded && (
                       <tr className="bg-slate-50/80 border-b border-gray-200">
-                        <td colSpan={8} className="p-4 sm:p-6">
+                        <td colSpan={isAdmin ? 9 : 8} className="p-4 sm:p-6">
                           <div className="bg-white p-4 sm:p-5 rounded-2xl border border-emerald-100 shadow-sm space-y-3">
                             <div className="flex justify-between items-center border-b border-gray-100 pb-2">
                               <h5 className="text-xs font-black text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
@@ -12342,9 +13276,28 @@ function DataStorage({ user }: { user: UserProfile }) {
                             </div>
 
                             <div className="space-y-2">
-                              {b.records.map((r) => (
-                                <div key={r.id} className="p-3 bg-gray-50 hover:bg-emerald-50/30 rounded-xl border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 transition-colors">
+                              {b.records.map((r) => {
+                                const isSubSelected = selectedSubRecordIds.includes(r.id);
+                                return (
+                                <div key={r.id} className={cn(
+                                  "p-3 rounded-xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-3 transition-colors",
+                                  isSubSelected ? "bg-rose-50/70 border-rose-200" : "bg-gray-50 hover:bg-emerald-50/30 border-gray-100"
+                                )}>
                                   <div className="flex items-center gap-3">
+                                    {isAdmin && (
+                                      <input 
+                                        type="checkbox"
+                                        checked={isSubSelected}
+                                        onChange={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedSubRecordIds(prev => 
+                                            prev.includes(r.id) ? prev.filter(id => id !== r.id) : [...prev, r.id]
+                                          );
+                                        }}
+                                        className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 border-gray-300 cursor-pointer accent-rose-600 shrink-0"
+                                        title={`Select account approval record CID ${r.id.slice(0, 8)} to delete`}
+                                      />
+                                    )}
                                     <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-[9px] font-black uppercase rounded">
                                       {r.accountType}
                                     </span>
@@ -12405,17 +13358,30 @@ function DataStorage({ user }: { user: UserProfile }) {
                                       >
                                         <Presentation size={15} />
                                       </button>
-                                      <button 
-                                        onClick={() => handleDelete(r.id)}
-                                        className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-100 rounded-lg transition-all cursor-pointer"
-                                        title="Delete Data"
-                                      >
-                                        <Trash2 size={15} />
-                                      </button>
+                                      {isAdmin && (
+                                        <button 
+                                          onClick={() => {
+                                            setDeletePassword('');
+                                            setDeletePasswordError('');
+                                            setDeleteTarget({
+                                              type: 'single',
+                                              recordId: r.id,
+                                              borrowerName: b.borrowerName,
+                                              records: [r],
+                                              title: `Account Application CID: ${r.id.slice(0, 8)} (${r.accountType} • ${r.status})`
+                                            });
+                                          }}
+                                          className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
+                                          title="Delete Account Approval Record (Admin Password Required)"
+                                        >
+                                          <Trash2 size={15} />
+                                        </button>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
-                              ))}
+                              );
+                            })}
                             </div>
                           </div>
                         </td>
@@ -12468,8 +13434,33 @@ function DataStorage({ user }: { user: UserProfile }) {
             setSelected(assignment);
             setIsViewing(true);
           }}
+          user={user}
+          onRequestDelete={(target) => {
+            setDeletePassword('');
+            setDeletePasswordError('');
+            setDeleteTarget(target);
+          }}
         />
       )}
+
+      {/* Admin Delete Account Approval Password Verification Modal */}
+      <AdminDeleteApprovalPasswordModal
+        isOpen={!!deleteTarget}
+        target={deleteTarget}
+        onClose={() => {
+          setDeleteTarget(null);
+          setDeletePassword('');
+          setDeletePasswordError('');
+        }}
+        onConfirm={handleExecuteDeleteApproval}
+        passwordValue={deletePassword}
+        setPasswordValue={setDeletePassword}
+        error={deletePasswordError}
+        setError={setDeletePasswordError}
+        isDeleting={isDeletingApproval}
+        showPassword={showDeletePassword}
+        setShowPassword={setShowDeletePassword}
+      />
     </div>
   );
 }
@@ -12701,8 +13692,8 @@ function ReportsView({ user }: { user: UserProfile }) {
         ];
       });
     } else if (activeReportTab === 'attendance') {
-      headers = ['Employee', 'Date', 'Time In', 'Time Out', 'Status'];
-      rows = (data as AttendanceRecord[]).map(a => [a.userName, a.date, a.timeIn, a.timeOut, a.status]);
+      headers = ['Employee', 'Date', 'Task In', 'End Task'];
+      rows = (data as AttendanceRecord[]).map(a => [a.userName, a.date, a.timeIn, a.timeOut]);
     } else if (activeReportTab === 'leaves') {
       headers = ['Employee', 'Type', 'Start', 'End', 'Status'];
       rows = (data as LeaveRequest[]).map(l => [l.userName, l.leaveType, l.startDate, l.endDate, l.status]);
@@ -13539,8 +14530,8 @@ function AttendanceCalendar({ user }: { user: UserProfile }) {
              <CalendarRange className="text-emerald-600" size={24} />
           </div>
           <div>
-            <h3 className="text-lg font-black text-emerald-900 uppercase tracking-tight">Attendance Calendar</h3>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Visualize staff activity & filed sessions</p>
+            <h3 className="text-lg font-black text-emerald-900 uppercase tracking-tight">Task Calendar</h3>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Visualize staff activity & task sessions</p>
           </div>
         </div>
         

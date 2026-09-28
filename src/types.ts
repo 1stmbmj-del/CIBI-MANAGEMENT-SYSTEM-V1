@@ -46,6 +46,7 @@ export interface ValidationResults {
   didReceiveProceeds: boolean;
   didExplainPN: boolean;
   didExplainDeductions: boolean;
+  wasFavorOrBenefitRequested?: boolean;
 }
 
 export interface Liability {
