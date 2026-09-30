@@ -1,5 +1,6 @@
 import React from 'react';
 import { AppraisalRecord, RealPropertyAppraisal, VehicleAppraisal } from '../types';
+import AkkunLogo from './AkkunLogo';
 
 interface FormalAppraisalReportDocumentProps {
   record: AppraisalRecord;
@@ -85,8 +86,11 @@ export default function FormalAppraisalReportDocument({
             <div className="space-y-6">
               {/* Institutional Header */}
               <div className="border-b-2 border-emerald-900 pb-4 text-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <AkkunLogo className="h-8 w-auto" />
+                </div>
                 <div className="flex items-center justify-center gap-2 text-emerald-900 font-black text-xs uppercase tracking-widest mb-1">
-                  <span>BANGKO KABAYAN / 1ST MOUNTAIN BANK</span>
+                  <span>AKKUN LENDING CORPORATION</span>
                   <span>•</span>
                   <span>APPRAISAL & CREDIT INVESTIGATION DIVISION</span>
                 </div>
@@ -651,8 +655,11 @@ export default function FormalAppraisalReportDocument({
             <div className="space-y-6">
               {/* Institutional Header */}
               <div className="border-b-2 border-emerald-900 pb-4 text-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <AkkunLogo className="h-8 w-auto" />
+                </div>
                 <div className="flex items-center justify-center gap-2 text-emerald-900 font-black text-xs uppercase tracking-widest mb-1">
-                  <span>BANGKO KABAYAN / 1ST MOUNTAIN BANK</span>
+                  <span>AKKUN LENDING CORPORATION</span>
                   <span>•</span>
                   <span>APPRAISAL & CREDIT INVESTIGATION DIVISION</span>
                 </div>
