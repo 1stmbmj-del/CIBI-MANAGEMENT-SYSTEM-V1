@@ -1793,7 +1793,7 @@ function Dashboard({
             isMobile ? "pb-24 bg-white/65 backdrop-blur-md" : "bg-transparent"
           )}>
             <AnimatePresence mode="wait">
-              {activeTab === 'DASHBOARD' && ((isAdmin || isCoordinator || user.role === 'supervisor') ? <DashboardOverview user={user} /> : <CIDashboard user={user} />)}
+              {activeTab === 'DASHBOARD' && ((isAdmin || isCoordinator || user.role === 'supervisor') ? <DashboardOverview user={user} setActiveTab={setActiveTab} /> : <CIDashboard user={user} />)}
               {activeTab === 'LEADERBOARD' && <LeaderboardModule user={user} />}
               {(activeTab === 'TASK' || activeTab === 'ATTENDANCE') && <AttendanceModule user={user} />}
               {(activeTab === 'TASK CALENDAR' || activeTab === 'ATTENDANCE CALENDAR') && <AttendanceCalendar user={user} />}
@@ -2962,7 +2962,11 @@ const calcAmort = (rec: { loanAmount: number; term: string | number; rate: numbe
 
 // --- SUB-COMPONENTS ---
 
-function DashboardOverview({ user }: { user: UserProfile }) {
+function DashboardOverview({ user, setActiveTab }: { user: UserProfile; setActiveTab?: (tab: string) => void }) {
+  const isCoordinator = user.role === 'coordinator';
+  const isSupervisor = user.role === 'supervisor';
+  const [coordinatorTodayRecord, setCoordinatorTodayRecord] = useState<AttendanceRecord | null>(null);
+
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -3076,11 +3080,25 @@ function DashboardOverview({ user }: { user: UserProfile }) {
       handleFirestoreError(err, OperationType.GET, 'assignments');
     });
 
+    let unsubCoordAttendance = () => {};
+    if (isCoordinator || isSupervisor) {
+      const qCoordAtt = query(collection(db, 'attendance'), where('userId', '==', user.id));
+      unsubCoordAttendance = onSnapshot(qCoordAtt, (snap) => {
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const recs = snap.docs.map(d => ({ id: d.id, ...d.data() })) as AttendanceRecord[];
+        const todayRec = recs.find(r => r.date === todayStr);
+        setCoordinatorTodayRecord(todayRec || null);
+      }, (err) => {
+        console.warn('Dashboard attendance fetch:', err);
+      });
+    }
+
     return () => {
       unsubscribeReadings();
       unsubUsers();
+      unsubCoordAttendance();
     };
-  }, []);
+  }, [user.id, isCoordinator, isSupervisor]);
 
   const exportToCSV = () => {
     api.get('/api/assignments').then((data: Assignment[]) => {
@@ -3128,8 +3146,12 @@ function DashboardOverview({ user }: { user: UserProfile }) {
             )}
           </div>
           <div>
-            <h2 className="text-xl font-black text-emerald-900 uppercase tracking-widest">Dashboard Overview</h2>
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">System Administrator Panel</p>
+            <h2 className="text-xl font-black text-emerald-900 uppercase tracking-widest">
+              {isCoordinator ? "CI Coordinator Dashboard" : isSupervisor ? "Supervisor Dashboard" : "Dashboard Overview"}
+            </h2>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+              {isCoordinator ? "Coordinator Operations & Performance (Task In Available 8:00 AM – 3:00 PM)" : isSupervisor ? "Supervisor Operations & Performance" : "System Administrator Panel"}
+            </p>
           </div>
         </div>
         <button 
@@ -3139,6 +3161,46 @@ function DashboardOverview({ user }: { user: UserProfile }) {
           <Download size={14} /> Export CSV
         </button>
       </div>
+
+      {/* CI Coordinator Task-In Status Widget */}
+      {(isCoordinator || isSupervisor) && (
+        <div className="bg-linear-to-r from-emerald-900 via-emerald-850 to-teal-950 rounded-2xl sm:rounded-3xl p-5 sm:p-6 text-white shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-emerald-500/20">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/15">
+              <Fingerprint className="text-emerald-400 size-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-300">
+                  {isCoordinator ? "CI Coordinator Attendance Status" : "Supervisor Attendance Status"}
+                </span>
+                <span className="text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/10 text-white/80">
+                  8:00 AM – 3:00 PM Window
+                </span>
+              </div>
+              <h3 className="text-base sm:text-lg font-black uppercase tracking-tight mt-0.5">
+                {coordinatorTodayRecord?.timeIn 
+                  ? `Task In Recorded at ${coordinatorTodayRecord.timeIn} (${coordinatorTodayRecord.status || 'ON TIME'})` 
+                  : "Task In Ready to Start"}
+              </h3>
+              <p className="text-[9px] sm:text-[10px] text-emerald-200/80 font-medium mt-0.5">
+                {coordinatorTodayRecord?.timeIn 
+                  ? (coordinatorTodayRecord.timeOut ? `Duty ended at ${coordinatorTodayRecord.timeOut}.` : "Duty is active. You can record End Task before 6:30 PM.")
+                  : "CI Coordinator can log task in between 8:00 AM and 3:00 PM with daily itinerary."}
+              </p>
+            </div>
+          </div>
+          {setActiveTab && (
+            <button
+              onClick={() => setActiveTab('TASK')}
+              className="bg-white text-emerald-950 hover:bg-emerald-50 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md active:scale-95 transition-all shrink-0 flex items-center gap-2"
+            >
+              <Fingerprint size={14} />
+              {coordinatorTodayRecord?.timeIn ? "View Task Activity" : "Log Task In (8AM – 3PM)"}
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-6">
         <StatCard label="Total Volume" value={stats.total} icon={<ClipboardList className="text-blue-500" />} />
@@ -4778,7 +4840,10 @@ function ProfileSettings({ user, setUser }: { user: UserProfile, setUser: (u: Us
 // --- ATTENDANCE MODULE ---
 function AttendanceModule({ user }: { user: UserProfile }) {
   const isAdmin = user.role === 'admin';
+  const isCoordinator = user.role === 'coordinator';
+  const isSupervisor = user.role === 'supervisor';
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [userRecords, setUserRecords] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
   const [showTaskLog, setShowTaskLog] = useState(false);
@@ -4793,38 +4858,88 @@ function AttendanceModule({ user }: { user: UserProfile }) {
   const [plannedTasksInput, setPlannedTasksInput] = useState('');
 
   const now = new Date();
-  const currentHour = now.getHours();
-  const currentMinutes = now.getMinutes();
 
-  // Task In is allowed between 8:00 AM and 3:00 PM
-  const isBeforeTaskInWindow = currentHour < 8;
-  const isAfterTaskInWindow = currentHour > 15 || (currentHour === 15 && currentMinutes > 0);
-  const isTaskInAllowed = !isBeforeTaskInWindow && !isAfterTaskInWindow;
+  // Helper to determine if current time is within 8:00 AM to 3:00 PM (15:59)
+  // Supports Philippine Standard Time (PHT, Asia/Manila, UTC+8) and local browser time
+  const getTaskInWindowState = (targetDate: Date = new Date()) => {
+    let phtHour = targetDate.getHours();
+    let phtMinutes = targetDate.getMinutes();
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Manila',
+        hour12: false,
+        hour: 'numeric',
+        minute: 'numeric'
+      }).formatToParts(targetDate);
+      phtHour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10) % 24;
+      phtMinutes = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+    } catch {
+      phtHour = targetDate.getHours();
+      phtMinutes = targetDate.getMinutes();
+    }
 
-  // End Task cutoff after 6:30 PM
-  const isAfterCutoff = currentHour > 18 || (currentHour === 18 && currentMinutes >= 30);
+    const localHour = targetDate.getHours();
+    const localMinutes = targetDate.getMinutes();
+
+    // Allowed window: 8:00 AM through 3:00 PM (hours 8 through 15 inclusive, i.e. 8:00 AM – 3:59:59 PM)
+    const isPhtValid = phtHour >= 8 && phtHour <= 15;
+    const isLocalValid = localHour >= 8 && localHour <= 15;
+
+    const isAllowed = isPhtValid || isLocalValid;
+    const isBefore = !isAllowed && phtHour < 8 && localHour < 8;
+    const isAfter = !isAllowed && !isBefore;
+
+    return {
+      isAllowed,
+      isBefore,
+      isAfter,
+      hour: isPhtValid ? phtHour : localHour,
+      minutes: isPhtValid ? phtMinutes : localMinutes,
+      isPhtValid,
+      isLocalValid
+    };
+  };
+
+  const windowState = getTaskInWindowState(now);
+  const isBeforeTaskInWindow = windowState.isBefore;
+  const isAfterTaskInWindow = windowState.isAfter;
+  const isTaskInAllowed = windowState.isAllowed;
+
+  // End Task cutoff after 6:30 PM (18:30)
+  const isAfterCutoff = windowState.hour > 18 || (windowState.hour === 18 && windowState.minutes >= 30);
 
   useEffect(() => {
     const isAdminOrCoordinator = user.role === 'admin' || user.role === 'coordinator' || user.role === 'supervisor';
+
+    // Always listen to current user's personal attendance so todayRecord & personal stats are 100% reliable
+    const qPersonal = query(collection(db, 'attendance'), where('userId', '==', user.id));
+    const unsubPersonal = onSnapshot(qPersonal, (snapshot) => {
+      const myData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AttendanceRecord[];
+      setUserRecords(myData);
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const todayRec = myData.find(r => r.date === today);
+      setTodayRecord(todayRec || null);
+    }, (err) => {
+      console.warn("Failed to listen to personal attendance:", err);
+    });
+
     const q = isAdminOrCoordinator 
       ? query(collection(db, 'attendance'), orderBy('createdAt', 'desc'), limit(100))
-      : query(collection(db, 'attendance'), where('userId', '==', user.id), orderBy('createdAt', 'desc'), limit(50));
+      : query(collection(db, 'attendance'), where('userId', '==', user.id), limit(50));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AttendanceRecord[];
       setRecords(data);
-      
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const todayRec = data.find(r => r.date === today && r.userId === user.id);
-      setTodayRecord(todayRec || null);
-      
       setIsLoading(false);
     }, (err) => {
        handleFirestoreError(err, OperationType.LIST, 'attendance');
        setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      unsubPersonal();
+    };
   }, [user.id, user.role]);
 
   const confirmTimeIn = async () => {
@@ -4834,9 +4949,8 @@ function AttendanceModule({ user }: { user: UserProfile }) {
     }
 
     const checkNow = new Date();
-    const ch = checkNow.getHours();
-    const cm = checkNow.getMinutes();
-    if (ch < 8 || ch > 15 || (ch === 15 && cm > 0)) {
+    const win = getTaskInWindowState(checkNow);
+    if (!win.isAllowed) {
       toast.error("Task In is only allowed between 8:00 AM and 3:00 PM");
       return;
     }
@@ -4849,11 +4963,13 @@ function AttendanceModule({ user }: { user: UserProfile }) {
     let status: 'LATE' | 'ON TIME' = 'ON TIME';
     
     if (isSaturday) {
-      if (ch > 9 || (ch === 9 && cm >= 1)) {
+      // Saturday: <= 9:00 AM is ON TIME, 9:01 AM onwards is LATE
+      if (win.hour > 9 || (win.hour === 9 && win.minutes >= 1)) {
         status = 'LATE';
       }
     } else {
-      if (ch >= 8) {
+      // Monday - Friday: 8:00 AM to 8:15 AM is ON TIME, 8:16 AM onwards is LATE
+      if (win.hour > 8 || (win.hour === 8 && win.minutes > 15)) {
         status = 'LATE';
       }
     }
@@ -4898,7 +5014,8 @@ function AttendanceModule({ user }: { user: UserProfile }) {
         }
 
         // Validate 8:00 AM to 3:00 PM window
-        if (hour < 8 || hour > 15 || (hour === 15 && minutes > 0)) {
+        const win = getTaskInWindowState(now);
+        if (!win.isAllowed) {
           toast.error("Task In is only allowed between 8:00 AM and 3:00 PM");
           return;
         }
@@ -4915,12 +5032,12 @@ function AttendanceModule({ user }: { user: UserProfile }) {
         
         if (isSaturday) {
           // Saturday: <= 9:00 AM is ON TIME, 9:01 AM onwards is LATE
-          if (hour > 9 || (hour === 9 && minutes >= 1)) {
+          if (win.hour > 9 || (win.hour === 9 && win.minutes >= 1)) {
             status = 'LATE';
           }
         } else {
-          // Monday - Friday: Lateness is recorded from 8:00 AM onwards
-          if (hour >= 8) {
+          // Monday - Friday: 8:00 AM to 8:15 AM is ON TIME, 8:16 AM onwards is LATE
+          if (win.hour > 8 || (win.hour === 8 && win.minutes > 15)) {
             status = 'LATE';
           }
         }
@@ -5020,7 +5137,9 @@ function AttendanceModule({ user }: { user: UserProfile }) {
               <div className="w-8 h-8 sm:w-10 sm:h-10 bg-emerald-50 rounded-lg sm:rounded-xl flex items-center justify-center text-emerald-600 shrink-0">
                 <CheckCircle size={16} className="sm:size-5" />
               </div>
-              <span className="text-2xl sm:text-4xl font-black text-emerald-900 tracking-tighter">{records.length}</span>
+              <span className="text-2xl sm:text-4xl font-black text-emerald-900 tracking-tighter">
+                {isAdmin ? records.length : userRecords.length}
+              </span>
            </div>
            <p className="text-[8px] sm:text-[9px] font-bold text-gray-400 uppercase mt-1 sm:mt-2">Active Duty Days</p>
         </motion.div>
@@ -5036,7 +5155,9 @@ function AttendanceModule({ user }: { user: UserProfile }) {
               <div className="w-8 h-8 sm:w-10 sm:h-10 bg-amber-50 rounded-lg sm:rounded-xl flex items-center justify-center text-amber-500 shrink-0">
                 <AlertCircle size={16} className="sm:size-5" />
               </div>
-              <span className="text-2xl sm:text-4xl font-black text-amber-600 tracking-tighter">{records.filter(r => r.status === 'LATE').length}</span>
+              <span className="text-2xl sm:text-4xl font-black text-amber-600 tracking-tighter">
+                {isAdmin ? records.filter(r => r.status === 'LATE').length : userRecords.filter(r => r.status === 'LATE').length}
+              </span>
            </div>
            <p className="text-[8px] sm:text-[9px] font-bold text-gray-400 uppercase mt-1 sm:mt-2">Time-In Violations</p>
         </motion.div>
@@ -5053,7 +5174,9 @@ function AttendanceModule({ user }: { user: UserProfile }) {
           >
              <div className="z-10">
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Entry Activity</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest opacity-60">
+                    {isCoordinator ? "CI Coordinator Duty Entry" : "Entry Activity"}
+                  </p>
                   <span className="text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/10 text-white/80">8:00 AM – 3:00 PM</span>
                 </div>
                 <h3 className={cn("text-xl sm:text-2xl md:text-4xl font-black uppercase tracking-tighter mt-1 truncate", todayRecord ? "text-emerald-900" : "text-white")}>
@@ -5064,7 +5187,7 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                 {todayRecord?.timeIn ? (
                   <div>
                     <span className="text-xl sm:text-2xl font-mono text-emerald-600 font-black">{todayRecord.timeIn}</span>
-                    <p className="text-[8px] font-bold text-emerald-700 uppercase tracking-widest mt-0.5">Task In Recorded</p>
+                    <p className="text-[8px] font-bold text-emerald-700 uppercase tracking-widest mt-0.5">Task In Recorded ({todayRecord.status || 'ON TIME'})</p>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-1">
@@ -5361,6 +5484,36 @@ function AttendanceModule({ user }: { user: UserProfile }) {
               </div>
 
               <div className="space-y-4">
+                {(user.role === 'coordinator' || user.role === 'supervisor') && (
+                  <div className="space-y-1.5 p-3 rounded-xl bg-emerald-50/70 border border-emerald-100 text-left">
+                    <p className="text-[8px] font-black uppercase tracking-widest text-emerald-800">
+                      ⚡ Quick Coordinator Templates:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setItineraryInput("Central Branch Office - Operations & Credit Review Center");
+                          setPlannedTasksInput("Audit CI field reports, coordinate loan assignments, process verification approvals & review credit ratings");
+                        }}
+                        className="px-2.5 py-1 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[9px] font-bold text-left transition-colors shadow-2xs"
+                      >
+                        🏢 Office Coordination & CI Review
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setItineraryInput("Field Supervision Route: Assigned client locations & barangay verification visits");
+                          setPlannedTasksInput("Conduct supervisor spot-checks, validate borrower premises, and monitor CI officers in the field");
+                        }}
+                        className="px-2.5 py-1 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[9px] font-bold text-left transition-colors shadow-2xs"
+                      >
+                        🚗 Field Route & Spot-Check
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-1 text-left">
                   <label className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-gray-400">Daily Itinerary / Routing <span className="text-red-500 font-bold">*</span></label>
                   <textarea
@@ -14342,7 +14495,7 @@ function AttendanceCalendar({ user }: { user: UserProfile }) {
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [overtime, setOvertime] = useState<OvertimeRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedUser, setSelectedUser] = useState<string>(canManage ? '' : user.id);
+  const [selectedUser, setSelectedUser] = useState<string>(isAdmin ? '' : user.id);
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(new Date()));
 
   // OB from calendar
