@@ -7952,34 +7952,47 @@ function AccountDossierModal({ assignment, onClose }: { assignment: Assignment, 
                   </div>
 
                   {/* Liabilities Table */}
-                  <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-xs">
-                    <h4 className="text-xs font-black text-gray-800 uppercase tracking-[0.2em] mb-4">Outstanding External Liabilities</h4>
+                  <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-xs space-y-4">
+                    <div className="flex justify-between items-center bg-emerald-50/90 border border-emerald-100/60 px-5 py-3.5 rounded-2xl">
+                      <h4 className="text-xs font-black text-emerald-900 uppercase tracking-widest">
+                        Client Liabilities
+                      </h4>
+                      <span className="text-[10px] font-extrabold text-emerald-800 uppercase tracking-wider bg-white/80 px-2.5 py-1 rounded-full border border-emerald-200/50">
+                        {assignment.cashflowReport?.liabilities?.length || 0} Declared {assignment.cashflowReport?.liabilities?.length === 1 ? 'Entry' : 'Entries'}
+                      </span>
+                    </div>
                     
                     {assignment.cashflowReport?.liabilities && assignment.cashflowReport.liabilities.length > 0 ? (
                       <div className="overflow-x-auto">
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
-                            <tr className="border-b border-gray-100 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                              <th className="pb-3">Creditor Source</th>
-                              <th className="pb-3">Loan Type</th>
-                              <th className="pb-3 text-right">Amortization</th>
-                              <th className="pb-3 text-right">Loan Amount</th>
-                              <th className="pb-3 text-right">Outstanding Bal.</th>
-                              <th className="pb-3 text-center">Status</th>
+                            <tr className="bg-gray-50/80 border-b border-gray-100 text-[9px] font-black uppercase text-gray-400 italic">
+                              <th className="p-3">Source</th>
+                              <th className="p-3">Loan Type</th>
+                              <th className="p-3 text-right">Amount</th>
+                              <th className="p-3">Start Date</th>
+                              <th className="p-3">End Date</th>
+                              <th className="p-3 text-center">Periodicity</th>
+                              <th className="p-3 text-right">Amortization</th>
+                              <th className="p-3 text-right">Balance</th>
+                              <th className="p-3 text-center">Status</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-50">
                             {assignment.cashflowReport.liabilities.map((lia: Liability, idx: number) => (
-                              <tr key={idx} className="text-gray-700 font-semibold hover:bg-gray-50/40">
-                                <td className="py-3 font-extrabold text-gray-900 uppercase">{lia.source || '-'}</td>
-                                <td className="py-3 uppercase text-[10px] text-gray-500 font-black">{lia.loanType || '-'}</td>
-                                <td className="py-3 text-right text-red-500">₱{Number(lia.amortization || 0).toLocaleString()} <span className="text-[9px] text-gray-400">/{lia.periodicity}</span></td>
-                                <td className="py-3 text-right">₱{Number(lia.loanAmount || 0).toLocaleString()}</td>
-                                <td className="py-3 text-right font-bold text-gray-900">₱{Number(lia.balance || 0).toLocaleString()}</td>
-                                <td className="py-3 text-center">
+                              <tr key={idx} className="text-gray-700 font-semibold hover:bg-gray-50/40 text-xs">
+                                <td className="p-3 font-extrabold text-gray-900 uppercase">{lia.source || '-'}</td>
+                                <td className="p-3 uppercase text-[10px] text-gray-600 font-bold">{lia.loanType || '-'}</td>
+                                <td className="p-3 text-right font-bold text-gray-900">₱{Number(lia.loanAmount || 0).toLocaleString()}</td>
+                                <td className="p-3 font-mono text-[11px] text-gray-600">{lia.startDate ? (isNaN(new Date(lia.startDate).getTime()) ? lia.startDate : format(new Date(lia.startDate), 'MMM dd, yyyy')) : '-'}</td>
+                                <td className="p-3 font-mono text-[11px] text-gray-600">{lia.endDate ? (isNaN(new Date(lia.endDate).getTime()) ? lia.endDate : format(new Date(lia.endDate), 'MMM dd, yyyy')) : '-'}</td>
+                                <td className="p-3 text-center uppercase text-[10px] text-gray-500 font-black">{lia.periodicity || 'MONTHLY'}</td>
+                                <td className="p-3 text-right font-extrabold text-red-600">₱{Number(lia.amortization || 0).toLocaleString()}</td>
+                                <td className="p-3 text-right font-black text-gray-900">₱{Number(lia.balance || 0).toLocaleString()}</td>
+                                <td className="p-3 text-center">
                                   <span className={cn(
-                                    "px-2 py-0.5 text-[8px] font-black rounded-md uppercase tracking-wider",
-                                    (lia.status || '').toLowerCase().includes('current') ? "bg-green-50 text-green-700 border border-green-200/50" : "bg-red-50 text-red-700 border border-red-200/50"
+                                    "px-2.5 py-1 text-[8px] font-black rounded-md uppercase tracking-wider inline-block",
+                                    (lia.status || '').toLowerCase().includes('current') ? "bg-green-50 text-green-700 border border-green-200/50" : "bg-amber-50 text-amber-700 border border-amber-200/50"
                                   )}>
                                     {lia.status || 'Active'}
                                   </span>
@@ -7987,6 +8000,22 @@ function AccountDossierModal({ assignment, onClose }: { assignment: Assignment, 
                               </tr>
                             ))}
                           </tbody>
+                          <tfoot className="border-t-2 border-gray-100 bg-gray-50/60 font-black text-gray-900 text-xs">
+                            <tr>
+                              <td className="p-3 uppercase tracking-wider text-[10px] text-gray-500" colSpan={2}>Total Outstanding Portfolio</td>
+                              <td className="p-3 text-right text-gray-900 font-black">
+                                ₱{assignment.cashflowReport.liabilities.reduce((s, l) => s + Number(l.loanAmount || 0), 0).toLocaleString()}
+                              </td>
+                              <td className="p-3" colSpan={3}></td>
+                              <td className="p-3 text-right text-red-600 font-black">
+                                ₱{assignment.cashflowReport.liabilities.reduce((s, l) => s + Number(l.amortization || 0), 0).toLocaleString()}
+                              </td>
+                              <td className="p-3 text-right text-emerald-900 font-black">
+                                ₱{assignment.cashflowReport.liabilities.reduce((s, l) => s + Number(l.balance || 0), 0).toLocaleString()}
+                              </td>
+                              <td className="p-3"></td>
+                            </tr>
+                          </tfoot>
                         </table>
                       </div>
                     ) : (
