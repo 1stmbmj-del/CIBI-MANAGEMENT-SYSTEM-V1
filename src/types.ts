@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'user' | 'coordinator' | 'supervisor';
+export type UserRole = 'admin' | 'user' | 'coordinator' | 'supervisor' | 'manager';
 
 export interface UserProfile {
   id: string;
@@ -815,4 +815,64 @@ export interface AppNotification {
   assignmentId?: string;
   read: boolean;
   createdAt: string;
+}
+
+
+export type CommunicationType = 'Phone Call' | 'FB messenger' | 'Viber' | 'Field Visit' | 'Other';
+
+export interface DelinquencyCommunication {
+  id: string;
+  type: CommunicationType;
+  promiseToPay?: string;
+  remarks: string;
+  timestamp: string; // ISO string with time and date
+  userId: string;
+  userName: string;
+  userRole: UserRole | string;
+}
+
+export type DelinquencyStatus = 
+  | 'Delinquent'
+  | 'Field Visited'
+  | 'Under Follow-up'
+  | 'Promise to Pay'
+  | 'Settled'
+  | 'Legal / Escalated';
+
+export interface DelinquencyProgressStep {
+  title: string;
+  timestamp: string | null;
+  completed: boolean;
+  note?: string;
+}
+
+export interface DelinquencyAccount {
+  id: string;
+  entryDate: string; // Date or datetime string
+  name: string;
+  address: string;
+  contactNumber?: string;
+  loanAmount: number;
+  principalBalance: number;
+  interestBalance: number;
+  penalty: number;
+  pdi: number; // Past Due Interest
+  totalBalance: number;
+  
+  // Progress Line milestones
+  fieldVisited: boolean;
+  fieldVisitDate?: string | null;
+  fieldVisitOfficerName?: string | null;
+  taskCompleted: boolean;
+  taskCompletedDate?: string | null;
+  taskCompletedByName?: string | null;
+  
+  status: DelinquencyStatus;
+  communications: DelinquencyCommunication[];
+  
+  createdBy: string;
+  createdByName: string;
+  createdByRole: string;
+  createdAt: string;
+  updatedAt: string;
 }

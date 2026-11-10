@@ -72,8 +72,15 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "supervisor";
     }
 
+    function isManager() {
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             'role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "manager";
+    }
+
     function isPrivileged() {
-      return isAdmin() || isCoordinator() || isSupervisor();
+      return isAdmin() || isCoordinator() || isSupervisor() || isManager();
     }
 
     function isVerified() {
@@ -182,6 +189,20 @@ service cloud.firestore {
     }
 
     // ===============================================================
+        function isValidDelinquency(data) {
+      let requiredFields = ['entryDate', 'name', 'address', 'loanAmount', 'principalBalance', 'interestBalance', 'penalty', 'pdi', 'totalBalance', 'createdAt'];
+      return data.keys().hasAll(requiredFields) &&
+             data.entryDate is string &&
+             data.name is string &&
+             data.address is string &&
+             (data.loanAmount is number || data.loanAmount is int) &&
+             (data.principalBalance is number || data.principalBalance is int) &&
+             (data.interestBalance is number || data.interestBalance is int) &&
+             (data.penalty is number || data.penalty is int) &&
+             (data.pdi is number || data.pdi is int) &&
+             (data.totalBalance is number || data.totalBalance is int) &&
+             data.createdAt is string;
+    }
     // Rules
     // ===============================================================
 
@@ -291,5 +312,18 @@ service cloud.firestore {
       allow update: if isSignedIn() && isPrivileged();
       allow delete: if isAdmin();
     }
+
+    match /delinquencies/{delinquencyId} {
+      // Admin, Supervisor, Manager, Coordinator, and CI officers can read
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
+      // Admin, supervisor, manager and coordinator can create
+      allow create: if isSignedIn() && (isPrivileged()) && isValidDelinquency(request.resource.data);
+      // All authenticated users can update (add communication remarks, toggle progress, or edit)
+      allow update: if isSignedIn() && isValidDelinquency(request.resource.data);
+      // Admin can delete
+      allow delete: if isAdmin();
+    }
+
   }
 }

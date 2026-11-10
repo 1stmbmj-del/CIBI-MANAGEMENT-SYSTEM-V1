@@ -94,6 +94,7 @@ import { twMerge } from 'tailwind-merge';
 import { auth, db } from './firebase';
 import EvaluationModule from './components/EvaluationModule';
 import AppraisalCalculator from './components/AppraisalCalculator';
+import DelinquencyManagement from './components/DelinquencyManagement';
 import { 
   onAuthStateChanged, 
   signInWithEmailAndPassword, 
@@ -403,6 +404,11 @@ const api = {
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       }
+      if (path === '/api/delinquencies') {
+        const q = query(collection(db, 'delinquencies'), orderBy('createdAt', 'desc'));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      }
       if (path === '/api/users') {
         const snapshot = await getDocs(collection(db, 'users'));
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -435,6 +441,16 @@ const api = {
         });
         return { id: docRef.id };
       }
+      if (path === '/api/delinquencies') {
+        const docRef = doc(collection(db, 'delinquencies'));
+        const now = new Date().toISOString();
+        await setDoc(docRef, {
+          ...data,
+          createdAt: now,
+          updatedAt: now
+        });
+        return { id: docRef.id };
+      }
       if (path === '/api/admin-keys') {
         const key = data['key'] as string;
         const docRef = doc(db, 'admin_keys', key);
@@ -452,6 +468,14 @@ const api = {
       if (parts[1] === 'api' && parts[2] === 'assignments') {
         const id = parts[3];
         await updateDoc(doc(db, 'assignments', id), data as { [x: string]: any });
+        return { success: true };
+      }
+      if (parts[1] === 'api' && parts[2] === 'delinquencies') {
+        const id = parts[3];
+        await updateDoc(doc(db, 'delinquencies', id), {
+          ...data,
+          updatedAt: new Date().toISOString()
+        } as { [x: string]: any });
         return { success: true };
       }
       if (path === '/api/auth/profile') {
@@ -496,6 +520,11 @@ const api = {
           const id = parts[3];
           console.log(`Deleting assignment: ${id}`);
           await deleteDoc(doc(db, 'assignments', id));
+          return { success: true };
+        }
+        if (parts[2] === 'delinquencies') {
+          console.log(`Deleting delinquency account: ${id}`);
+          await deleteDoc(doc(db, 'delinquencies', id));
           return { success: true };
         }
         if (parts[2] === 'admin-keys') {
@@ -1270,6 +1299,7 @@ function Dashboard({
   const isAdmin = user.role === 'admin';
   const isCoordinator = user.role === 'coordinator';
   const isSupervisor = user.role === 'supervisor';
+  const isManager = user.role === 'manager';
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [paddingRequestsActive, setPendingRequestsActive] = useState(false);
@@ -1413,6 +1443,7 @@ function Dashboard({
     { id: 'VALIDATION & SURVEY', icon: Star },
     { id: 'DATA STORAGE', icon: Database },
     { id: 'SCORING CONFIG', icon: Settings2 },
+    { id: 'DELINQUENCY MANAGEMENT', icon: ShieldAlert },
     { id: 'ADMIN KEYS', icon: Key },
     { id: 'APPRAISAL CALCULATOR', icon: Calculator },
     { id: 'PROFILE', icon: User },
@@ -1434,6 +1465,7 @@ function Dashboard({
     { id: 'EVALUATION', icon: Star },
     { id: 'DATA STORAGE', icon: Database },
     { id: 'SCORING CONFIG', icon: Settings2 },
+    { id: 'DELINQUENCY MANAGEMENT', icon: ShieldAlert },
     { id: 'APPRAISAL CALCULATOR', icon: Calculator },
     { id: 'PROFILE', icon: User },
   ] : isSupervisor ? [
@@ -1453,6 +1485,7 @@ function Dashboard({
     { id: 'EVALUATION', icon: Star },
     { id: 'DATA STORAGE', icon: Database },
     { id: 'SCORING CONFIG', icon: Settings2 },
+    { id: 'DELINQUENCY MANAGEMENT', icon: ShieldAlert },
     { id: 'APPRAISAL CALCULATOR', icon: Calculator },
     { id: 'PROFILE', icon: User },
   ] : [
@@ -1466,6 +1499,7 @@ function Dashboard({
     { id: 'ACCOUNT STATUS', icon: ClipboardList },
     { id: 'EVALUATION', icon: Star },
     { id: 'REPORTS', icon: FileText },
+    { id: 'DELINQUENCY MANAGEMENT', icon: ShieldAlert },
     { id: 'APPRAISAL CALCULATOR', icon: Calculator },
     { id: 'PROFILE', icon: User },
   ];
@@ -1814,6 +1848,7 @@ function Dashboard({
               {activeTab === 'ADMIN KEYS' && <AdminKeys user={user} />}
               {(activeTab === 'FOR VALIDATION & SURVEY' && (isAdmin || isCoordinator)) && <ValidationSurvey user={user} />}
               {activeTab === 'APPRAISAL CALCULATOR' && <AppraisalCalculator user={user} />}
+              {activeTab === 'DELINQUENCY MANAGEMENT' && <DelinquencyManagement user={user} />}
               {activeTab === 'PROFILE' && <ProfileSettings user={user} setUser={setUser} />}
             </AnimatePresence>
           </div>
@@ -4255,8 +4290,9 @@ function UserManagement({ user }: { user: UserProfile }) {
                     onChange={e => setEditingUser({...editingUser, role: e.target.value})}
                   >
                     <option value="user">CI Officer (Standard Access)</option>
-                    <option value="supervisor">Supervisor (View Authority Only)</option>
                     <option value="coordinator">CI Coordinator (Limited Admin)</option>
+                    <option value="supervisor">Supervisor (View Authority Only)</option>
+                    <option value="manager">Manager (Portfolio & Delinquency Lead)</option>
                     <option value="admin">System Administrator (Full Authority)</option>
                   </select>
                 </div>
@@ -4842,6 +4878,7 @@ function AttendanceModule({ user }: { user: UserProfile }) {
   const isAdmin = user.role === 'admin';
   const isCoordinator = user.role === 'coordinator';
   const isSupervisor = user.role === 'supervisor';
+  const isManager = user.role === 'manager';
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [userRecords, setUserRecords] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -14517,6 +14554,7 @@ function AttendanceCalendar({ user }: { user: UserProfile }) {
   const isAdmin = user.role === 'admin';
   const isCoordinator = user.role === 'coordinator';
   const isSupervisor = user.role === 'supervisor';
+  const isManager = user.role === 'manager';
   const canManage = isAdmin || isCoordinator || isSupervisor;
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);

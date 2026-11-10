@@ -5,292 +5,909 @@
       "description": "Application user profile",
       "type": "object",
       "properties": {
-        "fullName": { "type": "string" },
-        "mobileNumber": { "type": "string" },
-        "email": { "type": "string" },
-        "role": { "type": "string", "enum": ["admin", "user", "coordinator", "supervisor"] },
-        "photoURL": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "fullName": {
+          "type": "string"
+        },
+        "mobileNumber": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "admin",
+            "user",
+            "coordinator",
+            "supervisor",
+            "manager"
+          ]
+        },
+        "photoURL": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
-      "required": ["fullName", "mobileNumber", "email", "role", "createdAt"]
+      "required": [
+        "fullName",
+        "mobileNumber",
+        "email",
+        "role",
+        "createdAt"
+      ]
     },
     "AdminKey": {
       "title": "AdminKey",
       "description": "Keys used to register as admin",
       "type": "object",
       "properties": {
-        "key": { "type": "string" },
-        "used": { "type": "boolean" },
-        "createdBy": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "key": {
+          "type": "string"
+        },
+        "used": {
+          "type": "boolean"
+        },
+        "createdBy": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
-      "required": ["key", "used", "createdAt"]
+      "required": [
+        "key",
+        "used",
+        "createdAt"
+      ]
     },
     "Assignment": {
       "title": "Assignment",
       "description": "Loan assignment details",
       "type": "object",
       "properties": {
-        "borrowerName": { "type": "string" },
-        "mobileNumber": { "type": "string" },
-        "accountType": { "type": "string" },
-        "location": { "type": "string" },
-        "tribe": { "type": "string" },
-        "businessPin": { "type": "string" },
-        "addressPin": { "type": "string" },
-        "requestedAmount": { "type": "number" },
-        "term": { "type": "string" },
-        "intRate": { "type": "number" },
-        "mop": { "type": "string" },
-        "top": { "type": "string" },
-        "ciOfficerId": { "type": "string" },
-        "ciOfficerName": { "type": "string" },
-        "status": { "type": "string" },
-        "timeline": { "type": "array", "items": { "type": "object" } },
-        "approvedAmount": { "type": "number" },
-        "approvedTerm": { "type": "string" },
-        "approvedIntRate": { "type": "number" },
-        "approvedMop": { "type": "string" },
-        "approvedTop": { "type": "string" },
-        "crecomComments": { "type": "string" },
-        "netIncome": { "type": "number" },
-        "ndiPercentage": { "type": "number" },
-        "ndiValue": { "type": "number" },
-        "validationResults": { "type": "object" },
+        "borrowerName": {
+          "type": "string"
+        },
+        "mobileNumber": {
+          "type": "string"
+        },
+        "accountType": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "tribe": {
+          "type": "string"
+        },
+        "businessPin": {
+          "type": "string"
+        },
+        "addressPin": {
+          "type": "string"
+        },
+        "requestedAmount": {
+          "type": "number"
+        },
+        "term": {
+          "type": "string"
+        },
+        "intRate": {
+          "type": "number"
+        },
+        "mop": {
+          "type": "string"
+        },
+        "top": {
+          "type": "string"
+        },
+        "ciOfficerId": {
+          "type": "string"
+        },
+        "ciOfficerName": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "timeline": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "approvedAmount": {
+          "type": "number"
+        },
+        "approvedTerm": {
+          "type": "string"
+        },
+        "approvedIntRate": {
+          "type": "number"
+        },
+        "approvedMop": {
+          "type": "string"
+        },
+        "approvedTop": {
+          "type": "string"
+        },
+        "crecomComments": {
+          "type": "string"
+        },
+        "netIncome": {
+          "type": "number"
+        },
+        "ndiPercentage": {
+          "type": "number"
+        },
+        "ndiValue": {
+          "type": "number"
+        },
+        "validationResults": {
+          "type": "object"
+        },
         "creditScore": {
           "type": "object",
           "properties": {
-            "neighbor1": { "type": "string" },
-            "neighbor2": { "type": "string" },
-            "barangayVerification": { "type": "string" },
-            "loanHistory": { "type": "string" },
-            "goodCreditBackground": { "type": "string" },
-            "cooperationOfApplicant": { "type": "string" },
-            "totalAssetLiabilities": { "type": "string" },
-            "collateral": { "type": "string" },
-            "houseOwnership": { "type": "string" },
-            "childrenSchooling": { "type": "string" },
-            "residingDuration": { "type": "string" },
-            "houseMaterials": { "type": "string" },
-            "businessLocation": { "type": "string" },
-            "floodProne": { "type": "string" },
-            "footTraffic": { "type": "string" },
-            "businessSpace": { "type": "string" },
-            "permitType": { "type": "string" },
-            "businessDuration": { "type": "string" },
-            "inventoryVsSales": { "type": "string" },
-            "loanVsCashflow": { "type": "string" },
-            "otherIncome": { "type": "string" },
-            "businessKnowledge": { "type": "string" },
-            "watchBusiness": { "type": "string" },
-            "bankAccount": { "type": "string" },
-            "cicCmapFindings": { "type": "string" },
-            "medicalCondition": { "type": "string" },
-            "civilStatus": { "type": "string" },
-            "ageGroup": { "type": "string" },
-            "educationalAttainment": { "type": "string" },
-            "loanType": { "type": "string" },
-            "isBusinessEnabled": { "type": "boolean" },
-            "sectionGrades": { "type": "object" },
-            "totalGrade": { "type": "number" },
-            "riskScore": { "type": "number" },
-            "recommendation": { "type": "string", "enum": ["Approved", "Declined", "Conditional"] },
-            "ciRemarks": { "type": "string" }
+            "neighbor1": {
+              "type": "string"
+            },
+            "neighbor2": {
+              "type": "string"
+            },
+            "barangayVerification": {
+              "type": "string"
+            },
+            "loanHistory": {
+              "type": "string"
+            },
+            "goodCreditBackground": {
+              "type": "string"
+            },
+            "cooperationOfApplicant": {
+              "type": "string"
+            },
+            "totalAssetLiabilities": {
+              "type": "string"
+            },
+            "collateral": {
+              "type": "string"
+            },
+            "houseOwnership": {
+              "type": "string"
+            },
+            "childrenSchooling": {
+              "type": "string"
+            },
+            "residingDuration": {
+              "type": "string"
+            },
+            "houseMaterials": {
+              "type": "string"
+            },
+            "businessLocation": {
+              "type": "string"
+            },
+            "floodProne": {
+              "type": "string"
+            },
+            "footTraffic": {
+              "type": "string"
+            },
+            "businessSpace": {
+              "type": "string"
+            },
+            "permitType": {
+              "type": "string"
+            },
+            "businessDuration": {
+              "type": "string"
+            },
+            "inventoryVsSales": {
+              "type": "string"
+            },
+            "loanVsCashflow": {
+              "type": "string"
+            },
+            "otherIncome": {
+              "type": "string"
+            },
+            "businessKnowledge": {
+              "type": "string"
+            },
+            "watchBusiness": {
+              "type": "string"
+            },
+            "bankAccount": {
+              "type": "string"
+            },
+            "cicCmapFindings": {
+              "type": "string"
+            },
+            "medicalCondition": {
+              "type": "string"
+            },
+            "civilStatus": {
+              "type": "string"
+            },
+            "ageGroup": {
+              "type": "string"
+            },
+            "educationalAttainment": {
+              "type": "string"
+            },
+            "loanType": {
+              "type": "string"
+            },
+            "isBusinessEnabled": {
+              "type": "boolean"
+            },
+            "sectionGrades": {
+              "type": "object"
+            },
+            "totalGrade": {
+              "type": "number"
+            },
+            "riskScore": {
+              "type": "number"
+            },
+            "recommendation": {
+              "type": "string",
+              "enum": [
+                "Approved",
+                "Declined",
+                "Conditional"
+              ]
+            },
+            "ciRemarks": {
+              "type": "string"
+            }
           }
         },
         "cashflowReport": {
           "type": "object",
           "properties": {
-            "liabilities": { "type": "array" },
-            "businessIncome": { "type": "object" },
-            "otherIncome": { "type": "number" },
-            "householdExpenses": { "type": "object" },
-            "analysis": { "type": "object" },
-            "ciRecommendation": { 
+            "liabilities": {
+              "type": "array"
+            },
+            "businessIncome": {
+              "type": "object"
+            },
+            "otherIncome": {
+              "type": "number"
+            },
+            "householdExpenses": {
+              "type": "object"
+            },
+            "analysis": {
+              "type": "object"
+            },
+            "ciRecommendation": {
               "type": "object",
               "properties": {
-                "remarks": { "type": "string" },
-                "rate": { "type": "number" }
+                "remarks": {
+                  "type": "string"
+                },
+                "rate": {
+                  "type": "number"
+                }
               }
             },
-            "operationRecommendation": { 
+            "operationRecommendation": {
               "type": "object",
               "properties": {
-                "remarks": { "type": "string" }
+                "remarks": {
+                  "type": "string"
+                }
               }
             }
           }
         },
-        "deniedComments": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "deniedComments": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
-      "required": ["borrowerName", "mobileNumber", "accountType", "location", "tribe", "requestedAmount", "term", "intRate", "mop", "top", "ciOfficerId", "ciOfficerName", "status", "timeline", "createdAt"]
+      "required": [
+        "borrowerName",
+        "mobileNumber",
+        "accountType",
+        "location",
+        "tribe",
+        "requestedAmount",
+        "term",
+        "intRate",
+        "mop",
+        "top",
+        "ciOfficerId",
+        "ciOfficerName",
+        "status",
+        "timeline",
+        "createdAt"
+      ]
     },
     "Notification": {
       "title": "Notification",
       "description": "Real-time alerts for CI Officers",
       "type": "object",
       "properties": {
-        "userId": { "type": "string" },
-        "title": { "type": "string" },
-        "message": { "type": "string" },
-        "type": { "type": "string", "enum": ["info", "assignment", "status_change"] },
-        "assignmentId": { "type": "string" },
-        "read": { "type": "boolean" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "userId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "info",
+            "assignment",
+            "status_change"
+          ]
+        },
+        "assignmentId": {
+          "type": "string"
+        },
+        "read": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
-      "required": ["userId", "title", "message", "type", "read", "createdAt"]
+      "required": [
+        "userId",
+        "title",
+        "message",
+        "type",
+        "read",
+        "createdAt"
+      ]
     },
     "ScoringConfig": {
       "title": "ScoringConfig",
       "description": "Dynamic scoring sheets for MCL and SME",
       "type": "object",
       "properties": {
-        "type": { "type": "string", "enum": ["MCL", "SME"] },
-        "sections": { "type": "object" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "type": {
+          "type": "string",
+          "enum": [
+            "MCL",
+            "SME"
+          ]
+        },
+        "sections": {
+          "type": "object"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
-      "required": ["type", "sections", "updatedAt"]
+      "required": [
+        "type",
+        "sections",
+        "updatedAt"
+      ]
     },
     "Attendance": {
       "title": "Attendance",
       "description": "Daily staff attendance record",
       "type": "object",
       "properties": {
-        "userId": { "type": "string" },
-        "userName": { "type": "string" },
-        "date": { "type": "string" },
-        "timeIn": { "type": ["string", "null"] },
-        "timeOut": { "type": ["string", "null"] },
-        "status": { "type": "string", "enum": ["ON TIME", "LATE", "UNDERTIME", "OVERTIME"] },
-        "tasks": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "userId": {
+          "type": "string"
+        },
+        "userName": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "timeIn": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timeOut": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ON TIME",
+            "LATE",
+            "UNDERTIME",
+            "OVERTIME"
+          ]
+        },
+        "tasks": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
-      "required": ["userId", "userName", "date", "status", "createdAt"]
+      "required": [
+        "userId",
+        "userName",
+        "date",
+        "status",
+        "createdAt"
+      ]
     },
     "LeaveRequest": {
       "title": "LeaveRequest",
       "description": "Staff leave exemption request",
       "type": "object",
       "properties": {
-        "userId": { "type": "string" },
-        "userName": { "type": "string" },
-        "leaveType": { "type": "string" },
-        "startDate": { "type": "string" },
-        "endDate": { "type": "string" },
-        "reason": { "type": "string" },
-        "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected"] },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "userId": {
+          "type": "string"
+        },
+        "userName": {
+          "type": "string"
+        },
+        "leaveType": {
+          "type": "string"
+        },
+        "startDate": {
+          "type": "string"
+        },
+        "endDate": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "Pending",
+            "Approved",
+            "Rejected"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
-      "required": ["userId", "userName", "leaveType", "startDate", "endDate", "reason", "status", "createdAt"]
+      "required": [
+        "userId",
+        "userName",
+        "leaveType",
+        "startDate",
+        "endDate",
+        "reason",
+        "status",
+        "createdAt"
+      ]
     },
     "OvertimeRequest": {
       "title": "OvertimeRequest",
       "description": "Extended protocol claim",
       "type": "object",
       "properties": {
-        "userId": { "type": "string" },
-        "userName": { "type": "string" },
-        "date": { "type": "string" },
-        "hours": { "type": "number" },
-        "minutes": { "type": "number" },
-        "reason": { "type": "string" },
-        "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected"] },
-        "remarks": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "userId": {
+          "type": "string"
+        },
+        "userName": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "hours": {
+          "type": "number"
+        },
+        "minutes": {
+          "type": "number"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "Pending",
+            "Approved",
+            "Rejected"
+          ]
+        },
+        "remarks": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
-      "required": ["userId", "userName", "date", "hours", "minutes", "reason", "status", "createdAt"]
+      "required": [
+        "userId",
+        "userName",
+        "date",
+        "hours",
+        "minutes",
+        "reason",
+        "status",
+        "createdAt"
+      ]
     },
     "OBRequest": {
       "title": "OBRequest",
       "description": "Official Business request",
       "type": "object",
       "properties": {
-        "userId": { "type": "string" },
-        "userName": { "type": "string" },
-        "startDate": { "type": "string" },
-        "endDate": { "type": "string" },
-        "hours": { "type": "number" },
-        "minutes": { "type": "number" },
-        "reason": { "type": "string" },
-        "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected"] },
-        "remarks": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "userId": {
+          "type": "string"
+        },
+        "userName": {
+          "type": "string"
+        },
+        "startDate": {
+          "type": "string"
+        },
+        "endDate": {
+          "type": "string"
+        },
+        "hours": {
+          "type": "number"
+        },
+        "minutes": {
+          "type": "number"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "Pending",
+            "Approved",
+            "Rejected"
+          ]
+        },
+        "remarks": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
-      "required": ["userId", "userName", "startDate", "endDate", "reason", "status", "createdAt"]
+      "required": [
+        "userId",
+        "userName",
+        "startDate",
+        "endDate",
+        "reason",
+        "status",
+        "createdAt"
+      ]
     },
     "Evaluation": {
       "title": "Evaluation",
       "description": "Performance evaluation form details",
       "type": "object",
       "properties": {
-        "employeeId": { "type": "string" },
-        "employeeName": { "type": "string" },
-        "evaluatorId": { "type": "string" },
-        "evaluatorName": { "type": "string" },
-        "evaluatorRole": { "type": "string" },
-        "type": { "type": "string", "enum": ["self", "superior"] },
-        "dateHired": { "type": "string" },
-        "position": { "type": "string" },
-        "status": { "type": "string" },
-        "department": { "type": "string" },
-        "ratingPeriod": { "type": "string" },
-        "classification": { "type": "string" },
-        "otherClassification": { "type": "string" },
-        "ratings": { "type": "object" },
-        "strongPoints": { "type": "string" },
-        "weakPoints": { "type": "string" },
-        "trainingRecommendation": { "type": "string" },
-        "absences": { "type": "string" },
-        "tardiness": { "type": "string" },
-        "undertime": { "type": "string" },
-        "disciplinaryActions": { "type": "string" },
-        "typeOfViolation": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "employeeId": {
+          "type": "string"
+        },
+        "employeeName": {
+          "type": "string"
+        },
+        "evaluatorId": {
+          "type": "string"
+        },
+        "evaluatorName": {
+          "type": "string"
+        },
+        "evaluatorRole": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "self",
+            "superior"
+          ]
+        },
+        "dateHired": {
+          "type": "string"
+        },
+        "position": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "department": {
+          "type": "string"
+        },
+        "ratingPeriod": {
+          "type": "string"
+        },
+        "classification": {
+          "type": "string"
+        },
+        "otherClassification": {
+          "type": "string"
+        },
+        "ratings": {
+          "type": "object"
+        },
+        "strongPoints": {
+          "type": "string"
+        },
+        "weakPoints": {
+          "type": "string"
+        },
+        "trainingRecommendation": {
+          "type": "string"
+        },
+        "absences": {
+          "type": "string"
+        },
+        "tardiness": {
+          "type": "string"
+        },
+        "undertime": {
+          "type": "string"
+        },
+        "disciplinaryActions": {
+          "type": "string"
+        },
+        "typeOfViolation": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
-      "required": ["employeeId", "employeeName", "evaluatorId", "evaluatorName", "type", "ratings", "createdAt"]
+      "required": [
+        "employeeId",
+        "employeeName",
+        "evaluatorId",
+        "evaluatorName",
+        "type",
+        "ratings",
+        "createdAt"
+      ]
     },
     "AppraisalReport": {
       "title": "AppraisalReport",
       "description": "Saved Real Property or Vehicle Appraisal Report",
       "type": "object",
       "properties": {
-        "userId": { "type": "string" },
-        "reportNumber": { "type": "string" },
-        "appraiserName": { "type": "string" },
-        "title": { "type": "string" },
-        "reportType": { "type": "string", "enum": ["real_property", "vehicle"] },
-        "borrowerName": { "type": "string" },
-        "marketValue": { "type": "number" },
-        "recommendedLoan": { "type": "number" },
-        "appliedLoanAmount": { "type": "number" },
-        "targetLtv": { "type": "number" },
-        "riskLevel": { "type": "string" },
-        "status": { "type": "string" },
-        "data": { "type": "object" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "userId": {
+          "type": "string"
+        },
+        "reportNumber": {
+          "type": "string"
+        },
+        "appraiserName": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "reportType": {
+          "type": "string",
+          "enum": [
+            "real_property",
+            "vehicle"
+          ]
+        },
+        "borrowerName": {
+          "type": "string"
+        },
+        "marketValue": {
+          "type": "number"
+        },
+        "recommendedLoan": {
+          "type": "number"
+        },
+        "appliedLoanAmount": {
+          "type": "number"
+        },
+        "targetLtv": {
+          "type": "number"
+        },
+        "riskLevel": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
-      "required": ["userId", "appraiserName", "title", "reportType", "borrowerName", "marketValue", "recommendedLoan", "data", "createdAt"]
+      "required": [
+        "userId",
+        "appraiserName",
+        "title",
+        "reportType",
+        "borrowerName",
+        "marketValue",
+        "recommendedLoan",
+        "data",
+        "createdAt"
+      ]
     },
     "CIStarAward": {
       "title": "CIStarAward",
       "description": "Monthly star awards and accomplishments for CI officers",
       "type": "object",
       "properties": {
-        "ciOfficerId": { "type": "string" },
-        "ciOfficerName": { "type": "string" },
-        "ciOfficerPhoto": { "type": "string" },
-        "stars": { "type": "number" },
-        "accomplishment": { "type": "string" },
-        "month": { "type": "number" },
-        "year": { "type": "number" },
-        "dateAssigned": { "type": "string" },
-        "awardedBy": { "type": "string" },
-        "awardedById": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "ciOfficerId": {
+          "type": "string"
+        },
+        "ciOfficerName": {
+          "type": "string"
+        },
+        "ciOfficerPhoto": {
+          "type": "string"
+        },
+        "stars": {
+          "type": "number"
+        },
+        "accomplishment": {
+          "type": "string"
+        },
+        "month": {
+          "type": "number"
+        },
+        "year": {
+          "type": "number"
+        },
+        "dateAssigned": {
+          "type": "string"
+        },
+        "awardedBy": {
+          "type": "string"
+        },
+        "awardedById": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
-      "required": ["ciOfficerId", "ciOfficerName", "stars", "accomplishment", "month", "year", "dateAssigned", "awardedBy", "awardedById", "createdAt"]
+      "required": [
+        "ciOfficerId",
+        "ciOfficerName",
+        "stars",
+        "accomplishment",
+        "month",
+        "year",
+        "dateAssigned",
+        "awardedBy",
+        "awardedById",
+        "createdAt"
+      ]
+    },
+    "DelinquencyAccount": {
+      "title": "DelinquencyAccount",
+      "description": "Delinquency management account with balance tracking and communications",
+      "type": "object",
+      "properties": {
+        "entryDate": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "address": {
+          "type": "string"
+        },
+        "contactNumber": {
+          "type": "string"
+        },
+        "loanAmount": {
+          "type": "number"
+        },
+        "principalBalance": {
+          "type": "number"
+        },
+        "interestBalance": {
+          "type": "number"
+        },
+        "penalty": {
+          "type": "number"
+        },
+        "pdi": {
+          "type": "number"
+        },
+        "totalBalance": {
+          "type": "number"
+        },
+        "fieldVisited": {
+          "type": "boolean"
+        },
+        "fieldVisitDate": {
+          "type": "string"
+        },
+        "taskCompleted": {
+          "type": "boolean"
+        },
+        "taskCompletedDate": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "Delinquent",
+            "Field Visited",
+            "Under Follow-up",
+            "Settled",
+            "Promise to Pay",
+            "Legal / Escalated"
+          ]
+        },
+        "communications": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "createdBy": {
+          "type": "string"
+        },
+        "createdByName": {
+          "type": "string"
+        },
+        "createdByRole": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "entryDate",
+        "name",
+        "address",
+        "loanAmount",
+        "principalBalance",
+        "interestBalance",
+        "penalty",
+        "pdi",
+        "totalBalance",
+        "createdAt"
+      ]
     }
   },
   "firestore": {
@@ -345,6 +962,10 @@
     "/ob_requests/{obId}": {
       "schema": "OBRequest",
       "description": "Official Business requests"
+    },
+    "/delinquencies/{delinquencyId}": {
+      "schema": "DelinquencyAccount",
+      "description": "Delinquency management accounts and communication logs"
     }
   }
 }
