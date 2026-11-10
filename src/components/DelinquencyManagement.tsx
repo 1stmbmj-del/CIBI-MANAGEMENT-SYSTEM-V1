@@ -4,8 +4,28 @@ import {
   DelinquencyAccount, 
   DelinquencyCommunication, 
   CommunicationType, 
-  DelinquencyStatus 
+  DelinquencyStatus,
+  DelinquencyPayment,
+  BalanceSnapshot
 } from '../types';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  AreaChart,
+  Area
+} from 'recharts';
+import {
+  generateSummaryPDF,
+  generateSummaryExcel,
+  generateIndividualPDF,
+  generateIndividualExcel
+} from '../utils/delinquencyReports';
 import { 
   collection, 
   query, 
@@ -33,6 +53,9 @@ import {
   Filter, 
   X, 
   FileText, 
+  FileSpreadsheet, 
+  Download, 
+  Printer, 
   History, 
   Activity, 
   Trash2, 
@@ -42,7 +65,12 @@ import {
   ShieldAlert,
   ArrowRight,
   TrendingDown,
-  Info
+  Info,
+  CreditCard,
+  Receipt,
+  ArrowDownRight,
+  Wallet,
+  Sparkles
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -102,6 +130,29 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
     const pdiVal = parseFloat(formPdi) || 0;
     return p + i + pen + pdiVal;
   }, [formPrincipal, formInterest, formPenalty, formPdi]);
+
+
+  // Payment Recording Modal State (All users can record payments & collection reductions)
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [payDate, setPayDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [payPrincipal, setPayPrincipal] = useState<string>('');
+  const [payInterest, setPayInterest] = useState<string>('');
+  const [payPenalty, setPayPenalty] = useState<string>('');
+  const [payPdi, setPayPdi] = useState<string>('');
+  const [payOrNumber, setPayOrNumber] = useState('');
+  const [payMethod, setPayMethod] = useState<'Cash' | 'GCash' | 'Bank Transfer' | 'PDC' | 'Other'>('Cash');
+  const [payRemarks, setPayRemarks] = useState('');
+  const [isSubmittingPay, setIsSubmittingPay] = useState(false);
+  const [payError, setPayError] = useState('');
+
+  // Auto total payment
+  const computedPaymentAmount = useMemo(() => {
+    const p = parseFloat(payPrincipal) || 0;
+    const i = parseFloat(payInterest) || 0;
+    const pen = parseFloat(payPenalty) || 0;
+    const pdi = parseFloat(payPdi) || 0;
+    return p + i + pen + pdi;
+  }, [payPrincipal, payInterest, payPenalty, payPdi]);
 
   // Communication entry state (Allowed for ALL users in every account)
   const [commType, setCommType] = useState<CommunicationType>('Phone Call');
@@ -169,17 +220,43 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
 
     try {
       const now = new Date().toISOString();
+      const pVal = parseFloat(formPrincipal) || 0;
+      const iVal = parseFloat(formInterest) || 0;
+      const penVal = parseFloat(formPenalty) || 0;
+      const pdiVal = parseFloat(formPdi) || 0;
+      const totVal = computedTotal;
+
+      const initialSnapshot: BalanceSnapshot = {
+        date: formEntryDate,
+        timestamp: now,
+        label: 'Initial Entry',
+        principalBalance: pVal,
+        interestBalance: iVal,
+        penalty: penVal,
+        pdi: pdiVal,
+        totalBalance: totVal,
+        actionNote: 'Account logged into delinquency registry'
+      };
+
       const newAcc: Omit<DelinquencyAccount, 'id'> = {
         entryDate: formEntryDate,
         name: formName.trim(),
         address: formAddress.trim(),
-        contactNumber: formContact.trim() || undefined,
+        contactNumber: formContact.trim() || '',
         loanAmount: parseFloat(formLoanAmount) || 0,
-        principalBalance: parseFloat(formPrincipal) || 0,
-        interestBalance: parseFloat(formInterest) || 0,
-        penalty: parseFloat(formPenalty) || 0,
-        pdi: parseFloat(formPdi) || 0,
-        totalBalance: computedTotal,
+        principalBalance: pVal,
+        interestBalance: iVal,
+        penalty: penVal,
+        pdi: pdiVal,
+        totalBalance: totVal,
+        initialPrincipal: pVal,
+        initialInterest: iVal,
+        initialTotal: totVal,
+        totalPrincipalPaid: 0,
+        totalInterestPaid: 0,
+        totalPaid: 0,
+        payments: [],
+        balanceSnapshots: [initialSnapshot],
         fieldVisited: false,
         fieldVisitDate: null,
         taskCompleted: false,
@@ -213,6 +290,175 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
     }
   };
 
+
+  // Handle Record Payment / Balance Reduction
+  const handleRecordPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAccount) return;
+
+    const pPaid = parseFloat(payPrincipal) || 0;
+    const iPaid = parseFloat(payInterest) || 0;
+    const penPaid = parseFloat(payPenalty) || 0;
+    const pdiPaid = parseFloat(payPdi) || 0;
+    const totalPaid = pPaid + iPaid + penPaid + pdiPaid;
+
+    if (totalPaid <= 0) {
+      setPayError('Please enter at least one payment amount (Principal, Interest, Penalty, or PDI).');
+      return;
+    }
+
+    setPayError('');
+    setIsSubmittingPay(true);
+
+    try {
+      const now = new Date().toISOString();
+      
+      // Calculate remaining balances (cannot go below 0)
+      const currentP = selectedAccount.principalBalance || 0;
+      const currentI = selectedAccount.interestBalance || 0;
+      const currentPen = selectedAccount.penalty || 0;
+      const currentPdi = selectedAccount.pdi || 0;
+
+      const newPrincipal = Math.max(0, currentP - pPaid);
+      const newInterest = Math.max(0, currentI - iPaid);
+      const newPenalty = Math.max(0, currentPen - penPaid);
+      const newPdi = Math.max(0, currentPdi - pdiPaid);
+      const newTotal = newPrincipal + newInterest + newPenalty + newPdi;
+
+      const newPayment: DelinquencyPayment = {
+        id: `pay_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        paymentDate: payDate,
+        amount: totalPaid,
+        principalPaid: pPaid,
+        interestPaid: iPaid,
+        penaltyPaid: penPaid,
+        pdiPaid: pdiPaid,
+        orNumber: payOrNumber.trim() || undefined,
+        paymentMethod: payMethod,
+        remarks: payRemarks.trim() || undefined,
+        recordedBy: user.id,
+        recordedByName: user.fullName,
+        recordedByRole: user.role,
+        timestamp: now
+      };
+
+      // Create snapshot point for line graph
+      const newSnapshot: BalanceSnapshot = {
+        date: payDate,
+        timestamp: now,
+        label: `Payment: ₱${totalPaid.toLocaleString()}`,
+        principalBalance: newPrincipal,
+        interestBalance: newInterest,
+        penalty: newPenalty,
+        pdi: newPdi,
+        totalBalance: newTotal,
+        actionNote: `Paid ₱${totalPaid.toLocaleString()} (P: ₱${pPaid.toLocaleString()}, I: ₱${iPaid.toLocaleString()}) by ${user.fullName}`
+      };
+
+      // Existing snapshots or baseline
+      const existingSnapshots = selectedAccount.balanceSnapshots || [
+        {
+          date: selectedAccount.entryDate,
+          timestamp: selectedAccount.createdAt,
+          label: 'Initial Entry',
+          principalBalance: selectedAccount.initialPrincipal || selectedAccount.principalBalance,
+          interestBalance: selectedAccount.initialInterest || selectedAccount.interestBalance,
+          penalty: selectedAccount.penalty,
+          pdi: selectedAccount.pdi,
+          totalBalance: selectedAccount.initialTotal || selectedAccount.totalBalance,
+          actionNote: 'Initial logged balance'
+        }
+      ];
+
+      const updatedPayments = [newPayment, ...(selectedAccount.payments || [])];
+      const updatedSnapshots = [...existingSnapshots, newSnapshot];
+
+      // Auto update status if fully settled
+      let newStatus = selectedAccount.status;
+      let isTaskDone = !!selectedAccount.taskCompleted;
+      let taskDoneDate = selectedAccount.taskCompletedDate || null;
+      let taskDoneBy = selectedAccount.taskCompletedByName || null;
+
+      if (newTotal === 0) {
+        newStatus = 'Settled';
+        isTaskDone = true;
+        taskDoneDate = now;
+        taskDoneBy = user.fullName;
+      }
+
+      // Sanitize payment object to prevent undefined fields
+      const sanitizedPayment: DelinquencyPayment = {
+        id: `pay_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        paymentDate: payDate,
+        amount: totalPaid,
+        principalPaid: pPaid,
+        interestPaid: iPaid,
+        penaltyPaid: penPaid,
+        pdiPaid: pdiPaid,
+        orNumber: payOrNumber.trim() || '',
+        paymentMethod: payMethod,
+        remarks: payRemarks.trim() || '',
+        recordedBy: user.id,
+        recordedByName: user.fullName,
+        recordedByRole: user.role,
+        timestamp: now
+      };
+
+      const sanitizedPayments = [sanitizedPayment, ...(selectedAccount.payments || [])];
+
+      await updateDoc(doc(db, 'delinquencies', selectedAccount.id), {
+        principalBalance: newPrincipal,
+        interestBalance: newInterest,
+        penalty: newPenalty,
+        pdi: newPdi,
+        totalBalance: newTotal,
+        initialPrincipal: selectedAccount.initialPrincipal !== undefined ? selectedAccount.initialPrincipal : selectedAccount.principalBalance,
+        initialInterest: selectedAccount.initialInterest !== undefined ? selectedAccount.initialInterest : selectedAccount.interestBalance,
+        initialTotal: selectedAccount.initialTotal !== undefined ? selectedAccount.initialTotal : selectedAccount.totalBalance,
+        totalPrincipalPaid: (selectedAccount.totalPrincipalPaid || 0) + pPaid,
+        totalInterestPaid: (selectedAccount.totalInterestPaid || 0) + iPaid,
+        totalPaid: (selectedAccount.totalPaid || 0) + totalPaid,
+        payments: sanitizedPayments,
+        balanceSnapshots: updatedSnapshots,
+        status: newStatus,
+        taskCompleted: isTaskDone,
+        taskCompletedDate: taskDoneDate,
+        taskCompletedByName: taskDoneBy,
+        updatedAt: now
+      });
+
+      // Also automatically record a communication log of the payment
+      const paymentComm: DelinquencyCommunication = {
+        id: `comm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        type: payMethod === 'Cash' ? 'Other' : (payMethod === 'GCash' ? 'Other' : 'Other'),
+        remarks: `[PAYMENT COLLECTION] Received ₱${totalPaid.toLocaleString()} payment via ${payMethod}. Reduced Principal by ₱${pPaid.toLocaleString()}, Interest by ₱${iPaid.toLocaleString()}${penPaid ? `, Penalty by ₱${penPaid.toLocaleString()}` : ''}${pdiPaid ? `, PDI by ₱${pdiPaid.toLocaleString()}` : ''}. Remaining Total Balance: ₱${newTotal.toLocaleString()}.${payOrNumber ? ` Ref/OR: ${payOrNumber}.` : ''}${payRemarks ? ` Notes: ${payRemarks}` : ''}`,
+        timestamp: now,
+        userId: user.id,
+        userName: user.fullName,
+        userRole: user.role
+      };
+
+      const existingComms = selectedAccount.communications || [];
+      await updateDoc(doc(db, 'delinquencies', selectedAccount.id), {
+        communications: [paymentComm, ...existingComms]
+      });
+
+      // Reset form
+      setPayPrincipal('');
+      setPayInterest('');
+      setPayPenalty('');
+      setPayPdi('');
+      setPayOrNumber('');
+      setPayRemarks('');
+      setIsPaymentModalOpen(false);
+    } catch (err: any) {
+      console.error('Error recording payment:', err);
+      setPayError(err.message || 'Failed to record payment reduction.');
+    } finally {
+      setIsSubmittingPay(false);
+    }
+  };
+
   // Handle Add Communication (All users can enter remarks & communications)
   const handleAddCommunication = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -229,7 +475,7 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
         id: `comm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         type: commType,
         remarks: commRemarks.trim(),
-        promiseToPay: commPromiseToPay.trim() || undefined,
+        promiseToPay: commPromiseToPay.trim() || '',
         timestamp: now,
         userId: user.id,
         userName: user.fullName,
@@ -363,19 +609,40 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
           </p>
         </div>
 
-        <div className="flex items-center gap-3 z-10 w-full lg:w-auto">
-          {canEnterData ? (
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 z-10 w-full lg:w-auto">
+          {/* Summary Report Generators (Available to ALL USERS) */}
+          <div className="flex items-center gap-2 bg-white/10 p-1.5 rounded-2xl backdrop-blur-md border border-white/15">
+            <span className="text-[9px] font-black uppercase tracking-wider text-emerald-200 px-2 hidden sm:inline">
+              Summary Report:
+            </span>
+            <button
+              onClick={() => generateSummaryPDF(filteredAccounts, statusFilter === 'All' ? 'All Active Accounts' : `Filtered: ${statusFilter}`)}
+              disabled={filteredAccounts.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer shadow-sm hover:scale-102"
+              title="Download Portfolio Summary in PDF format"
+            >
+              <Download size={13} />
+              <span>PDF Summary</span>
+            </button>
+            <button
+              onClick={() => generateSummaryExcel(filteredAccounts)}
+              disabled={filteredAccounts.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-400 hover:bg-emerald-300 text-emerald-950 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer shadow-sm hover:scale-102"
+              title="Download Portfolio Summary in Excel (.xlsx) format"
+            >
+              <FileSpreadsheet size={13} />
+              <span>Excel Summary</span>
+            </button>
+          </div>
+
+          {canEnterData && (
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center justify-center gap-2 px-5 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-emerald-950 rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-lg hover:shadow-emerald-500/20 active:scale-95 cursor-pointer w-full lg:w-auto"
+              className="flex items-center justify-center gap-2 px-5 py-3 bg-emerald-500 hover:bg-emerald-400 text-emerald-950 rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-lg hover:shadow-emerald-500/20 active:scale-95 cursor-pointer shrink-0"
             >
               <Plus size={18} />
-              <span>Enter Delinquency Data</span>
+              <span>Enter Data</span>
             </button>
-          ) : (
-            <div className="px-4 py-2 bg-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest text-emerald-200 border border-white/10">
-              Viewing as CI Officer • All users can log communications
-            </div>
           )}
         </div>
 
@@ -508,6 +775,7 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                   <th className="p-3.5 text-right">Penalty</th>
                   <th className="p-3.5 text-right">PDI</th>
                   <th className="p-3.5 text-right">Total Balance</th>
+                  <th className="p-3.5 text-center">Bawas / Paid</th>
                   <th className="p-3.5 text-center">Progress Line</th>
                   <th className="p-3.5 text-center">Comms</th>
                   <th className="p-3.5 text-center">Status</th>
@@ -569,6 +837,33 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                         ₱{acc.totalBalance?.toLocaleString()}
                       </td>
 
+                      {/* Bawas / Reduction Indicator */}
+                      <td className="p-3.5 text-center whitespace-nowrap">
+                        {(() => {
+                          const totalPaid = acc.totalPaid || (acc.payments?.reduce((s, p) => s + (p.amount || 0), 0) || 0);
+                          const initTot = acc.initialTotal || (acc.totalBalance + totalPaid);
+                          const pct = initTot > 0 && totalPaid > 0 ? Math.round((totalPaid / initTot) * 100) : 0;
+                          if (totalPaid > 0) {
+                            return (
+                              <div className="flex flex-col items-center">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                  <ArrowDownRight size={10} />
+                                  -₱{totalPaid.toLocaleString()}
+                                </span>
+                                <span className="text-[8px] font-bold text-emerald-700 mt-0.5">
+                                  {pct}% nabawas
+                                </span>
+                              </div>
+                            );
+                          }
+                          return (
+                            <span className="text-[10px] text-gray-400 font-bold">
+                              No bawas yet
+                            </span>
+                          );
+                        })()}
+                      </td>
+
                       {/* Mini Progress Line Indicator */}
                       <td className="p-3.5" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1.5">
@@ -624,13 +919,27 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                         </span>
                       </td>
 
-                      {/* Action */}
+                      {/* Action & Individual Report Generator */}
                       <td className="p-3.5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => generateIndividualPDF(acc)}
+                            className="p-1.5 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Generate Individual Client Report (PDF)"
+                          >
+                            <FileText size={15} />
+                          </button>
+                          <button
+                            onClick={() => generateIndividualExcel(acc)}
+                            className="p-1.5 text-gray-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                            title="Generate Individual Client Report (Excel)"
+                          >
+                            <FileSpreadsheet size={15} />
+                          </button>
                           <button
                             onClick={() => setSelectedAccount(acc)}
-                            className="p-1.5 text-gray-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
-                            title="Open Dossier & Add Communication"
+                            className="p-1.5 text-emerald-800 hover:bg-emerald-100 rounded-lg transition-colors font-bold text-xs"
+                            title="Open Dossier, Progress Line & Communication Ledger"
                           >
                             <ChevronRight size={16} />
                           </button>
@@ -671,6 +980,9 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                   </td>
                   <td className="p-3.5 text-right text-red-600 font-black">
                     ₱{filteredAccounts.reduce((sum, a) => sum + (a.totalBalance || 0), 0).toLocaleString()}
+                  </td>
+                  <td className="p-3.5 text-center font-black text-emerald-800">
+                    ₱{filteredAccounts.reduce((sum, a) => sum + (a.totalPaid || (a.payments?.reduce((s, p) => s + (p.amount || 0), 0) || 0)), 0).toLocaleString()}
                   </td>
                   <td className="p-3.5" colSpan={4}></td>
                 </tr>
@@ -918,10 +1230,29 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Individual Report Buttons inside Dossier Modal */}
+                <button
+                  onClick={() => generateIndividualPDF(selectedAccount)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-white/20 cursor-pointer shadow-sm hover:scale-102"
+                  title="Generate & Download Full Individual Client Report in PDF format"
+                >
+                  <FileText size={14} />
+                  <span>PDF Client Report</span>
+                </button>
+
+                <button
+                  onClick={() => generateIndividualExcel(selectedAccount)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-400 hover:bg-emerald-300 text-emerald-950 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm hover:scale-102"
+                  title="Generate & Download Full Individual Client Report in Excel format"
+                >
+                  <FileSpreadsheet size={14} />
+                  <span>Excel Client Report</span>
+                </button>
+
                 <button
                   onClick={() => setSelectedAccount(null)}
-                  className="hover:rotate-90 transition-transform bg-white/10 p-2 rounded-xl text-white cursor-pointer"
+                  className="hover:rotate-90 transition-transform bg-white/10 p-2 rounded-xl text-white cursor-pointer ml-1"
                 >
                   <X size={20} />
                 </button>
@@ -1055,23 +1386,125 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                 </div>
               </div>
 
-              {/* SECTION B: FINANCIAL BALANCES SNAPSHOT */}
-              <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100">
-                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-4">
-                  Account Balances Breakdown
-                </h4>
+              {/* SECTION B: FINANCIAL BALANCES & PAYMENT REDUCTION PROGRESS */}
+              <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 space-y-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                      Balance Recovery Tracking
+                    </span>
+                    <h4 className="text-sm font-black uppercase tracking-wider text-gray-900 mt-1">
+                      Account Balances & Reduction Progress
+                    </h4>
+                  </div>
+
+                  {/* Record Payment Button (Available to ALL users) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPayError('');
+                      setIsPaymentModalOpen(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+                    title="Record payment to reduce principal, interest, penalty, or PDI"
+                  >
+                    <CreditCard size={15} />
+                    <span>Record Payment / Bawas</span>
+                  </button>
+                </div>
+
+                {/* Reduction Progress Metric Banners */}
+                {(() => {
+                  const initP = selectedAccount.initialPrincipal !== undefined ? selectedAccount.initialPrincipal : selectedAccount.principalBalance;
+                  const curP = selectedAccount.principalBalance || 0;
+                  const pReduction = Math.max(0, initP - curP);
+                  const pPercent = initP > 0 ? Math.min(100, Math.round((pReduction / initP) * 100)) : (curP === 0 ? 100 : 0);
+
+                  const initI = selectedAccount.initialInterest !== undefined ? selectedAccount.initialInterest : selectedAccount.interestBalance;
+                  const curI = selectedAccount.interestBalance || 0;
+                  const iReduction = Math.max(0, initI - curI);
+                  const iPercent = initI > 0 ? Math.min(100, Math.round((iReduction / initI) * 100)) : (curI === 0 ? 100 : 0);
+
+                  const initT = selectedAccount.initialTotal !== undefined ? selectedAccount.initialTotal : selectedAccount.totalBalance;
+                  const curT = selectedAccount.totalBalance || 0;
+                  const tReduction = Math.max(0, initT - curT);
+                  const tPercent = initT > 0 ? Math.min(100, Math.round((tReduction / initT) * 100)) : (curT === 0 ? 100 : 0);
+
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {/* Principal Progress */}
+                      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-2xs space-y-2">
+                        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider text-gray-500">
+                          <span>Principal Reduced</span>
+                          <span className="text-emerald-700 font-extrabold">{pPercent}% paid</span>
+                        </div>
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-base font-black text-gray-900">₱{curP.toLocaleString()}</span>
+                          <span className="text-[10px] font-bold text-gray-400 line-through">₱{initP.toLocaleString()}</span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                          <div className="bg-emerald-600 h-2 rounded-full transition-all duration-500" style={{ width: `${pPercent}%` }} />
+                        </div>
+                        <div className="text-[9px] font-bold text-emerald-800 flex items-center justify-between">
+                          <span>Bawas: ₱{pReduction.toLocaleString()}</span>
+                          <span>Remaining: ₱{curP.toLocaleString()}</span>
+                        </div>
+                      </div>
+
+                      {/* Interest Progress */}
+                      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-2xs space-y-2">
+                        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider text-gray-500">
+                          <span>Interest Reduced</span>
+                          <span className="text-teal-700 font-extrabold">{iPercent}% paid</span>
+                        </div>
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-base font-black text-gray-900">₱{curI.toLocaleString()}</span>
+                          <span className="text-[10px] font-bold text-gray-400 line-through">₱{initI.toLocaleString()}</span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                          <div className="bg-teal-600 h-2 rounded-full transition-all duration-500" style={{ width: `${iPercent}%` }} />
+                        </div>
+                        <div className="text-[9px] font-bold text-teal-800 flex items-center justify-between">
+                          <span>Bawas: ₱{iReduction.toLocaleString()}</span>
+                          <span>Remaining: ₱{curI.toLocaleString()}</span>
+                        </div>
+                      </div>
+
+                      {/* Total Exposure Progress */}
+                      <div className="bg-red-50/60 p-4 rounded-xl border border-red-200/80 shadow-2xs space-y-2">
+                        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider text-red-700">
+                          <span>Total Balance Progress</span>
+                          <span className="text-red-800 font-extrabold">{tPercent}% settled</span>
+                        </div>
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-base font-black text-red-600">₱{curT.toLocaleString()}</span>
+                          <span className="text-[10px] font-bold text-gray-400 line-through">₱{initT.toLocaleString()}</span>
+                        </div>
+                        <div className="w-full bg-red-100 rounded-full h-2 overflow-hidden">
+                          <div className="bg-red-600 h-2 rounded-full transition-all duration-500" style={{ width: `${tPercent}%` }} />
+                        </div>
+                        <div className="text-[9px] font-bold text-red-800 flex items-center justify-between">
+                          <span>Total Bawas: ₱{tReduction.toLocaleString()}</span>
+                          <span>Outstanding: ₱{curT.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* 6 Balances Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 text-center">
                   <div className="bg-white p-3 rounded-xl border border-gray-200/60">
                     <span className="text-[8px] font-black uppercase text-gray-400 block">Loan Amount</span>
                     <span className="text-xs font-black text-gray-900 mt-1 block">₱{selectedAccount.loanAmount?.toLocaleString()}</span>
                   </div>
-                  <div className="bg-white p-3 rounded-xl border border-gray-200/60">
-                    <span className="text-[8px] font-black uppercase text-gray-400 block">Principal</span>
-                    <span className="text-xs font-black text-gray-900 mt-1 block">₱{selectedAccount.principalBalance?.toLocaleString()}</span>
+                  <div className="bg-white p-3 rounded-xl border border-emerald-200/60">
+                    <span className="text-[8px] font-black uppercase text-emerald-800 block">Principal Bal.</span>
+                    <span className="text-xs font-black text-emerald-900 mt-1 block">₱{selectedAccount.principalBalance?.toLocaleString()}</span>
                   </div>
-                  <div className="bg-white p-3 rounded-xl border border-gray-200/60">
-                    <span className="text-[8px] font-black uppercase text-gray-400 block">Interest</span>
-                    <span className="text-xs font-black text-gray-900 mt-1 block">₱{selectedAccount.interestBalance?.toLocaleString()}</span>
+                  <div className="bg-white p-3 rounded-xl border border-teal-200/60">
+                    <span className="text-[8px] font-black uppercase text-teal-800 block">Interest Bal.</span>
+                    <span className="text-xs font-black text-teal-900 mt-1 block">₱{selectedAccount.interestBalance?.toLocaleString()}</span>
                   </div>
                   <div className="bg-white p-3 rounded-xl border border-amber-200/60">
                     <span className="text-[8px] font-black uppercase text-amber-700 block">Penalty</span>
@@ -1085,6 +1518,212 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                     <span className="text-[8px] font-black uppercase text-red-700 block">Total Balance</span>
                     <span className="text-xs font-black text-red-600 mt-1 block">₱{selectedAccount.totalBalance?.toLocaleString()}</span>
                   </div>
+                </div>
+
+                {/* LINE GRAPH: VISUAL BALANCE REDUCTION TREND (PAG-GALAW NG ACCOUNT) */}
+                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <TrendingDown size={16} className="text-emerald-700" />
+                        <h5 className="text-xs font-black uppercase tracking-wider text-gray-900">
+                          Balance Reduction Line Graph (Pag-galaw ng Principal & Interest)
+                        </h5>
+                      </div>
+                      <p className="text-[10px] text-gray-500 font-medium">
+                        Real-time trajectory curve showing balance reduction as payments are applied
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-[10px] font-bold">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-3 h-3 rounded-full bg-emerald-600 inline-block" />
+                        <span className="text-gray-700">Principal</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-3 h-3 rounded-full bg-teal-500 inline-block" />
+                        <span className="text-gray-700">Interest</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-3 h-3 rounded-full bg-red-500 inline-block" />
+                        <span className="text-gray-700">Total Balance</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Prepare Chart Data Points */}
+                  {(() => {
+                    const snapshots = selectedAccount.balanceSnapshots && selectedAccount.balanceSnapshots.length > 0
+                      ? selectedAccount.balanceSnapshots
+                      : [
+                          {
+                            date: selectedAccount.entryDate,
+                            timestamp: selectedAccount.createdAt,
+                            label: 'Initial Entry',
+                            principalBalance: selectedAccount.initialPrincipal || selectedAccount.principalBalance,
+                            interestBalance: selectedAccount.initialInterest || selectedAccount.interestBalance,
+                            penalty: selectedAccount.penalty,
+                            pdi: selectedAccount.pdi,
+                            totalBalance: selectedAccount.initialTotal || selectedAccount.totalBalance,
+                            actionNote: 'Initial registration'
+                          }
+                        ];
+
+                    const chartData = snapshots.map((s, idx) => ({
+                      name: s.date ? format(new Date(s.date), 'MMM d') : `Step ${idx + 1}`,
+                      fullDate: s.date,
+                      label: s.label || `Point ${idx + 1}`,
+                      Principal: s.principalBalance,
+                      Interest: s.interestBalance,
+                      Penalty: s.penalty,
+                      PDI: s.pdi,
+                      Total: s.totalBalance,
+                      note: s.actionNote
+                    }));
+
+                    return (
+                      <div className="w-full h-64 pt-2">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
+                            <defs>
+                              <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#ef4444" stopOpacity={0.15}/>
+                                <stop offset="95%" stopColor="#ef4444" stopOpacity={0.0}/>
+                              </linearGradient>
+                              <linearGradient id="colorPrincipal" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#059669" stopOpacity={0.2}/>
+                                <stop offset="95%" stopColor="#059669" stopOpacity={0.0}/>
+                              </linearGradient>
+                              <linearGradient id="colorInterest" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#0d9488" stopOpacity={0.2}/>
+                                <stop offset="95%" stopColor="#0d9488" stopOpacity={0.0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                            <XAxis 
+                              dataKey="name" 
+                              tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }}
+                              axisLine={{ stroke: '#cbd5e1' }}
+                            />
+                            <YAxis 
+                              tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }}
+                              axisLine={{ stroke: '#cbd5e1' }}
+                              tickFormatter={(val) => `₱${(val / 1000).toFixed(0)}k`}
+                            />
+                            <Tooltip 
+                              content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                  const data = payload[0].payload;
+                                  return (
+                                    <div className="bg-white p-3 rounded-xl shadow-xl border border-gray-200 text-xs space-y-1.5 z-50">
+                                      <div className="font-black text-gray-900 border-b border-gray-100 pb-1 flex justify-between gap-4">
+                                        <span>{data.label}</span>
+                                        <span className="text-gray-400 font-mono text-[10px]">{data.fullDate}</span>
+                                      </div>
+                                      <div className="space-y-1 pt-1 font-semibold">
+                                        <div className="flex justify-between gap-4 text-emerald-700">
+                                          <span>Principal:</span>
+                                          <span className="font-black">₱{data.Principal?.toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-4 text-teal-700">
+                                          <span>Interest:</span>
+                                          <span className="font-black">₱{data.Interest?.toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-4 text-amber-700">
+                                          <span>Penalty:</span>
+                                          <span className="font-black">₱{data.Penalty?.toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-4 text-purple-700">
+                                          <span>PDI:</span>
+                                          <span className="font-black">₱{data.PDI?.toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-4 text-red-600 font-black border-t border-gray-100 pt-1">
+                                          <span>Total Balance:</span>
+                                          <span>₱{data.Total?.toLocaleString()}</span>
+                                        </div>
+                                      </div>
+                                      {data.note && (
+                                        <p className="text-[9px] text-gray-400 italic pt-1 border-t border-gray-100">
+                                          {data.note}
+                                        </p>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              }}
+                            />
+                            <Area 
+                              type="monotone" 
+                              dataKey="Total" 
+                              stroke="#ef4444" 
+                              strokeWidth={3} 
+                              fillOpacity={1} 
+                              fill="url(#colorTotal)" 
+                            />
+                            <Line 
+                              type="monotone" 
+                              dataKey="Principal" 
+                              stroke="#059669" 
+                              strokeWidth={2.5} 
+                              dot={{ r: 4, fill: '#059669' }} 
+                              activeDot={{ r: 6 }} 
+                            />
+                            <Line 
+                              type="monotone" 
+                              dataKey="Interest" 
+                              stroke="#0d9488" 
+                              strokeWidth={2} 
+                              strokeDasharray="4 4"
+                              dot={{ r: 3, fill: '#0d9488' }} 
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Payment History Table (if payments logged) */}
+                  {selectedAccount.payments && selectedAccount.payments.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-gray-500">
+                          Recorded Payment Receipts ({selectedAccount.payments.length})
+                        </span>
+                        <span className="text-[10px] font-black text-emerald-800">
+                          Total Paid: ₱{selectedAccount.payments.reduce((s, p) => s + (p.amount || 0), 0).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="overflow-x-auto max-h-40 overflow-y-auto rounded-xl border border-gray-100">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-gray-50 text-[9px] font-black uppercase text-gray-400 italic border-b border-gray-100">
+                              <th className="p-2">Date</th>
+                              <th className="p-2">OR / Ref</th>
+                              <th className="p-2">Method</th>
+                              <th className="p-2 text-right">Total Paid</th>
+                              <th className="p-2 text-right">Principal</th>
+                              <th className="p-2 text-right">Interest</th>
+                              <th className="p-2">Received By</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-50 font-semibold text-gray-700">
+                            {selectedAccount.payments.map((p) => (
+                              <tr key={p.id} className="hover:bg-gray-50/50 text-[11px]">
+                                <td className="p-2 font-mono text-gray-500">{p.paymentDate}</td>
+                                <td className="p-2 font-mono text-gray-700">{p.orNumber || '-'}</td>
+                                <td className="p-2 font-bold text-gray-800">{p.paymentMethod}</td>
+                                <td className="p-2 text-right font-black text-emerald-700">₱{p.amount.toLocaleString()}</td>
+                                <td className="p-2 text-right text-gray-700">₱{p.principalPaid.toLocaleString()}</td>
+                                <td className="p-2 text-right text-gray-700">₱{p.interestPaid.toLocaleString()}</td>
+                                <td className="p-2 text-gray-500 text-[10px]">{p.recordedByName}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Status Switcher */}
@@ -1269,6 +1908,234 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
           </div>
         </div>
       )}
+
+      {/* MODAL 3: RECORD PAYMENT / BAWAS (Principal, Interest, Penalty, PDI Reduction) */}
+      {isPaymentModalOpen && selectedAccount && (
+        <div className="fixed inset-0 bg-emerald-950/40 backdrop-blur-md z-60 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-emerald-100 animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-linear-to-r from-emerald-800 to-teal-900 p-6 text-white flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-white/10 rounded-xl">
+                  <CreditCard size={22} className="text-emerald-300" />
+                </div>
+                <div>
+                  <span className="text-[9px] font-black uppercase tracking-[0.3em] text-emerald-300">
+                    Payment Collection Entry
+                  </span>
+                  <h3 className="text-lg font-black uppercase tracking-tight">Record Bawas / Payment</h3>
+                  <p className="text-[10px] text-white/70 font-bold uppercase truncate max-w-[260px]">
+                    Borrower: {selectedAccount.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPaymentModalOpen(false)}
+                className="hover:rotate-90 transition-transform bg-white/10 p-2 rounded-xl text-white cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleRecordPayment} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              {payError && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold flex items-center gap-2">
+                  <AlertTriangle size={16} />
+                  <span>{payError}</span>
+                </div>
+              )}
+
+              {/* Current Balances Alert */}
+              <div className="bg-emerald-50/70 p-3.5 rounded-2xl border border-emerald-200/80 space-y-2">
+                <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider text-emerald-900">
+                  <span>Current Outstanding Balances</span>
+                  <span className="text-red-600 font-extrabold">Total: ₱{selectedAccount.totalBalance?.toLocaleString()}</span>
+                </div>
+                <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                  <div className="bg-white p-2 rounded-lg border border-emerald-100">
+                    <span className="text-[8px] text-gray-400 font-black block">Principal</span>
+                    <span className="font-black text-gray-800">₱{selectedAccount.principalBalance?.toLocaleString()}</span>
+                  </div>
+                  <div className="bg-white p-2 rounded-lg border border-emerald-100">
+                    <span className="text-[8px] text-gray-400 font-black block">Interest</span>
+                    <span className="font-black text-gray-800">₱{selectedAccount.interestBalance?.toLocaleString()}</span>
+                  </div>
+                  <div className="bg-white p-2 rounded-lg border border-emerald-100">
+                    <span className="text-[8px] text-gray-400 font-black block">Penalty</span>
+                    <span className="font-black text-amber-700">₱{selectedAccount.penalty?.toLocaleString()}</span>
+                  </div>
+                  <div className="bg-white p-2 rounded-lg border border-emerald-100">
+                    <span className="text-[8px] text-gray-400 font-black block">PDI</span>
+                    <span className="font-black text-purple-700">₱{selectedAccount.pdi?.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Details */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 block mb-1">
+                    Payment Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={payDate}
+                    onChange={(e) => setPayDate(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 block mb-1">
+                    Payment Method
+                  </label>
+                  <select
+                    value={payMethod}
+                    onChange={(e: any) => setPayMethod(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  >
+                    <option value="Cash">Cash Collection</option>
+                    <option value="GCash">GCash Transfer</option>
+                    <option value="Bank Transfer">Bank Deposit / Transfer</option>
+                    <option value="PDC">PDC / Cheque</option>
+                    <option value="Other">Other Mode</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Deductions Breakdown */}
+              <div className="space-y-3 pt-2 border-t border-gray-100">
+                <span className="text-[10px] font-black uppercase tracking-wider text-gray-600 block">
+                  Payment Allocation / Magkano ang Nabawas:
+                </span>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-emerald-800 block mb-1">
+                      Bawas sa Principal (PHP)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0.00"
+                      max={selectedAccount.principalBalance || undefined}
+                      value={payPrincipal}
+                      onChange={(e) => setPayPrincipal(e.target.value)}
+                      className="w-full px-3.5 py-2 bg-gray-50 border border-emerald-300 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-teal-800 block mb-1">
+                      Bawas sa Interest (PHP)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0.00"
+                      max={selectedAccount.interestBalance || undefined}
+                      value={payInterest}
+                      onChange={(e) => setPayInterest(e.target.value)}
+                      className="w-full px-3.5 py-2 bg-gray-50 border border-teal-300 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-amber-700 block mb-1">
+                      Bawas sa Penalty (PHP)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0.00"
+                      max={selectedAccount.penalty || undefined}
+                      value={payPenalty}
+                      onChange={(e) => setPayPenalty(e.target.value)}
+                      className="w-full px-3.5 py-2 bg-gray-50 border border-amber-300 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-purple-700 block mb-1">
+                      Bawas sa PDI (PHP)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0.00"
+                      max={selectedAccount.pdi || undefined}
+                      value={payPdi}
+                      onChange={(e) => setPayPdi(e.target.value)}
+                      className="w-full px-3.5 py-2 bg-gray-50 border border-purple-300 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                    />
+                  </div>
+                </div>
+
+                {/* Computed Total Payment Banner */}
+                <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200 flex justify-between items-center">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-900">
+                    Total Amount Received / Bawas:
+                  </span>
+                  <span className="text-base font-black text-emerald-800">
+                    ₱{computedPaymentAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
+              {/* Reference & Remarks */}
+              <div className="grid grid-cols-1 gap-3">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 block mb-1">
+                    Official Receipt (OR) / Ref No.
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. OR-84920 or Ref #109283"
+                    value={payOrNumber}
+                    onChange={(e) => setPayOrNumber(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 block mb-1">
+                    Payment Notes / Remarks
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Partial cash payment handed during morning field collection"
+                    value={payRemarks}
+                    onChange={(e) => setPayRemarks(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-4 flex justify-end gap-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setIsPaymentModalOpen(false)}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-black uppercase tracking-wider rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingPay}
+                  className="px-5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
+                >
+                  {isSubmittingPay ? 'Processing Bawas...' : 'Apply Payment & Update Chart'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

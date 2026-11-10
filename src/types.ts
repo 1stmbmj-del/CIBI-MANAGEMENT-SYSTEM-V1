@@ -846,6 +846,36 @@ export interface DelinquencyProgressStep {
   note?: string;
 }
 
+
+export interface DelinquencyPayment {
+  id: string;
+  paymentDate: string; // YYYY-MM-DD
+  amount: number;
+  principalPaid: number;
+  interestPaid: number;
+  penaltyPaid?: number;
+  pdiPaid?: number;
+  orNumber?: string; // Official Receipt / Reference No.
+  paymentMethod?: 'Cash' | 'GCash' | 'Bank Transfer' | 'PDC' | 'Other';
+  remarks?: string;
+  recordedBy: string;
+  recordedByName: string;
+  recordedByRole: string;
+  timestamp: string; // ISO timestamp
+}
+
+export interface BalanceSnapshot {
+  date: string;
+  timestamp: string;
+  label: string;
+  principalBalance: number;
+  interestBalance: number;
+  penalty: number;
+  pdi: number;
+  totalBalance: number;
+  actionNote?: string;
+}
+
 export interface DelinquencyAccount {
   id: string;
   entryDate: string; // Date or datetime string
@@ -858,6 +888,14 @@ export interface DelinquencyAccount {
   penalty: number;
   pdi: number; // Past Due Interest
   totalBalance: number;
+  initialPrincipal?: number;
+  initialInterest?: number;
+  initialTotal?: number;
+  totalPrincipalPaid?: number;
+  totalInterestPaid?: number;
+  totalPaid?: number;
+  payments?: DelinquencyPayment[];
+  balanceSnapshots?: BalanceSnapshot[];
   
   // Progress Line milestones
   fieldVisited: boolean;
