@@ -14668,6 +14668,8 @@ function AttendanceCalendar({ user }: { user: UserProfile }) {
 
     if (leaveActive) return 'LEAVE';
     if (obActive) return 'OB';
+    // Once the date has an End task log (timeOut), mark it as PRESENT
+    if (record && record.timeOut) return 'PRESENT';
     if (totalWorkMinutes >= requiredMinutes) return 'PRESENT';
     if (otActive) return 'OT';
     if (!record) return 'ABSENT';
