@@ -880,6 +880,7 @@ export interface DelinquencyAccount {
   id: string;
   entryDate: string; // Date or datetime string
   name: string;
+  tribe?: Tribe | string;
   address: string;
   contactNumber?: string;
   loanAmount: number;

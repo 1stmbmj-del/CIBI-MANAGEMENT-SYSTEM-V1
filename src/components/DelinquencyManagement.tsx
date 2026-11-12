@@ -6,7 +6,8 @@ import {
   CommunicationType, 
   DelinquencyStatus,
   DelinquencyPayment,
-  BalanceSnapshot
+  BalanceSnapshot,
+  Tribe
 } from '../types';
 import {
   ResponsiveContainer,
@@ -95,11 +96,14 @@ const STATUS_OPTIONS: DelinquencyStatus[] = [
   'Legal / Escalated'
 ];
 
+const TRIBE_OPTIONS: (Tribe | string)[] = ['NCR', 'Cavite', 'Mindoro', 'Rizal'];
+
 export default function DelinquencyManagement({ user }: DelinquencyManagementProps) {
   const [accounts, setAccounts] = useState<DelinquencyAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
+  const [tribeFilter, setTribeFilter] = useState<string>('All');
   
   // Selected account for dossier/details modal
   const [selectedAccount, setSelectedAccount] = useState<DelinquencyAccount | null>(null);
@@ -112,6 +116,7 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [formEntryDate, setFormEntryDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [formName, setFormName] = useState('');
+  const [formTribe, setFormTribe] = useState<string>('NCR');
   const [formAddress, setFormAddress] = useState('');
   const [formContact, setFormContact] = useState('');
   const [formLoanAmount, setFormLoanAmount] = useState<string>('');
@@ -183,17 +188,24 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
     return () => unsubscribe();
   }, [selectedAccount?.id]);
 
-  // Filter accounts
+  // Filter accounts by search, status, and tribe (NCR, CAVITE, MINDORO)
   const filteredAccounts = useMemo(() => {
     return accounts.filter(acc => {
       const matchSearch = 
         acc.name.toLowerCase().includes(search.toLowerCase()) ||
         acc.address.toLowerCase().includes(search.toLowerCase()) ||
+        (acc.tribe && acc.tribe.toLowerCase().includes(search.toLowerCase())) ||
         (acc.contactNumber && acc.contactNumber.includes(search));
       const matchStatus = statusFilter === 'All' || acc.status === statusFilter;
-      return matchSearch && matchStatus;
+      
+      const accTribe = (acc.tribe || 'NCR').toUpperCase();
+      const matchTribe = 
+        tribeFilter === 'All' || 
+        accTribe === tribeFilter.toUpperCase();
+
+      return matchSearch && matchStatus && matchTribe;
     });
-  }, [accounts, search, statusFilter]);
+  }, [accounts, search, statusFilter, tribeFilter]);
 
   // Totals for metrics
   const aggregateMetrics = useMemo(() => {
@@ -241,6 +253,7 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
       const newAcc: Omit<DelinquencyAccount, 'id'> = {
         entryDate: formEntryDate,
         name: formName.trim(),
+        tribe: formTribe,
         address: formAddress.trim(),
         contactNumber: formContact.trim() || '',
         loanAmount: parseFloat(formLoanAmount) || 0,
@@ -274,6 +287,7 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
 
       // Reset Form
       setFormName('');
+      setFormTribe('NCR');
       setFormAddress('');
       setFormContact('');
       setFormLoanAmount('');
@@ -616,7 +630,13 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
               Summary Report:
             </span>
             <button
-              onClick={() => generateSummaryPDF(filteredAccounts, statusFilter === 'All' ? 'All Active Accounts' : `Filtered: ${statusFilter}`)}
+              onClick={() => {
+                const filterDesc = [
+                  tribeFilter !== 'All' ? `Tribe: ${tribeFilter.toUpperCase()}` : null,
+                  statusFilter !== 'All' ? `Status: ${statusFilter}` : null
+                ].filter(Boolean).join(' • ') || 'All Accounts';
+                generateSummaryPDF(filteredAccounts, filterDesc);
+              }}
               disabled={filteredAccounts.length === 0}
               className="flex items-center gap-1.5 px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer shadow-sm hover:scale-102"
               title="Download Portfolio Summary in PDF format"
@@ -706,21 +726,46 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
-          <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 shrink-0">Filter Status:</span>
-          {['All', ...STATUS_OPTIONS].map((st) => (
-            <button
-              key={st}
-              onClick={() => setStatusFilter(st)}
-              className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shrink-0 cursor-pointer ${
-                statusFilter === st
-                  ? 'bg-emerald-800 text-white shadow-sm'
-                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              {st}
-            </button>
-          ))}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
+          {/* Tribe Filter Buttons: NCR, CAVITE, MINDORO */}
+          <div className="flex items-center gap-1.5 bg-gray-50 p-1 rounded-2xl border border-gray-200/70 overflow-x-auto max-w-full">
+            <span className="text-[9px] font-black uppercase tracking-widest text-gray-500 px-2 shrink-0 flex items-center gap-1">
+              <MapPin size={11} className="text-emerald-700" /> Tribe:
+            </span>
+            {['All', 'NCR', 'Cavite', 'Mindoro', 'Rizal'].map((tr) => (
+              <button
+                key={tr}
+                type="button"
+                onClick={() => setTribeFilter(tr)}
+                className={`px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shrink-0 cursor-pointer ${
+                  tribeFilter.toUpperCase() === tr.toUpperCase()
+                    ? 'bg-emerald-700 text-white shadow-sm scale-102'
+                    : 'text-gray-600 hover:text-emerald-800 hover:bg-white/80'
+                }`}
+              >
+                {tr.toUpperCase()}
+              </button>
+            ))}
+          </div>
+
+          {/* Status Filter Buttons */}
+          <div className="flex items-center gap-1 overflow-x-auto max-w-full pb-1 sm:pb-0">
+            <span className="text-[9px] font-black uppercase tracking-widest text-gray-400 shrink-0 px-1">Status:</span>
+            {['All', ...STATUS_OPTIONS].map((st) => (
+              <button
+                key={st}
+                type="button"
+                onClick={() => setStatusFilter(st)}
+                className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shrink-0 cursor-pointer ${
+                  statusFilter === st
+                    ? 'bg-gray-900 text-white shadow-sm'
+                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                {st}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -768,6 +813,7 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                 <tr className="bg-gray-50/80 border-b border-gray-100 text-[10px] font-black text-gray-400 uppercase tracking-widest italic">
                   <th className="p-3.5">Entry Date & Time</th>
                   <th className="p-3.5">Borrower Name</th>
+                  <th className="p-3.5 text-center">Tribe</th>
                   <th className="p-3.5">Address</th>
                   <th className="p-3.5 text-right">Loan Amount</th>
                   <th className="p-3.5 text-right">Principal Bal.</th>
@@ -807,6 +853,21 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                             <Phone size={10} /> {acc.contactNumber}
                           </div>
                         )}
+                      </td>
+
+                      {/* Tribe Badge */}
+                      <td className="p-3.5 text-center whitespace-nowrap">
+                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border ${
+                          (acc.tribe || '').toUpperCase() === 'CAVITE'
+                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : (acc.tribe || '').toUpperCase() === 'MINDORO'
+                            ? 'bg-purple-50 text-purple-700 border-purple-200'
+                            : (acc.tribe || '').toUpperCase() === 'RIZAL'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        }`}>
+                          {acc.tribe || 'NCR'}
+                        </span>
                       </td>
 
                       <td className="p-3.5 max-w-[180px] truncate text-gray-600 font-medium text-[11px]" title={acc.address}>
@@ -960,7 +1021,7 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
               </tbody>
               <tfoot className="border-t-2 border-gray-100 bg-gray-50/80 font-black text-gray-900 text-xs">
                 <tr>
-                  <td className="p-3.5 uppercase tracking-wider text-[10px] text-gray-500" colSpan={3}>
+                  <td className="p-3.5 uppercase tracking-wider text-[10px] text-gray-500" colSpan={4}>
                     Portfolio Total ({filteredAccounts.length} Accounts)
                   </td>
                   <td className="p-3.5 text-right">
@@ -1030,7 +1091,7 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                   Borrower & Entry Coordinates
                 </h4>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 block mb-1">
                       Entry Date *
@@ -1042,6 +1103,22 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                       onChange={(e) => setFormEntryDate(e.target.value)}
                       className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                     />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-emerald-800 block mb-1">
+                      Tribe / Region *
+                    </label>
+                    <select
+                      value={formTribe}
+                      onChange={(e) => setFormTribe(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-emerald-50/60 border border-emerald-300 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 text-emerald-950 font-black"
+                    >
+                      <option value="NCR">NCR</option>
+                      <option value="Cavite">CAVITE</option>
+                      <option value="Mindoro">MINDORO</option>
+                      <option value="Rizal">RIZAL</option>
+                    </select>
                   </div>
 
                   <div>
@@ -1224,7 +1301,12 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                     Entry: {selectedAccount.entryDate} at {format(new Date(selectedAccount.createdAt), 'hh:mm a')}
                   </span>
                 </div>
-                <h3 className="text-2xl font-black uppercase tracking-tight mt-1.5">{selectedAccount.name}</h3>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <h3 className="text-2xl font-black uppercase tracking-tight">{selectedAccount.name}</h3>
+                  <span className="px-2.5 py-0.5 bg-emerald-700 text-white rounded-md text-[9px] font-black uppercase tracking-wider border border-emerald-500/30">
+                    Tribe: {selectedAccount.tribe || 'NCR'}
+                  </span>
+                </div>
                 <p className="text-xs text-emerald-200 font-medium flex items-center gap-1.5 mt-0.5">
                   <MapPin size={13} /> {selectedAccount.address}
                 </p>

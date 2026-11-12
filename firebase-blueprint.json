@@ -917,6 +917,15 @@
             "type": "object"
           },
           "description": "Historical balance trend points for line graph"
+        },
+        "tribe": {
+          "type": "string",
+          "enum": [
+            "NCR",
+            "Cavite",
+            "Mindoro",
+            "Rizal"
+          ]
         }
       },
       "required": [

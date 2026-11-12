@@ -54,6 +54,7 @@ export const generateSummaryPDF = (accounts: DelinquencyAccount[], filterTitle: 
   const head = [[
     'Entry Date & Time',
     'Borrower Name',
+    'Tribe',
     'Address',
     'Contact',
     'Loan Amount',
@@ -76,6 +77,7 @@ export const generateSummaryPDF = (accounts: DelinquencyAccount[], filterTitle: 
     return [
       entryFormatted,
       a.name.toUpperCase(),
+      (a.tribe || 'NCR').toUpperCase(),
       a.address,
       a.contactNumber || '-',
       (a.loanAmount || 0).toLocaleString(),
@@ -95,6 +97,7 @@ export const generateSummaryPDF = (accounts: DelinquencyAccount[], filterTitle: 
   const foot = [[
     'TOTAL',
     `Count: ${accounts.length}`,
+    '',
     '',
     '',
     totalLoan.toLocaleString(),
@@ -134,20 +137,21 @@ export const generateSummaryPDF = (accounts: DelinquencyAccount[], filterTitle: 
       fontSize: 8
     },
     columnStyles: {
-      0: { cellWidth: 70 },
-      1: { cellWidth: 85, fontStyle: 'bold' },
-      2: { cellWidth: 100 },
-      3: { cellWidth: 55 },
-      4: { halign: 'right' },
+      0: { cellWidth: 65 },
+      1: { cellWidth: 80, fontStyle: 'bold' },
+      2: { cellWidth: 45, halign: 'center', fontStyle: 'bold' },
+      3: { cellWidth: 90 },
+      4: { cellWidth: 50 },
       5: { halign: 'right' },
       6: { halign: 'right' },
       7: { halign: 'right' },
       8: { halign: 'right' },
-      9: { halign: 'right', fontStyle: 'bold', textColor: [185, 28, 28] },
-      10: { halign: 'center', fontSize: 7 },
+      9: { halign: 'right' },
+      10: { halign: 'right', fontStyle: 'bold', textColor: [185, 28, 28] },
       11: { halign: 'center', fontSize: 7 },
-      12: { halign: 'center' },
-      13: { halign: 'center' }
+      12: { halign: 'center', fontSize: 7 },
+      13: { halign: 'center' },
+      14: { halign: 'center' }
     },
     didDrawPage: (data) => {
       // Footer page numbering
@@ -174,6 +178,7 @@ export const generateSummaryExcel = (accounts: DelinquencyAccount[]) => {
     'Entry Date': a.entryDate,
     'Entry Time': a.createdAt ? format(new Date(a.createdAt), 'hh:mm:ss a') : '',
     'Borrower Name': a.name,
+    'Tribe': a.tribe || 'NCR',
     'Address': a.address,
     'Contact Number': a.contactNumber || 'N/A',
     'Loan Amount (PHP)': a.loanAmount || 0,
@@ -267,7 +272,7 @@ export const generateIndividualPDF = (account: DelinquencyAccount) => {
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(75, 85, 99);
-  doc.text(`Address: ${account.address}`, 48, currentY + 38);
+  doc.text(`Tribe: ${(account.tribe || 'NCR').toUpperCase()}  •  Address: ${account.address}`, 48, currentY + 38);
   doc.text(`Contact: ${account.contactNumber || 'N/A'}  •  Account ID: ${account.id}`, 48, currentY + 52);
   doc.text(`Status: ${account.status.toUpperCase()}  •  Created By: ${account.createdByName} (${account.createdByRole})`, 48, currentY + 65);
 
@@ -513,6 +518,7 @@ export const generateIndividualExcel = (account: DelinquencyAccount) => {
     { 'Attribute': 'ACCOUNT IDENTIFICATION', 'Value': '' },
     { 'Attribute': 'Account ID', 'Value': account.id },
     { 'Attribute': 'Borrower Name', 'Value': account.name },
+    { 'Attribute': 'Tribe', 'Value': account.tribe || 'NCR' },
     { 'Attribute': 'Address', 'Value': account.address },
     { 'Attribute': 'Contact Number', 'Value': account.contactNumber || 'N/A' },
     { 'Attribute': 'Status', 'Value': account.status },
