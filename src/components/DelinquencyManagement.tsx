@@ -71,7 +71,8 @@ import {
   Receipt,
   ArrowDownRight,
   Wallet,
-  Sparkles
+  Sparkles,
+  ArrowLeftRight
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -164,6 +165,13 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
   const [commRemarks, setCommRemarks] = useState('');
   const [commPromiseToPay, setCommPromiseToPay] = useState('');
   const [isSubmittingComm, setIsSubmittingComm] = useState(false);
+
+  // Transfer Tribe modal state
+  const [transferTarget, setTransferTarget] = useState<DelinquencyAccount | null>(null);
+  const [targetTribe, setTargetTribe] = useState<string>('NCR');
+  const [transferRemarks, setTransferRemarks] = useState('');
+  const [isTransferring, setIsTransferring] = useState(false);
+  const [transferError, setTransferError] = useState('');
 
   // Real-time Firestore sync
   useEffect(() => {
@@ -499,7 +507,7 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
       const updatedComms = [newComm, ...(selectedAccount.communications || [])];
 
       // Auto update status if Field Visit was logged and not yet visited
-      let updateFields: any = {
+      const updateFields: any = {
         communications: updatedComms,
         updatedAt: now
       };
@@ -597,6 +605,64 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
       } catch (err) {
         console.error('Error deleting delinquency record:', err);
       }
+    }
+  };
+
+  // Open Transfer Tribe modal
+  const handleOpenTransferModal = (account: DelinquencyAccount) => {
+    const currentTribe = account.tribe || 'NCR';
+    const nextDefault = TRIBE_OPTIONS.find(t => t.toUpperCase() !== currentTribe.toUpperCase()) || 'NCR';
+    setTransferTarget(account);
+    setTargetTribe(nextDefault);
+    setTransferRemarks('');
+    setTransferError('');
+  };
+
+  // Submit Tribe Transfer
+  const handleTransferTribe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!transferTarget) return;
+
+    const currentTribe = transferTarget.tribe || 'NCR';
+    if (!targetTribe) {
+      setTransferError('Please select a destination tribe.');
+      return;
+    }
+    if (targetTribe.toUpperCase() === currentTribe.toUpperCase()) {
+      setTransferError(`Account is already assigned to ${currentTribe}. Please select a different tribe.`);
+      return;
+    }
+
+    setIsTransferring(true);
+    setTransferError('');
+
+    try {
+      const now = new Date().toISOString();
+      const noteSuffix = transferRemarks.trim() ? `: ${transferRemarks.trim()}` : '';
+      const transferAuditComm: DelinquencyCommunication = {
+        id: 'comm-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+        type: 'Other',
+        promiseToPay: '',
+        remarks: `[TRIBE TRANSFER] Account transferred from ${currentTribe} to ${targetTribe}${noteSuffix}`,
+        timestamp: now,
+        userId: user.id || '',
+        userName: user.fullName || 'Unknown User',
+        userRole: user.role || 'coordinator'
+      };
+
+      await updateDoc(doc(db, 'delinquencies', transferTarget.id), {
+        tribe: targetTribe,
+        communications: [transferAuditComm, ...(transferTarget.communications || [])],
+        updatedAt: now
+      });
+
+      setTransferTarget(null);
+      setTransferRemarks('');
+    } catch (err: any) {
+      console.error('Error transferring account tribe:', err);
+      setTransferError(err?.message || 'Failed to transfer account to selected tribe.');
+    } finally {
+      setIsTransferring(false);
     }
   };
 
@@ -1003,6 +1069,13 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                             title="Open Dossier, Progress Line & Communication Ledger"
                           >
                             <ChevronRight size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleOpenTransferModal(acc)}
+                            className="p-1.5 text-gray-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                            title="Transfer Account to Selected Tribe"
+                          >
+                            <ArrowLeftRight size={15} />
                           </button>
                           {user.role === 'admin' && (
                             <button
@@ -2211,6 +2284,136 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                   className="px-5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
                 >
                   {isSubmittingPay ? 'Processing Bawas...' : 'Apply Payment & Update Chart'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================
+          MODAL 4: TRANSFER ACCOUNT TO TRIBE
+          ========================================================= */}
+      {transferTarget && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 my-auto">
+            <div className="bg-amber-600 p-6 text-white flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/15 rounded-xl">
+                  <ArrowLeftRight size={20} />
+                </div>
+                <div>
+                  <h2 className="text-base font-black uppercase tracking-tight">Transfer Account Tribe</h2>
+                  <p className="text-[10px] text-amber-100 font-medium">
+                    Reassign {transferTarget.name} to another branch/tribe
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTransferTarget(null)}
+                className="p-2 hover:bg-white/10 rounded-full transition-colors cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleTransferTribe} className="p-6 space-y-5">
+              {transferError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-xl flex items-center gap-2">
+                  <AlertTriangle size={14} className="shrink-0" />
+                  <span>{transferError}</span>
+                </div>
+              )}
+
+              {/* Account Summary & Current Tribe */}
+              <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Client Account</p>
+                  <p className="text-sm font-black text-gray-900 truncate">{transferTarget.name}</p>
+                  <p className="text-[11px] text-gray-500 truncate">{transferTarget.address}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">Current Tribe</p>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    <MapPin size={10} />
+                    {transferTarget.tribe || 'NCR'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Select Destination Tribe */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 block mb-2">
+                  Select Destination Tribe *
+                </label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {TRIBE_OPTIONS.map((tribe) => {
+                    const isCurrent = (transferTarget.tribe || 'NCR').toUpperCase() === tribe.toUpperCase();
+                    const isSelected = targetTribe.toUpperCase() === tribe.toUpperCase();
+                    return (
+                      <button
+                        key={tribe}
+                        type="button"
+                        disabled={isCurrent}
+                        onClick={() => {
+                          setTargetTribe(tribe);
+                          setTransferError('');
+                        }}
+                        className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between ${
+                          isCurrent
+                            ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                            : isSelected
+                            ? 'bg-amber-50 border-amber-500 text-amber-900 ring-2 ring-amber-500/20 cursor-pointer'
+                            : 'bg-white border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50/40 cursor-pointer'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <MapPin size={14} className={isSelected && !isCurrent ? 'text-amber-600' : 'text-gray-400'} />
+                          <span className="text-xs font-black uppercase tracking-wider">{tribe}</span>
+                        </div>
+                        {isCurrent ? (
+                          <span className="text-[9px] font-black uppercase bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">
+                            Current
+                          </span>
+                        ) : isSelected ? (
+                          <Check size={14} className="text-amber-600" />
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Optional Transfer Reason / Notes */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 block mb-1">
+                  Transfer Reason / Remarks (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Client relocated or reassigned to Cavite remedial team..."
+                  value={transferRemarks}
+                  onChange={(e) => setTransferRemarks(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 resize-none"
+                />
+              </div>
+
+              <div className="pt-3 flex justify-end gap-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setTransferTarget(null)}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-black uppercase tracking-wider rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isTransferring}
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                >
+                  <ArrowLeftRight size={14} />
+                  {isTransferring ? 'Transferring...' : `Transfer to ${targetTribe}`}
                 </button>
               </div>
             </form>

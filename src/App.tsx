@@ -523,6 +523,7 @@ const api = {
           return { success: true };
         }
         if (parts[2] === 'delinquencies') {
+          const id = parts[3];
           console.log(`Deleting delinquency account: ${id}`);
           await deleteDoc(doc(db, 'delinquencies', id));
           return { success: true };
