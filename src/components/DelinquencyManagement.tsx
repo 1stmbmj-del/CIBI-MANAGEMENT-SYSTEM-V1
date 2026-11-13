@@ -667,7 +667,7 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
   };
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-24">
+    <div className="space-y-6 w-full max-w-[1920px] mx-auto pb-24">
       {/* Header Banner */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-linear-to-r from-emerald-900 via-emerald-800 to-teal-900 p-8 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
         <div className="space-y-2 z-10">
@@ -780,8 +780,8 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
       </div>
 
       {/* Filter & Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="relative w-full sm:w-96">
+      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+        <div className="relative w-full xl:w-96 shrink-0">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
@@ -792,7 +792,7 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
           />
         </div>
 
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3 w-full xl:w-auto">
           {/* Tribe Filter Buttons: NCR, CAVITE, MINDORO */}
           <div className="flex items-center gap-1.5 bg-gray-50 p-1 rounded-2xl border border-gray-200/70 overflow-x-auto max-w-full">
             <span className="text-[9px] font-black uppercase tracking-widest text-gray-500 px-2 shrink-0 flex items-center gap-1">
@@ -936,7 +936,7 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                         </span>
                       </td>
 
-                      <td className="p-3.5 max-w-[180px] truncate text-gray-600 font-medium text-[11px]" title={acc.address}>
+                      <td className="p-3.5 max-w-[260px] truncate text-gray-600 font-medium text-[11px]" title={acc.address}>
                         {acc.address}
                       </td>
 
@@ -1359,7 +1359,7 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
       {/* MODAL 2: ACCOUNT DOSSIER, PROGRESS LINE & COMMUNICATION LOGS */}
       {selectedAccount && (
         <div className="fixed inset-0 bg-emerald-950/40 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-emerald-100 flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white w-full max-w-6xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-emerald-100 flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="bg-linear-to-r from-emerald-800 to-teal-900 p-6 text-white flex justify-between items-start shrink-0">
               <div>

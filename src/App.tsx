@@ -13157,8 +13157,8 @@ function DataStorage({ user }: { user: UserProfile }) {
   );
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
-      <div className="flex flex-col gap-6 bg-white p-8 rounded-3xl border border-gray-100 shadow-sm text-left">
+    <div className="space-y-6 w-full max-w-[1920px] mx-auto pb-20">
+      <div className="flex flex-col gap-6 bg-white p-6 md:p-8 rounded-3xl border border-gray-100 shadow-sm text-left">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
           <div className="space-y-1">
             <h2 className="text-2xl font-black text-emerald-800 uppercase tracking-tight">Main Data Storage</h2>
@@ -13167,7 +13167,7 @@ function DataStorage({ user }: { user: UserProfile }) {
             </p>
           </div>
           <div className="flex items-center gap-3 w-full lg:w-auto">
-            <div className="relative w-full lg:w-80">
+            <div className="relative w-full lg:w-96">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input 
                 type="text" 
