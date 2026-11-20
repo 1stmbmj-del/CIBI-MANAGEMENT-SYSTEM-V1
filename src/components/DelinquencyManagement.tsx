@@ -72,7 +72,8 @@ import {
   ArrowDownRight,
   Wallet,
   Sparkles,
-  ArrowLeftRight
+  ArrowLeftRight,
+  Pencil
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -172,6 +173,30 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
   const [transferRemarks, setTransferRemarks] = useState('');
   const [isTransferring, setIsTransferring] = useState(false);
   const [transferError, setTransferError] = useState('');
+
+  // Edit Account modal state
+  const [editingAccount, setEditingAccount] = useState<DelinquencyAccount | null>(null);
+  const [editEntryDate, setEditEntryDate] = useState('');
+  const [editName, setEditName] = useState('');
+  const [editTribe, setEditTribe] = useState<string>('NCR');
+  const [editAddress, setEditAddress] = useState('');
+  const [editContact, setEditContact] = useState('');
+  const [editStatus, setEditStatus] = useState<DelinquencyStatus>('Delinquent');
+  const [editLoanAmount, setEditLoanAmount] = useState<string>('');
+  const [editPrincipal, setEditPrincipal] = useState<string>('');
+  const [editInterest, setEditInterest] = useState<string>('');
+  const [editPenalty, setEditPenalty] = useState<string>('');
+  const [editPdi, setEditPdi] = useState<string>('');
+  const [isUpdatingEdit, setIsUpdatingEdit] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  const computedEditTotal = useMemo(() => {
+    const p = parseFloat(editPrincipal) || 0;
+    const i = parseFloat(editInterest) || 0;
+    const pen = parseFloat(editPenalty) || 0;
+    const pdiVal = parseFloat(editPdi) || 0;
+    return p + i + pen + pdiVal;
+  }, [editPrincipal, editInterest, editPenalty, editPdi]);
 
   // Real-time Firestore sync
   useEffect(() => {
@@ -666,6 +691,113 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
     }
   };
 
+  // Open Edit Account modal
+  const handleOpenEditModal = (account: DelinquencyAccount) => {
+    setEditingAccount(account);
+    setEditEntryDate(account.entryDate || format(new Date(), 'yyyy-MM-dd'));
+    setEditName(account.name || '');
+    setEditTribe(account.tribe || 'NCR');
+    setEditAddress(account.address || '');
+    setEditContact(account.contactNumber || '');
+    setEditStatus(account.status || 'Delinquent');
+    setEditLoanAmount(String(account.loanAmount ?? 0));
+    setEditPrincipal(String(account.principalBalance ?? 0));
+    setEditInterest(String(account.interestBalance ?? 0));
+    setEditPenalty(String(account.penalty ?? 0));
+    setEditPdi(String(account.pdi ?? 0));
+    setEditError('');
+  };
+
+  // Save Edited Account
+  const handleUpdateAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAccount) return;
+
+    if (!editName.trim() || !editAddress.trim()) {
+      setEditError('Please enter Borrower Name and Address.');
+      return;
+    }
+
+    setEditError('');
+    setIsUpdatingEdit(true);
+
+    try {
+      const now = new Date().toISOString();
+      const loanVal = parseFloat(editLoanAmount) || 0;
+      const pVal = parseFloat(editPrincipal) || 0;
+      const iVal = parseFloat(editInterest) || 0;
+      const penVal = parseFloat(editPenalty) || 0;
+      const pdiVal = parseFloat(editPdi) || 0;
+      const totVal = pVal + iVal + penVal + pdiVal;
+
+      const balancesChanged =
+        pVal !== (editingAccount.principalBalance || 0) ||
+        iVal !== (editingAccount.interestBalance || 0) ||
+        penVal !== (editingAccount.penalty || 0) ||
+        pdiVal !== (editingAccount.pdi || 0);
+
+      const updatePayload: Record<string, any> = {
+        entryDate: editEntryDate || editingAccount.entryDate,
+        name: editName.trim(),
+        tribe: editTribe || 'NCR',
+        address: editAddress.trim(),
+        contactNumber: editContact.trim() || '',
+        status: editStatus,
+        loanAmount: loanVal,
+        principalBalance: pVal,
+        interestBalance: iVal,
+        penalty: penVal,
+        pdi: pdiVal,
+        totalBalance: totVal,
+        updatedAt: now
+      };
+
+      if ((editingAccount.payments || []).length === 0) {
+        updatePayload.initialPrincipal = pVal;
+        updatePayload.initialInterest = iVal;
+        updatePayload.initialTotal = totVal;
+      }
+
+      if (balancesChanged) {
+        const existingSnapshots = editingAccount.balanceSnapshots || [
+          {
+            date: editingAccount.entryDate,
+            timestamp: editingAccount.createdAt,
+            label: 'Initial Entry',
+            principalBalance: editingAccount.initialPrincipal ?? editingAccount.principalBalance ?? 0,
+            interestBalance: editingAccount.initialInterest ?? editingAccount.interestBalance ?? 0,
+            penalty: editingAccount.penalty ?? 0,
+            pdi: editingAccount.pdi ?? 0,
+            totalBalance: editingAccount.initialTotal ?? editingAccount.totalBalance ?? 0,
+            actionNote: 'Initial logged balance'
+          }
+        ];
+
+        const editSnapshot: BalanceSnapshot = {
+          date: format(new Date(), 'yyyy-MM-dd'),
+          timestamp: now,
+          label: 'Account Edited',
+          principalBalance: pVal,
+          interestBalance: iVal,
+          penalty: penVal,
+          pdi: pdiVal,
+          totalBalance: totVal,
+          actionNote: `Updated by ${user.fullName || 'User'}`
+        };
+
+        updatePayload.balanceSnapshots = [...existingSnapshots, editSnapshot];
+      }
+
+      await updateDoc(doc(db, 'delinquencies', editingAccount.id), updatePayload);
+      setEditingAccount(null);
+    } catch (err: any) {
+      console.error('Error updating delinquency account:', err);
+      setEditError(err?.message || 'Failed to update delinquency account.');
+    } finally {
+      setIsUpdatingEdit(false);
+    }
+  };
+
   return (
     <div className="space-y-6 w-full max-w-[1920px] mx-auto pb-24">
       {/* Header Banner */}
@@ -1077,10 +1209,17 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                           >
                             <ArrowLeftRight size={15} />
                           </button>
+                          <button
+                            onClick={() => handleOpenEditModal(acc)}
+                            className="p-1.5 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                            title="Edit Account Details & Balances"
+                          >
+                            <Pencil size={14} />
+                          </button>
                           {user.role === 'admin' && (
                             <button
                               onClick={() => handleDeleteAccount(acc.id, acc.name)}
-                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                               title="Delete Account"
                             >
                               <Trash2 size={14} />
@@ -2414,6 +2553,262 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                 >
                   <ArrowLeftRight size={14} />
                   {isTransferring ? 'Transferring...' : `Transfer to ${targetTribe}`}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================
+          MODAL 5: EDIT DELINQUENCY ACCOUNT
+          ========================================================= */}
+      {editingAccount && (
+        <div className="fixed inset-0 bg-emerald-950/40 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-blue-100 animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="bg-linear-to-r from-blue-800 to-indigo-900 p-6 text-white flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-white/15 rounded-2xl">
+                  <Pencil size={20} />
+                </div>
+                <div>
+                  <span className="text-[9px] font-black uppercase tracking-[0.3em] text-blue-200">
+                    Update Delinquency Record
+                  </span>
+                  <h3 className="text-xl font-black uppercase tracking-tight">Edit Account Details</h3>
+                  <p className="text-[10px] text-white/75 font-bold uppercase tracking-wider mt-0.5">
+                    Editing: {editingAccount.name} • ID: {editingAccount.id.slice(0, 8)}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingAccount(null)}
+                className="hover:rotate-90 transition-transform bg-white/10 p-2 rounded-xl text-white cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleUpdateAccount} className="p-6 md:p-8 space-y-6 max-h-[80vh] overflow-y-auto">
+              {editError && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold flex items-center gap-2">
+                  <AlertTriangle size={16} />
+                  <span>{editError}</span>
+                </div>
+              )}
+
+              {/* Basic Information */}
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+                  Borrower & Entry Coordinates
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 block mb-1">
+                      Entry Date *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={editEntryDate}
+                      onChange={(e) => setEditEntryDate(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-blue-800 block mb-1">
+                      Tribe / Region *
+                    </label>
+                    <select
+                      value={editTribe}
+                      onChange={(e) => setEditTribe(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-blue-50/60 border border-blue-200 rounded-xl text-xs font-black focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-blue-950"
+                    >
+                      <option value="NCR">NCR</option>
+                      <option value="Cavite">CAVITE</option>
+                      <option value="Mindoro">MINDORO</option>
+                      <option value="Rizal">RIZAL</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 block mb-1">
+                      Account Status *
+                    </label>
+                    <select
+                      value={editStatus}
+                      onChange={(e) => setEditStatus(e.target.value as DelinquencyStatus)}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    >
+                      {STATUS_OPTIONS.map((st) => (
+                        <option key={st} value={st}>{st}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 block mb-1">
+                      Borrower Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Juan Dela Cruz"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 block mb-1">
+                      Borrower Address *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Complete physical / business address"
+                      value={editAddress}
+                      onChange={(e) => setEditAddress(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 block mb-1">
+                      Contact / Mobile No.
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="0917-000-0000"
+                      value={editContact}
+                      onChange={(e) => setEditContact(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 block mb-1">
+                      Original Loan Amount
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0.00"
+                      value={editLoanAmount}
+                      onChange={(e) => setEditLoanAmount(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Financial Balances Breakdown */}
+              <div className="space-y-4 pt-2 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+                    Obligation & Balance Ledger (PHP)
+                  </h4>
+                  <span className="text-[10px] font-black text-blue-800 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                    Auto-Computed Total
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 block mb-1">
+                      Principal Balance *
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      required
+                      placeholder="0.00"
+                      value={editPrincipal}
+                      onChange={(e) => setEditPrincipal(e.target.value)}
+                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 block mb-1">
+                      Interest Balance *
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      required
+                      placeholder="0.00"
+                      value={editInterest}
+                      onChange={(e) => setEditInterest(e.target.value)}
+                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-amber-700 block mb-1">
+                      Penalty
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0.00"
+                      value={editPenalty}
+                      onChange={(e) => setEditPenalty(e.target.value)}
+                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-purple-700 block mb-1">
+                      PDI (Past Due Interest)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0.00"
+                      value={editPdi}
+                      onChange={(e) => setEditPdi(e.target.value)}
+                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2 bg-blue-50/70 p-2.5 rounded-xl border border-blue-200 flex flex-col justify-center">
+                    <span className="text-[9px] font-black uppercase tracking-wider text-blue-800">
+                      Updated Total Balance (P+I+Pen+PDI)
+                    </span>
+                    <span className="text-base font-black text-red-600 mt-0.5">
+                      ₱{computedEditTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-4 flex justify-end gap-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingAccount(null)}
+                  className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-black uppercase tracking-wider rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingEdit}
+                  className="px-6 py-2.5 bg-blue-700 hover:bg-blue-600 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                >
+                  <Check size={14} />
+                  {isUpdatingEdit ? 'Saving Changes...' : 'Save Changes'}
                 </button>
               </div>
             </form>

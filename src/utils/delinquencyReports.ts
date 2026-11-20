@@ -12,6 +12,9 @@ const formatCurrency = (val: number | undefined | null) => {
   })}`;
 };
 
+const REPORT_DISCLAIMER_NOTE =
+  'Note: The figures presented in this Statement of Account are tentative and subject to verification, reconciliation, and final approval by the authorized personnel.';
+
 // ============================================================================
 // 1. GENERATE SUMMARY REPORT - PDF
 // ============================================================================
@@ -117,7 +120,7 @@ export const generateSummaryPDF = (accounts: DelinquencyAccount[], filterTitle: 
     body,
     foot,
     startY: 105,
-    margin: { left: 40, right: 40 },
+    margin: { left: 40, right: 40, bottom: 55 },
     theme: 'grid',
     headStyles: {
       fillColor: [6, 95, 70],
@@ -152,19 +155,38 @@ export const generateSummaryPDF = (accounts: DelinquencyAccount[], filterTitle: 
       12: { halign: 'center', fontSize: 7 },
       13: { halign: 'center' },
       14: { halign: 'center' }
-    },
-    didDrawPage: (data) => {
-      // Footer page numbering
-      const pageCount = (doc as any).internal.getNumberOfPages();
-      doc.setFontSize(8);
-      doc.setTextColor(156, 163, 175);
-      doc.text(
-        `Page ${data.pageNumber} of ${pageCount} • Confidential Document — Akkun Lending Corporation`,
-        40,
-        580
-      );
     }
   });
+
+  // Render Note at the very bottom of the report
+  let noteY = ((doc as any).lastAutoTable?.finalY || 120) + 18;
+  if (noteY > 525) {
+    doc.addPage();
+    noteY = 48;
+  }
+  const wrappedNote = doc.splitTextToSize(REPORT_DISCLAIMER_NOTE, 742);
+  const noteBoxHeight = wrappedNote.length * 12 + 16;
+  doc.setFillColor(249, 250, 251);
+  doc.setDrawColor(209, 213, 219);
+  doc.roundedRect(40, noteY, 762, noteBoxHeight, 4, 4, 'FD');
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(8.5);
+  doc.setTextColor(55, 65, 81);
+  doc.text(wrappedNote, 50, noteY + 14);
+
+  // Page numbering footer on all pages
+  const totalPages = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(156, 163, 175);
+    doc.text(
+      `Page ${i} of ${totalPages} • Confidential Document — Akkun Lending Corporation`,
+      40,
+      580
+    );
+  }
 
   doc.save(`Delinquency_Summary_Report_${format(new Date(), 'yyyyMMdd_HHmm')}.pdf`);
 };
@@ -206,6 +228,7 @@ export const generateSummaryExcel = (accounts: DelinquencyAccount[]) => {
     { wch: 12 }, // Entry Date
     { wch: 12 }, // Entry Time
     { wch: 25 }, // Name
+    { wch: 12 }, // Tribe
     { wch: 30 }, // Address
     { wch: 15 }, // Contact
     { wch: 18 }, // Loan Amount
@@ -224,6 +247,8 @@ export const generateSummaryExcel = (accounts: DelinquencyAccount[]) => {
     { wch: 16 }, // Comms Count
     { wch: 22 }  // Registered By
   ];
+
+  XLSX.utils.sheet_add_aoa(worksheet, [[], [REPORT_DISCLAIMER_NOTE]], { origin: -1 });
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Delinquency Summary');
@@ -468,7 +493,7 @@ export const generateIndividualPDF = (account: DelinquencyAccount) => {
     startY: currentY,
     head: [['Date & Time', 'Channel', 'Logged By', 'Promise to Pay', 'Remarks & Conversation Details']],
     body: commsRows,
-    margin: { left: 36, right: 36 },
+    margin: { left: 36, right: 36, bottom: 55 },
     theme: 'grid',
     headStyles: {
       fillColor: [6, 95, 70],
@@ -487,18 +512,38 @@ export const generateIndividualPDF = (account: DelinquencyAccount) => {
       2: { cellWidth: 80, fontStyle: 'bold' },
       3: { cellWidth: 95, textColor: [180, 83, 9] },
       4: { cellWidth: 188 }
-    },
-    didDrawPage: (data) => {
-      const pageCount = (doc as any).internal.getNumberOfPages();
-      doc.setFontSize(8);
-      doc.setTextColor(156, 163, 175);
-      doc.text(
-        `Page ${data.pageNumber} of ${pageCount} • Generated on ${generatedAt} • Akkun Lending Corporation`,
-        36,
-        820
-      );
     }
   });
+
+  // Render Note at the very bottom of the individual report
+  let noteY = ((doc as any).lastAutoTable?.finalY || currentY) + 18;
+  if (noteY > 755) {
+    doc.addPage();
+    noteY = 48;
+  }
+  const wrappedNote = doc.splitTextToSize(REPORT_DISCLAIMER_NOTE, 503);
+  const noteBoxHeight = wrappedNote.length * 12 + 16;
+  doc.setFillColor(249, 250, 251);
+  doc.setDrawColor(209, 213, 219);
+  doc.roundedRect(36, noteY, 523, noteBoxHeight, 4, 4, 'FD');
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(8.5);
+  doc.setTextColor(55, 65, 81);
+  doc.text(wrappedNote, 46, noteY + 14);
+
+  // Page numbering footer on all pages
+  const totalPages = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(156, 163, 175);
+    doc.text(
+      `Page ${i} of ${totalPages} • Generated on ${generatedAt} • Akkun Lending Corporation`,
+      36,
+      820
+    );
+  }
 
   const safeFileName = account.name.replace(/[^a-zA-Z0-9_-]/g, '_');
   doc.save(`Delinquency_Client_${safeFileName}_Report_${format(new Date(), 'yyyyMMdd_HHmm')}.pdf`);
@@ -539,7 +584,9 @@ export const generateIndividualExcel = (account: DelinquencyAccount) => {
     { 'Attribute': 'Interest Balance', 'Value': account.interestBalance || 0 },
     { 'Attribute': 'Penalty', 'Value': account.penalty || 0 },
     { 'Attribute': 'PDI (Past Due Interest)', 'Value': account.pdi || 0 },
-    { 'Attribute': 'TOTAL OUTSTANDING BALANCE', 'Value': account.totalBalance || 0 }
+    { 'Attribute': 'TOTAL OUTSTANDING BALANCE', 'Value': account.totalBalance || 0 },
+    { 'Attribute': '', 'Value': '' },
+    { 'Attribute': REPORT_DISCLAIMER_NOTE, 'Value': '' }
   ];
 
   const profileSheet = XLSX.utils.json_to_sheet(profileRows);
@@ -569,6 +616,7 @@ export const generateIndividualExcel = (account: DelinquencyAccount) => {
     { wch: 25 },
     { wch: 50 }
   ];
+  XLSX.utils.sheet_add_aoa(commsSheet, [[], [REPORT_DISCLAIMER_NOTE]], { origin: -1 });
   XLSX.utils.book_append_sheet(workbook, commsSheet, 'Communications Ledger');
 
   // Sheet 3: Payments & Collections Ledger
@@ -602,6 +650,7 @@ export const generateIndividualExcel = (account: DelinquencyAccount) => {
     { wch: 22 },
     { wch: 35 }
   ];
+  XLSX.utils.sheet_add_aoa(paymentsSheet, [[], [REPORT_DISCLAIMER_NOTE]], { origin: -1 });
   XLSX.utils.book_append_sheet(workbook, paymentsSheet, 'Payments & Reductions');
 
   const safeFileName = account.name.replace(/[^a-zA-Z0-9_-]/g, '_');
