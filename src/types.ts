@@ -889,6 +889,11 @@ export interface DelinquencyAccount {
   penalty: number;
   pdi: number; // Past Due Interest
   totalBalance: number;
+  currentPrincipalDue?: number;
+  currentInterestDue?: number;
+  currentPenalty?: number;
+  currentPdi?: number;
+  currentTotalDue?: number;
   initialPrincipal?: number;
   initialInterest?: number;
   initialTotal?: number;

@@ -126,6 +126,10 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
   const [formInterest, setFormInterest] = useState<string>('');
   const [formPenalty, setFormPenalty] = useState<string>('');
   const [formPdi, setFormPdi] = useState<string>('');
+  const [formCurrPrincipal, setFormCurrPrincipal] = useState<string>('');
+  const [formCurrInterest, setFormCurrInterest] = useState<string>('');
+  const [formCurrPenalty, setFormCurrPenalty] = useState<string>('');
+  const [formCurrPdi, setFormCurrPdi] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
@@ -137,6 +141,14 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
     const pdiVal = parseFloat(formPdi) || 0;
     return p + i + pen + pdiVal;
   }, [formPrincipal, formInterest, formPenalty, formPdi]);
+
+  const computedFormCurrTotal = useMemo(() => {
+    const cp = parseFloat(formCurrPrincipal) || 0;
+    const ci = parseFloat(formCurrInterest) || 0;
+    const cpen = parseFloat(formCurrPenalty) || 0;
+    const cpdi = parseFloat(formCurrPdi) || 0;
+    return cp + ci + cpen + cpdi;
+  }, [formCurrPrincipal, formCurrInterest, formCurrPenalty, formCurrPdi]);
 
 
   // Payment Recording Modal State (All users can record payments & collection reductions)
@@ -187,6 +199,10 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
   const [editInterest, setEditInterest] = useState<string>('');
   const [editPenalty, setEditPenalty] = useState<string>('');
   const [editPdi, setEditPdi] = useState<string>('');
+  const [editCurrPrincipal, setEditCurrPrincipal] = useState<string>('');
+  const [editCurrInterest, setEditCurrInterest] = useState<string>('');
+  const [editCurrPenalty, setEditCurrPenalty] = useState<string>('');
+  const [editCurrPdi, setEditCurrPdi] = useState<string>('');
   const [isUpdatingEdit, setIsUpdatingEdit] = useState(false);
   const [editError, setEditError] = useState('');
 
@@ -197,6 +213,14 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
     const pdiVal = parseFloat(editPdi) || 0;
     return p + i + pen + pdiVal;
   }, [editPrincipal, editInterest, editPenalty, editPdi]);
+
+  const computedEditCurrTotal = useMemo(() => {
+    const cp = parseFloat(editCurrPrincipal) || 0;
+    const ci = parseFloat(editCurrInterest) || 0;
+    const cpen = parseFloat(editCurrPenalty) || 0;
+    const cpdi = parseFloat(editCurrPdi) || 0;
+    return cp + ci + cpen + cpdi;
+  }, [editCurrPrincipal, editCurrInterest, editCurrPenalty, editCurrPdi]);
 
   // Real-time Firestore sync
   useEffect(() => {
@@ -270,6 +294,11 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
       const penVal = parseFloat(formPenalty) || 0;
       const pdiVal = parseFloat(formPdi) || 0;
       const totVal = computedTotal;
+      const cpVal = parseFloat(formCurrPrincipal) || 0;
+      const ciVal = parseFloat(formCurrInterest) || 0;
+      const cpenVal = parseFloat(formCurrPenalty) || 0;
+      const cpdiVal = parseFloat(formCurrPdi) || 0;
+      const ctotVal = computedFormCurrTotal;
 
       const initialSnapshot: BalanceSnapshot = {
         date: formEntryDate,
@@ -295,6 +324,11 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
         penalty: penVal,
         pdi: pdiVal,
         totalBalance: totVal,
+        currentPrincipalDue: cpVal,
+        currentInterestDue: ciVal,
+        currentPenalty: cpenVal,
+        currentPdi: cpdiVal,
+        currentTotalDue: ctotVal,
         initialPrincipal: pVal,
         initialInterest: iVal,
         initialTotal: totVal,
@@ -328,6 +362,10 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
       setFormInterest('');
       setFormPenalty('');
       setFormPdi('');
+      setFormCurrPrincipal('');
+      setFormCurrInterest('');
+      setFormCurrPenalty('');
+      setFormCurrPdi('');
       setIsAddModalOpen(false);
     } catch (err: any) {
       console.error('Failed to create delinquency record:', err);
@@ -371,6 +409,13 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
       const newPenalty = Math.max(0, currentPen - penPaid);
       const newPdi = Math.max(0, currentPdi - pdiPaid);
       const newTotal = newPrincipal + newInterest + newPenalty + newPdi;
+
+      // Also reduce current due breakdown proportionally by the payment (clamped at 0)
+      const newCurrPrincipal = Math.max(0, (selectedAccount.currentPrincipalDue || 0) - pPaid);
+      const newCurrInterest = Math.max(0, (selectedAccount.currentInterestDue || 0) - iPaid);
+      const newCurrPenalty = Math.max(0, (selectedAccount.currentPenalty || 0) - penPaid);
+      const newCurrPdi = Math.max(0, (selectedAccount.currentPdi || 0) - pdiPaid);
+      const newCurrTotal = newCurrPrincipal + newCurrInterest + newCurrPenalty + newCurrPdi;
 
       const newPayment: DelinquencyPayment = {
         id: `pay_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -459,6 +504,11 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
         penalty: newPenalty,
         pdi: newPdi,
         totalBalance: newTotal,
+        currentPrincipalDue: newCurrPrincipal,
+        currentInterestDue: newCurrInterest,
+        currentPenalty: newCurrPenalty,
+        currentPdi: newCurrPdi,
+        currentTotalDue: newCurrTotal,
         initialPrincipal: selectedAccount.initialPrincipal !== undefined ? selectedAccount.initialPrincipal : selectedAccount.principalBalance,
         initialInterest: selectedAccount.initialInterest !== undefined ? selectedAccount.initialInterest : selectedAccount.interestBalance,
         initialTotal: selectedAccount.initialTotal !== undefined ? selectedAccount.initialTotal : selectedAccount.totalBalance,
@@ -705,6 +755,10 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
     setEditInterest(String(account.interestBalance ?? 0));
     setEditPenalty(String(account.penalty ?? 0));
     setEditPdi(String(account.pdi ?? 0));
+    setEditCurrPrincipal(String(account.currentPrincipalDue ?? 0));
+    setEditCurrInterest(String(account.currentInterestDue ?? 0));
+    setEditCurrPenalty(String(account.currentPenalty ?? 0));
+    setEditCurrPdi(String(account.currentPdi ?? 0));
     setEditError('');
   };
 
@@ -730,6 +784,12 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
       const pdiVal = parseFloat(editPdi) || 0;
       const totVal = pVal + iVal + penVal + pdiVal;
 
+      const cpVal = parseFloat(editCurrPrincipal) || 0;
+      const ciVal = parseFloat(editCurrInterest) || 0;
+      const cpenVal = parseFloat(editCurrPenalty) || 0;
+      const cpdiVal = parseFloat(editCurrPdi) || 0;
+      const ctotVal = cpVal + ciVal + cpenVal + cpdiVal;
+
       const balancesChanged =
         pVal !== (editingAccount.principalBalance || 0) ||
         iVal !== (editingAccount.interestBalance || 0) ||
@@ -749,6 +809,11 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
         penalty: penVal,
         pdi: pdiVal,
         totalBalance: totVal,
+        currentPrincipalDue: cpVal,
+        currentInterestDue: ciVal,
+        currentPenalty: cpenVal,
+        currentPdi: cpdiVal,
+        currentTotalDue: ctotVal,
         updatedAt: now
       };
 
@@ -1019,6 +1084,11 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                   <th className="p-3.5 text-right">Penalty</th>
                   <th className="p-3.5 text-right">PDI</th>
                   <th className="p-3.5 text-right">Total Balance</th>
+                  <th className="p-3.5 text-right text-indigo-600">Curr. Prin. Due</th>
+                  <th className="p-3.5 text-right text-indigo-600">Curr. Int. Due</th>
+                  <th className="p-3.5 text-right text-indigo-600">Curr. Pen.</th>
+                  <th className="p-3.5 text-right text-indigo-600">Curr. PDI</th>
+                  <th className="p-3.5 text-right text-indigo-700">Total Curr. Due</th>
                   <th className="p-3.5 text-center">Bawas / Paid</th>
                   <th className="p-3.5 text-center">Progress Line</th>
                   <th className="p-3.5 text-center">Comms</th>
@@ -1094,6 +1164,32 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
 
                       <td className="p-3.5 text-right font-black text-red-600 whitespace-nowrap">
                         ₱{acc.totalBalance?.toLocaleString()}
+                      </td>
+
+                      <td className="p-3.5 text-right font-bold text-emerald-700 whitespace-nowrap bg-indigo-50/20">
+                        ₱{(acc.currentPrincipalDue || 0).toLocaleString()}
+                      </td>
+
+                      <td className="p-3.5 text-right font-bold text-teal-700 whitespace-nowrap bg-indigo-50/20">
+                        ₱{(acc.currentInterestDue || 0).toLocaleString()}
+                      </td>
+
+                      <td className="p-3.5 text-right font-bold text-amber-700 whitespace-nowrap bg-indigo-50/20">
+                        ₱{(acc.currentPenalty || 0).toLocaleString()}
+                      </td>
+
+                      <td className="p-3.5 text-right font-bold text-purple-700 whitespace-nowrap bg-indigo-50/20">
+                        ₱{(acc.currentPdi || 0).toLocaleString()}
+                      </td>
+
+                      <td className="p-3.5 text-right font-black text-indigo-700 whitespace-nowrap bg-indigo-50/40">
+                        ₱{(
+                          acc.currentTotalDue ??
+                          (acc.currentPrincipalDue || 0) +
+                            (acc.currentInterestDue || 0) +
+                            (acc.currentPenalty || 0) +
+                            (acc.currentPdi || 0)
+                        ).toLocaleString()}
                       </td>
 
                       {/* Bawas / Reduction Indicator */}
@@ -1253,6 +1349,21 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                   </td>
                   <td className="p-3.5 text-right text-red-600 font-black">
                     ₱{filteredAccounts.reduce((sum, a) => sum + (a.totalBalance || 0), 0).toLocaleString()}
+                  </td>
+                  <td className="p-3.5 text-right text-emerald-700 bg-indigo-50/30">
+                    ₱{filteredAccounts.reduce((sum, a) => sum + (a.currentPrincipalDue || 0), 0).toLocaleString()}
+                  </td>
+                  <td className="p-3.5 text-right text-teal-700 bg-indigo-50/30">
+                    ₱{filteredAccounts.reduce((sum, a) => sum + (a.currentInterestDue || 0), 0).toLocaleString()}
+                  </td>
+                  <td className="p-3.5 text-right text-amber-700 bg-indigo-50/30">
+                    ₱{filteredAccounts.reduce((sum, a) => sum + (a.currentPenalty || 0), 0).toLocaleString()}
+                  </td>
+                  <td className="p-3.5 text-right text-purple-700 bg-indigo-50/30">
+                    ₱{filteredAccounts.reduce((sum, a) => sum + (a.currentPdi || 0), 0).toLocaleString()}
+                  </td>
+                  <td className="p-3.5 text-right text-indigo-700 font-black bg-indigo-50/50">
+                    ₱{filteredAccounts.reduce((sum, a) => sum + (a.currentTotalDue ?? ((a.currentPrincipalDue || 0) + (a.currentInterestDue || 0) + (a.currentPenalty || 0) + (a.currentPdi || 0))), 0).toLocaleString()}
                   </td>
                   <td className="p-3.5 text-center font-black text-emerald-800">
                     ₱{filteredAccounts.reduce((sum, a) => sum + (a.totalPaid || (a.payments?.reduce((s, p) => s + (p.amount || 0), 0) || 0)), 0).toLocaleString()}
@@ -1468,6 +1579,85 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                     </span>
                     <span className="text-base font-black text-red-600 mt-0.5">
                       ₱{computedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Current Due Breakdown */}
+              <div className="space-y-4 pt-2 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600">
+                    Current Due Breakdown (PHP)
+                  </h4>
+                  <span className="text-[10px] font-black text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
+                    Auto-Computed Current Due
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-emerald-800 block mb-1">
+                      Current Principal Due
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0.00"
+                      value={formCurrPrincipal}
+                      onChange={(e) => setFormCurrPrincipal(e.target.value)}
+                      className="w-full px-4 py-2 bg-gray-50 border border-emerald-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-teal-800 block mb-1">
+                      Current Interest Due
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0.00"
+                      value={formCurrInterest}
+                      onChange={(e) => setFormCurrInterest(e.target.value)}
+                      className="w-full px-4 py-2 bg-gray-50 border border-teal-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-amber-700 block mb-1">
+                      Current Penalty
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0.00"
+                      value={formCurrPenalty}
+                      onChange={(e) => setFormCurrPenalty(e.target.value)}
+                      className="w-full px-4 py-2 bg-gray-50 border border-amber-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-purple-700 block mb-1">
+                      Current PDI
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0.00"
+                      value={formCurrPdi}
+                      onChange={(e) => setFormCurrPdi(e.target.value)}
+                      className="w-full px-4 py-2 bg-gray-50 border border-purple-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2 bg-indigo-50/70 p-2.5 rounded-xl border border-indigo-200 flex flex-col justify-center">
+                    <span className="text-[9px] font-black uppercase tracking-wider text-indigo-800">
+                      Total Current Due (Curr. P+I+Pen+PDI)
+                    </span>
+                    <span className="text-base font-black text-indigo-700 mt-0.5">
+                      ₱{computedFormCurrTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>
@@ -1811,6 +2001,48 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                   <div className="bg-red-50 p-3 rounded-xl border border-red-200">
                     <span className="text-[8px] font-black uppercase text-red-700 block">Total Balance</span>
                     <span className="text-xs font-black text-red-600 mt-1 block">₱{selectedAccount.totalBalance?.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Current Due Breakdown Grid */}
+                <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-800">
+                      Current Due Breakdown (Statement of Account)
+                    </span>
+                    <span className="text-[9px] font-bold text-indigo-600 uppercase">
+                      Curr. Principal + Interest + Penalty + PDI
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
+                    <div className="bg-white p-2.5 rounded-xl border border-emerald-200/70">
+                      <span className="text-[8px] font-black uppercase text-emerald-800 block">Curr. Principal Due</span>
+                      <span className="text-xs font-black text-emerald-900 mt-1 block">₱{(selectedAccount.currentPrincipalDue || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-xl border border-teal-200/70">
+                      <span className="text-[8px] font-black uppercase text-teal-800 block">Curr. Interest Due</span>
+                      <span className="text-xs font-black text-teal-900 mt-1 block">₱{(selectedAccount.currentInterestDue || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-xl border border-amber-200/70">
+                      <span className="text-[8px] font-black uppercase text-amber-700 block">Curr. Penalty</span>
+                      <span className="text-xs font-black text-amber-800 mt-1 block">₱{(selectedAccount.currentPenalty || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-xl border border-purple-200/70">
+                      <span className="text-[8px] font-black uppercase text-purple-700 block">Curr. PDI</span>
+                      <span className="text-xs font-black text-purple-800 mt-1 block">₱{(selectedAccount.currentPdi || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="bg-indigo-600 p-2.5 rounded-xl border border-indigo-700 text-white col-span-2 sm:col-span-1">
+                      <span className="text-[8px] font-black uppercase text-indigo-100 block">Total Current Due</span>
+                      <span className="text-xs font-black text-white mt-1 block">
+                        ₱{(
+                          selectedAccount.currentTotalDue ??
+                          (selectedAccount.currentPrincipalDue || 0) +
+                            (selectedAccount.currentInterestDue || 0) +
+                            (selectedAccount.currentPenalty || 0) +
+                            (selectedAccount.currentPdi || 0)
+                        ).toLocaleString()}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -2788,6 +3020,85 @@ export default function DelinquencyManagement({ user }: DelinquencyManagementPro
                     </span>
                     <span className="text-base font-black text-red-600 mt-0.5">
                       ₱{computedEditTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Current Due Breakdown */}
+              <div className="space-y-4 pt-2 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600">
+                    Current Due Breakdown (PHP)
+                  </h4>
+                  <span className="text-[10px] font-black text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
+                    Auto-Computed Current Due
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-emerald-800 block mb-1">
+                      Current Principal Due
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0.00"
+                      value={editCurrPrincipal}
+                      onChange={(e) => setEditCurrPrincipal(e.target.value)}
+                      className="w-full px-4 py-2 bg-gray-50 border border-emerald-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-teal-800 block mb-1">
+                      Current Interest Due
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0.00"
+                      value={editCurrInterest}
+                      onChange={(e) => setEditCurrInterest(e.target.value)}
+                      className="w-full px-4 py-2 bg-gray-50 border border-teal-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-amber-700 block mb-1">
+                      Current Penalty
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0.00"
+                      value={editCurrPenalty}
+                      onChange={(e) => setEditCurrPenalty(e.target.value)}
+                      className="w-full px-4 py-2 bg-gray-50 border border-amber-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-purple-700 block mb-1">
+                      Current PDI
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0.00"
+                      value={editCurrPdi}
+                      onChange={(e) => setEditCurrPdi(e.target.value)}
+                      className="w-full px-4 py-2 bg-gray-50 border border-purple-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2 bg-indigo-50/70 p-2.5 rounded-xl border border-indigo-200 flex flex-col justify-center">
+                    <span className="text-[9px] font-black uppercase tracking-wider text-indigo-800">
+                      Updated Total Current Due (Curr. P+I+Pen+PDI)
+                    </span>
+                    <span className="text-base font-black text-indigo-700 mt-0.5">
+                      ₱{computedEditCurrTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>

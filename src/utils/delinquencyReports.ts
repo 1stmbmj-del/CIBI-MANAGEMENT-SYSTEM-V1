@@ -54,20 +54,40 @@ export const generateSummaryPDF = (accounts: DelinquencyAccount[], filterTitle: 
   const totalPDI = accounts.reduce((sum, a) => sum + (a.pdi || 0), 0);
   const totalExposure = accounts.reduce((sum, a) => sum + (a.totalBalance || 0), 0);
 
+  const totalCurrPrincipal = accounts.reduce((sum, a) => sum + (a.currentPrincipalDue || 0), 0);
+  const totalCurrInterest = accounts.reduce((sum, a) => sum + (a.currentInterestDue || 0), 0);
+  const totalCurrPenalty = accounts.reduce((sum, a) => sum + (a.currentPenalty || 0), 0);
+  const totalCurrPDI = accounts.reduce((sum, a) => sum + (a.currentPdi || 0), 0);
+  const totalCurrDue = accounts.reduce(
+    (sum, a) =>
+      sum +
+      (a.currentTotalDue ??
+        (a.currentPrincipalDue || 0) +
+          (a.currentInterestDue || 0) +
+          (a.currentPenalty || 0) +
+          (a.currentPdi || 0)),
+    0
+  );
+
   const head = [[
-    'Entry Date & Time',
+    'Entry Date',
     'Borrower Name',
     'Tribe',
     'Address',
     'Contact',
-    'Loan Amount',
-    'Principal',
-    'Interest',
+    'Loan Amt',
+    'Principal Bal.',
+    'Interest Bal.',
     'Penalty',
     'PDI',
-    'Total Balance',
-    'Field Visited',
-    'Task Completed',
+    'Total Bal.',
+    'Curr. Prin. Due',
+    'Curr. Int. Due',
+    'Curr. Pen.',
+    'Curr. PDI',
+    'Total Curr. Due',
+    'Field Visit',
+    'Task Done',
     'Status',
     'Comms'
   ]];
@@ -76,6 +96,12 @@ export const generateSummaryPDF = (accounts: DelinquencyAccount[], filterTitle: 
     const entryFormatted = a.createdAt
       ? `${a.entryDate} ${format(new Date(a.createdAt), 'hh:mm a')}`
       : a.entryDate;
+    const currTotal =
+      a.currentTotalDue ??
+      (a.currentPrincipalDue || 0) +
+        (a.currentInterestDue || 0) +
+        (a.currentPenalty || 0) +
+        (a.currentPdi || 0);
 
     return [
       entryFormatted,
@@ -89,6 +115,11 @@ export const generateSummaryPDF = (accounts: DelinquencyAccount[], filterTitle: 
       (a.penalty || 0).toLocaleString(),
       (a.pdi || 0).toLocaleString(),
       (a.totalBalance || 0).toLocaleString(),
+      (a.currentPrincipalDue || 0).toLocaleString(),
+      (a.currentInterestDue || 0).toLocaleString(),
+      (a.currentPenalty || 0).toLocaleString(),
+      (a.currentPdi || 0).toLocaleString(),
+      currTotal.toLocaleString(),
       a.fieldVisited ? `YES (${a.fieldVisitDate ? format(new Date(a.fieldVisitDate), 'MM/dd') : 'Done'})` : 'NO',
       a.taskCompleted ? `YES (${a.taskCompletedDate ? format(new Date(a.taskCompletedDate), 'MM/dd') : 'Done'})` : 'NO',
       a.status.toUpperCase(),
@@ -109,8 +140,13 @@ export const generateSummaryPDF = (accounts: DelinquencyAccount[], filterTitle: 
     totalPenalty.toLocaleString(),
     totalPDI.toLocaleString(),
     totalExposure.toLocaleString(),
+    totalCurrPrincipal.toLocaleString(),
+    totalCurrInterest.toLocaleString(),
+    totalCurrPenalty.toLocaleString(),
+    totalCurrPDI.toLocaleString(),
+    totalCurrDue.toLocaleString(),
     `${accounts.filter(a => a.fieldVisited).length} Visited`,
-    `${accounts.filter(a => a.taskCompleted).length} Completed`,
+    `${accounts.filter(a => a.taskCompleted).length} Done`,
     '',
     accounts.reduce((s, a) => s + (a.communications?.length || 0), 0)
   ]];
@@ -120,41 +156,50 @@ export const generateSummaryPDF = (accounts: DelinquencyAccount[], filterTitle: 
     body,
     foot,
     startY: 105,
-    margin: { left: 40, right: 40, bottom: 55 },
+    margin: { left: 24, right: 24, bottom: 55 },
     theme: 'grid',
+    styles: {
+      cellPadding: 2.5,
+      overflow: 'linebreak'
+    },
     headStyles: {
       fillColor: [6, 95, 70],
       textColor: [255, 255, 255],
-      fontSize: 8,
+      fontSize: 6.5,
       fontStyle: 'bold',
       halign: 'center'
     },
     bodyStyles: {
-      fontSize: 7.5,
+      fontSize: 6.5,
       textColor: [31, 41, 55]
     },
     footStyles: {
       fillColor: [243, 244, 246],
       textColor: [17, 24, 39],
       fontStyle: 'bold',
-      fontSize: 8
+      fontSize: 6.5
     },
     columnStyles: {
-      0: { cellWidth: 65 },
-      1: { cellWidth: 80, fontStyle: 'bold' },
-      2: { cellWidth: 45, halign: 'center', fontStyle: 'bold' },
-      3: { cellWidth: 90 },
-      4: { cellWidth: 50 },
+      0: { cellWidth: 44 },
+      1: { cellWidth: 56, fontStyle: 'bold' },
+      2: { cellWidth: 30, halign: 'center', fontStyle: 'bold' },
+      3: { cellWidth: 58 },
+      4: { cellWidth: 40 },
       5: { halign: 'right' },
       6: { halign: 'right' },
       7: { halign: 'right' },
       8: { halign: 'right' },
       9: { halign: 'right' },
       10: { halign: 'right', fontStyle: 'bold', textColor: [185, 28, 28] },
-      11: { halign: 'center', fontSize: 7 },
-      12: { halign: 'center', fontSize: 7 },
-      13: { halign: 'center' },
-      14: { halign: 'center' }
+      11: { halign: 'right', textColor: [5, 150, 105] },
+      12: { halign: 'right', textColor: [13, 148, 136] },
+      13: { halign: 'right', textColor: [180, 83, 9] },
+      14: { halign: 'right', textColor: [126, 34, 206] },
+      15: { halign: 'right', fontStyle: 'bold', textColor: [67, 56, 202] },
+      16: { cellWidth: 36, halign: 'center', fontSize: 6 },
+      17: { cellWidth: 36, halign: 'center', fontSize: 6 },
+      18: { cellWidth: 36, halign: 'center' },
+      19: { cellWidth: 24, halign: 'center' }
     }
   });
 
@@ -164,15 +209,15 @@ export const generateSummaryPDF = (accounts: DelinquencyAccount[], filterTitle: 
     doc.addPage();
     noteY = 48;
   }
-  const wrappedNote = doc.splitTextToSize(REPORT_DISCLAIMER_NOTE, 742);
+  const wrappedNote = doc.splitTextToSize(REPORT_DISCLAIMER_NOTE, 774);
   const noteBoxHeight = wrappedNote.length * 12 + 16;
   doc.setFillColor(249, 250, 251);
   doc.setDrawColor(209, 213, 219);
-  doc.roundedRect(40, noteY, 762, noteBoxHeight, 4, 4, 'FD');
+  doc.roundedRect(24, noteY, 794, noteBoxHeight, 4, 4, 'FD');
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(8.5);
   doc.setTextColor(55, 65, 81);
-  doc.text(wrappedNote, 50, noteY + 14);
+  doc.text(wrappedNote, 34, noteY + 14);
 
   // Page numbering footer on all pages
   const totalPages = (doc as any).internal.getNumberOfPages();
@@ -183,7 +228,7 @@ export const generateSummaryPDF = (accounts: DelinquencyAccount[], filterTitle: 
     doc.setTextColor(156, 163, 175);
     doc.text(
       `Page ${i} of ${totalPages} • Confidential Document — Akkun Lending Corporation`,
-      40,
+      24,
       580
     );
   }
@@ -209,6 +254,16 @@ export const generateSummaryExcel = (accounts: DelinquencyAccount[]) => {
     'Penalty (PHP)': a.penalty || 0,
     'PDI (PHP)': a.pdi || 0,
     'Total Balance (PHP)': a.totalBalance || 0,
+    'Current Principal Due (PHP)': a.currentPrincipalDue || 0,
+    'Current Interest Due (PHP)': a.currentInterestDue || 0,
+    'Current Penalty (PHP)': a.currentPenalty || 0,
+    'Current PDI (PHP)': a.currentPdi || 0,
+    'Total Current Due (PHP)':
+      a.currentTotalDue ??
+      (a.currentPrincipalDue || 0) +
+        (a.currentInterestDue || 0) +
+        (a.currentPenalty || 0) +
+        (a.currentPdi || 0),
     'Field Visited': a.fieldVisited ? 'YES' : 'NO',
     'Field Visit Date': a.fieldVisitDate ? format(new Date(a.fieldVisitDate), 'yyyy-MM-dd HH:mm') : 'N/A',
     'Field Visit Officer': a.fieldVisitOfficerName || 'N/A',
@@ -237,6 +292,11 @@ export const generateSummaryExcel = (accounts: DelinquencyAccount[]) => {
     { wch: 15 }, // Penalty
     { wch: 15 }, // PDI
     { wch: 20 }, // Total Balance
+    { wch: 24 }, // Current Principal Due
+    { wch: 24 }, // Current Interest Due
+    { wch: 20 }, // Current Penalty
+    { wch: 18 }, // Current PDI
+    { wch: 22 }, // Total Current Due
     { wch: 12 }, // Field Visited
     { wch: 18 }, // Field Visit Date
     { wch: 20 }, // Field Visit Officer
@@ -403,6 +463,60 @@ export const generateIndividualPDF = (account: DelinquencyAccount) => {
       if (data.row.index === 5) {
         data.cell.styles.fillColor = [254, 242, 242]; // red-50
         data.cell.styles.textColor = [185, 28, 28]; // red-700
+        data.cell.styles.fontSize = 9.5;
+      }
+    }
+  });
+
+  currentY = (doc as any).lastAutoTable.finalY + 18;
+
+  // Section 2B: Current Due Breakdown
+  const currentTotalDueVal =
+    account.currentTotalDue ??
+    (account.currentPrincipalDue || 0) +
+      (account.currentInterestDue || 0) +
+      (account.currentPenalty || 0) +
+      (account.currentPdi || 0);
+
+  doc.setTextColor(6, 78, 59);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10.5);
+  doc.text('2B. CURRENT DUE BREAKDOWN (PHP)', 36, currentY);
+
+  currentY += 10;
+
+  const currentDueData = [
+    ['Current Principal Due', formatCurrency(account.currentPrincipalDue)],
+    ['Current Interest Due', formatCurrency(account.currentInterestDue)],
+    ['Current Penalty', formatCurrency(account.currentPenalty)],
+    ['Current PDI (Past Due Interest)', formatCurrency(account.currentPdi)],
+    ['TOTAL CURRENT AMOUNT DUE', formatCurrency(currentTotalDueVal)]
+  ];
+
+  autoTable(doc, {
+    startY: currentY,
+    head: [['Current Due Metric', 'Amount (PHP)']],
+    body: currentDueData,
+    margin: { left: 36, right: 36 },
+    theme: 'grid',
+    headStyles: {
+      fillColor: [67, 56, 202],
+      textColor: [255, 255, 255],
+      fontSize: 8.5,
+      fontStyle: 'bold'
+    },
+    bodyStyles: {
+      fontSize: 8.5,
+      textColor: [31, 41, 55]
+    },
+    columnStyles: {
+      0: { fontStyle: 'bold' },
+      1: { halign: 'right', fontStyle: 'bold' }
+    },
+    didParseCell: (data) => {
+      if (data.row.index === 4) {
+        data.cell.styles.fillColor = [238, 242, 255]; // indigo-50
+        data.cell.styles.textColor = [67, 56, 202]; // indigo-700
         data.cell.styles.fontSize = 9.5;
       }
     }
@@ -585,6 +699,21 @@ export const generateIndividualExcel = (account: DelinquencyAccount) => {
     { 'Attribute': 'Penalty', 'Value': account.penalty || 0 },
     { 'Attribute': 'PDI (Past Due Interest)', 'Value': account.pdi || 0 },
     { 'Attribute': 'TOTAL OUTSTANDING BALANCE', 'Value': account.totalBalance || 0 },
+    { 'Attribute': '', 'Value': '' },
+    { 'Attribute': 'CURRENT DUE BREAKDOWN (PHP)', 'Value': '' },
+    { 'Attribute': 'Current Principal Due', 'Value': account.currentPrincipalDue || 0 },
+    { 'Attribute': 'Current Interest Due', 'Value': account.currentInterestDue || 0 },
+    { 'Attribute': 'Current Penalty', 'Value': account.currentPenalty || 0 },
+    { 'Attribute': 'Current PDI', 'Value': account.currentPdi || 0 },
+    {
+      'Attribute': 'TOTAL CURRENT AMOUNT DUE',
+      'Value':
+        account.currentTotalDue ??
+        (account.currentPrincipalDue || 0) +
+          (account.currentInterestDue || 0) +
+          (account.currentPenalty || 0) +
+          (account.currentPdi || 0)
+    },
     { 'Attribute': '', 'Value': '' },
     { 'Attribute': REPORT_DISCLAIMER_NOTE, 'Value': '' }
   ];

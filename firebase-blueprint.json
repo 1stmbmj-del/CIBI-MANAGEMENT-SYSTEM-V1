@@ -849,6 +849,21 @@
         "totalBalance": {
           "type": "number"
         },
+        "currentPrincipalDue": {
+          "type": "number"
+        },
+        "currentInterestDue": {
+          "type": "number"
+        },
+        "currentPenalty": {
+          "type": "number"
+        },
+        "currentPdi": {
+          "type": "number"
+        },
+        "currentTotalDue": {
+          "type": "number"
+        },
         "fieldVisited": {
           "type": "boolean"
         },
