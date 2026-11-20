@@ -83,7 +83,8 @@ import {
   Eye,
   EyeOff,
   AlertTriangle,
-  CheckSquare
+  CheckSquare,
+  MessageSquarePlus
 } from 'lucide-react';
 import pptxgen from "pptxgenjs";
 import { motion, AnimatePresence } from 'framer-motion';
@@ -96,6 +97,7 @@ import { auth, db } from './firebase';
 import EvaluationModule from './components/EvaluationModule';
 import AppraisalCalculator from './components/AppraisalCalculator';
 import DelinquencyManagement from './components/DelinquencyManagement';
+import SuggestionBoxModule from './components/SuggestionBoxModule';
 import { 
   onAuthStateChanged, 
   signInWithEmailAndPassword, 
@@ -1434,6 +1436,7 @@ function Dashboard({
         { id: 'REVIEW REQUESTS', icon: ClipboardCheck },
         { id: 'HR REPORTS', icon: FileBarChart },
         { id: 'EVALUATION', icon: Star },
+        { id: 'SUGGESTION BOX', icon: MessageSquarePlus },
       ]
     },
     { id: 'REPORTS', icon: FileText },
@@ -1452,19 +1455,26 @@ function Dashboard({
   ] : isCoordinator ? [
     { id: 'DASHBOARD', icon: LayoutDashboard },
     { id: 'LEADERBOARD', icon: Trophy },
-    { id: 'TASK', icon: Fingerprint },
-    { id: 'TASK CALENDAR', icon: CalendarRange },
-    { id: 'LEAVES', icon: CalendarDays },
-    { id: 'OVERTIME', icon: Timer },
-    { id: 'OB FILLING', icon: Briefcase },
-    { id: 'REVIEW REQUESTS', icon: ClipboardCheck },
-    { id: 'HR REPORTS', icon: FileBarChart },
+    {
+      id: 'HR',
+      icon: Users,
+      children: [
+        { id: 'TASK', icon: Fingerprint },
+        { id: 'TASK CALENDAR', icon: CalendarRange },
+        { id: 'LEAVES', icon: CalendarDays },
+        { id: 'OVERTIME', icon: Timer },
+        { id: 'OB FILLING', icon: Briefcase },
+        { id: 'REVIEW REQUESTS', icon: ClipboardCheck },
+        { id: 'HR REPORTS', icon: FileBarChart },
+        { id: 'EVALUATION', icon: Star },
+        { id: 'SUGGESTION BOX', icon: MessageSquarePlus },
+      ]
+    },
     { id: 'ASSIGN ACCOUNT', icon: UserPlus },
     { id: 'ACCOUNT STATUS', icon: ClipboardList },
     { id: 'CRECOM APPROVAL', icon: CheckCircle2 },
     { id: 'FOR VALIDATION & SURVEY', icon: CheckCircle2 },
     { id: 'VALIDATION & SURVEY', icon: Star },
-    { id: 'EVALUATION', icon: Star },
     { id: 'DATA STORAGE', icon: Database },
     { id: 'SCORING CONFIG', icon: Settings2 },
     { id: 'DELINQUENCY MANAGEMENT', icon: ShieldAlert },
@@ -1473,18 +1483,25 @@ function Dashboard({
   ] : isSupervisor ? [
     { id: 'DASHBOARD', icon: LayoutDashboard },
     { id: 'LEADERBOARD', icon: Trophy },
-    { id: 'TASK', icon: Fingerprint },
-    { id: 'TASK CALENDAR', icon: CalendarRange },
-    { id: 'LEAVES', icon: CalendarDays },
-    { id: 'OVERTIME', icon: Timer },
-    { id: 'OB FILLING', icon: Briefcase },
-    { id: 'REVIEW REQUESTS', icon: ClipboardCheck },
-    { id: 'HR REPORTS', icon: FileBarChart },
+    {
+      id: 'HR',
+      icon: Users,
+      children: [
+        { id: 'TASK', icon: Fingerprint },
+        { id: 'TASK CALENDAR', icon: CalendarRange },
+        { id: 'LEAVES', icon: CalendarDays },
+        { id: 'OVERTIME', icon: Timer },
+        { id: 'OB FILLING', icon: Briefcase },
+        { id: 'REVIEW REQUESTS', icon: ClipboardCheck },
+        { id: 'HR REPORTS', icon: FileBarChart },
+        { id: 'EVALUATION', icon: Star },
+        { id: 'SUGGESTION BOX', icon: MessageSquarePlus },
+      ]
+    },
     { id: 'ASSIGN ACCOUNT', icon: UserPlus },
     { id: 'ACCOUNT STATUS', icon: ClipboardList },
     { id: 'CRECOM APPROVAL', icon: CheckCircle2 },
     { id: 'VALIDATION & SURVEY', icon: Star },
-    { id: 'EVALUATION', icon: Star },
     { id: 'DATA STORAGE', icon: Database },
     { id: 'SCORING CONFIG', icon: Settings2 },
     { id: 'DELINQUENCY MANAGEMENT', icon: ShieldAlert },
@@ -1493,13 +1510,20 @@ function Dashboard({
   ] : [
     { id: 'DASHBOARD', icon: LayoutDashboard },
     { id: 'LEADERBOARD', icon: Trophy },
-    { id: 'TASK', icon: Fingerprint },
-    { id: 'TASK CALENDAR', icon: CalendarRange },
-    { id: 'LEAVES', icon: CalendarDays },
-    { id: 'OVERTIME', icon: Timer },
-    { id: 'OB FILLING', icon: Briefcase },
+    {
+      id: 'HR',
+      icon: Users,
+      children: [
+        { id: 'TASK', icon: Fingerprint },
+        { id: 'TASK CALENDAR', icon: CalendarRange },
+        { id: 'LEAVES', icon: CalendarDays },
+        { id: 'OVERTIME', icon: Timer },
+        { id: 'OB FILLING', icon: Briefcase },
+        { id: 'EVALUATION', icon: Star },
+        { id: 'SUGGESTION BOX', icon: MessageSquarePlus },
+      ]
+    },
     { id: 'ACCOUNT STATUS', icon: ClipboardList },
-    { id: 'EVALUATION', icon: Star },
     { id: 'REPORTS', icon: FileText },
     { id: 'DELINQUENCY MANAGEMENT', icon: ShieldAlert },
     { id: 'APPRAISAL CALCULATOR', icon: Calculator },
@@ -1839,6 +1863,7 @@ function Dashboard({
                {(activeTab === 'REVIEW REQUESTS' && (isAdmin || isCoordinator || user.role === 'supervisor')) && <ReviewRequests user={user} />}
               {(activeTab === 'HR REPORTS' && (isAdmin || isCoordinator || user.role === 'supervisor')) && <HRReportsModule user={user} />}
               {activeTab === 'EVALUATION' && <EvaluationModule user={user} />}
+              {activeTab === 'SUGGESTION BOX' && <SuggestionBoxModule user={user} />}
               {activeTab === 'USERS' && <UserManagement user={user} />}
               {(activeTab === 'ASSIGN ACCOUNT' && (isAdmin || isCoordinator || user.role === 'supervisor')) && <AssignAccount user={user} />}
               {activeTab === 'ACCOUNT STATUS' && <AccountStatus user={user} />}

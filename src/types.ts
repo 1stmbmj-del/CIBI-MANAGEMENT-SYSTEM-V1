@@ -920,3 +920,28 @@ export interface DelinquencyAccount {
   createdAt: string;
   updatedAt: string;
 }
+
+export type SuggestionCategory = 'Idea' | 'Comment' | 'Office Problem';
+export type SuggestionStatus = 'Pending' | 'Resolved' | 'Archived';
+
+export interface HRSuggestion {
+  id: string;
+  category: SuggestionCategory;
+  subject: string;
+  message: string;
+  isAnonymous: boolean;
+  submittedBy: string;
+  submittedByName: string;
+  submittedByRole: UserRole | string;
+  status: SuggestionStatus;
+  reviewNote?: string;
+  resolvedBy?: string | null;
+  resolvedByName?: string | null;
+  resolvedAt?: string | null;
+  archivedBy?: string | null;
+  archivedByName?: string | null;
+  archivedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+

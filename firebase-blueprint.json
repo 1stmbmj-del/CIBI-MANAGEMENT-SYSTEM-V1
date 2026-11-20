@@ -955,6 +955,102 @@
         "totalBalance",
         "createdAt"
       ]
+    },
+    "HRSuggestion": {
+      "title": "HRSuggestion",
+      "description": "HR Suggestion Box entries for employee ideas, comments, and office problems reviewed only by Admin and Manager",
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string",
+          "enum": [
+            "Idea",
+            "Comment",
+            "Office Problem"
+          ]
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 5000
+        },
+        "isAnonymous": {
+          "type": "boolean"
+        },
+        "submittedBy": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "submittedByName": {
+          "type": "string",
+          "maxLength": 150
+        },
+        "submittedByRole": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "Pending",
+            "Resolved",
+            "Archived"
+          ]
+        },
+        "reviewNote": {
+          "type": "string",
+          "maxLength": 3000
+        },
+        "resolvedBy": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "resolvedByName": {
+          "type": "string",
+          "maxLength": 150
+        },
+        "resolvedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "archivedBy": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "archivedByName": {
+          "type": "string",
+          "maxLength": 150
+        },
+        "archivedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "category",
+        "subject",
+        "message",
+        "isAnonymous",
+        "submittedBy",
+        "submittedByName",
+        "submittedByRole",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -1013,6 +1109,10 @@
     "/delinquencies/{delinquencyId}": {
       "schema": "DelinquencyAccount",
       "description": "Delinquency management accounts and communication logs"
+    },
+    "/suggestions/{suggestionId}": {
+      "schema": "HRSuggestion",
+      "description": "HR Suggestion Box database (only Admin and Manager can read, resolve, or archive)"
     }
   }
 }

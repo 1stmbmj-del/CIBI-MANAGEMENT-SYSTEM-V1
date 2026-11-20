@@ -203,6 +203,30 @@ service cloud.firestore {
              (data.totalBalance is number || data.totalBalance is int) &&
              data.createdAt is string;
     }
+
+    function isValidSuggestion(data) {
+      let requiredFields = ['category', 'subject', 'message', 'isAnonymous', 'submittedBy', 'submittedByName', 'submittedByRole', 'status', 'createdAt', 'updatedAt'];
+      let allowedFields = ['category', 'subject', 'message', 'isAnonymous', 'submittedBy', 'submittedByName', 'submittedByRole', 'status', 'reviewNote', 'resolvedBy', 'resolvedByName', 'resolvedAt', 'archivedBy', 'archivedByName', 'archivedAt', 'createdAt', 'updatedAt'];
+      return data.keys().hasAll(requiredFields) &&
+             data.keys().hasOnly(allowedFields) &&
+             data.category in ['Idea', 'Comment', 'Office Problem'] &&
+             data.subject is string && data.subject.size() >= 1 && data.subject.size() <= 200 &&
+             data.message is string && data.message.size() >= 1 && data.message.size() <= 5000 &&
+             data.isAnonymous is bool &&
+             data.submittedBy is string && data.submittedBy.size() >= 1 && data.submittedBy.size() <= 128 &&
+             data.submittedByName is string && data.submittedByName.size() >= 1 && data.submittedByName.size() <= 150 &&
+             data.submittedByRole is string && data.submittedByRole.size() >= 1 && data.submittedByRole.size() <= 50 &&
+             data.status in ['Pending', 'Resolved', 'Archived'] &&
+             (!('reviewNote' in data) || (data.reviewNote is string && data.reviewNote.size() <= 3000)) &&
+             (!('resolvedBy' in data) || data.resolvedBy == null || (data.resolvedBy is string && data.resolvedBy.size() <= 128)) &&
+             (!('resolvedByName' in data) || data.resolvedByName == null || (data.resolvedByName is string && data.resolvedByName.size() <= 150)) &&
+             (!('resolvedAt' in data) || data.resolvedAt == null || (data.resolvedAt is string && data.resolvedAt.size() <= 64)) &&
+             (!('archivedBy' in data) || data.archivedBy == null || (data.archivedBy is string && data.archivedBy.size() <= 128)) &&
+             (!('archivedByName' in data) || data.archivedByName == null || (data.archivedByName is string && data.archivedByName.size() <= 150)) &&
+             (!('archivedAt' in data) || data.archivedAt == null || (data.archivedAt is string && data.archivedAt.size() <= 64)) &&
+             data.createdAt is string && data.createdAt.size() <= 64 &&
+             data.updatedAt is string && data.updatedAt.size() <= 64;
+    }
     // Rules
     // ===============================================================
 
@@ -323,6 +347,26 @@ service cloud.firestore {
       allow update: if isSignedIn() && isValidDelinquency(request.resource.data);
       // Admin can delete
       allow delete: if isAdmin();
+    }
+
+    match /suggestions/{suggestionId} {
+      // Only Admin and Manager can read or list Suggestion Box entries
+      allow list: if isAdmin() || isManager();
+      allow get: if isValidId(suggestionId) && (isAdmin() || isManager());
+      // Any authenticated user can drop an idea, comment, or office-related problem
+      allow create: if isSignedIn() &&
+                    isValidId(suggestionId) &&
+                    isValidSuggestion(request.resource.data) &&
+                    request.resource.data.submittedBy == request.auth.uid &&
+                    request.resource.data.status == 'Pending';
+      // Only Admin and Manager can mark as Resolved, Archive, or update review notes
+      allow update: if isValidId(suggestionId) &&
+                    (isAdmin() || isManager()) &&
+                    isValidSuggestion(request.resource.data) &&
+                    request.resource.data.submittedBy == resource.data.submittedBy &&
+                    request.resource.data.createdAt == resource.data.createdAt &&
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewNote', 'resolvedBy', 'resolvedByName', 'resolvedAt', 'archivedBy', 'archivedByName', 'archivedAt', 'updatedAt']);
+      allow delete: if isValidId(suggestionId) && isAdmin();
     }
 
   }
