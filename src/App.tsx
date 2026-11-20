@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { UserProfile, UserRole, Assignment, AssignmentStatus, TimelineStep, Liability, CashflowReport, MOP, TOP, LoanCategory, AccountType, Tribe, AttendanceRecord, LeaveRequest, OvertimeRequest, LeaveType, OBRequest, CIStarAward } from './types';
 import { 
   LineChart,
@@ -1506,7 +1507,7 @@ function Dashboard({
   ];
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 relative">
+    <div className="flex h-dvh overflow-hidden bg-slate-50 relative">
       {/* Liquid Glass Backdrop Blob Animations */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none select-none z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[55vw] h-[55vw] min-w-[500px] min-h-[500px] rounded-full liquid-glow-1 animate-liquid-one" />
@@ -1825,7 +1826,7 @@ function Dashboard({
         <div className="flex-1 overflow-x-hidden overflow-y-auto w-full relative z-10">
           <div className={cn(
             "p-4 md:p-8 min-h-full",
-            isMobile ? "pb-24 bg-white/65 backdrop-blur-md" : "bg-transparent"
+            isMobile ? "pb-28 bg-white/65 backdrop-blur-md" : "bg-transparent"
           )}>
             <AnimatePresence mode="wait">
               {activeTab === 'DASHBOARD' && ((isAdmin || isCoordinator || user.role === 'supervisor') ? <DashboardOverview user={user} setActiveTab={setActiveTab} /> : <CIDashboard user={user} />)}
@@ -1856,7 +1857,7 @@ function Dashboard({
         </div>
 
         {isMobile && (
-          <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-gray-100/80 px-4 py-2.5 flex items-center justify-around z-40 shadow-[0_-8px_30px_rgba(0,0,0,0.06)] flex-shrink-0 animate-fade-in">
+          <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-gray-100/80 px-4 pt-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] flex items-center justify-around z-40 shadow-[0_-8px_30px_rgba(0,0,0,0.06)] flex-shrink-0 animate-fade-in">
             {bottomTabs.map((tab) => {
               const TabIcon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -4897,20 +4898,40 @@ function AttendanceModule({ user }: { user: UserProfile }) {
 
   const now = new Date();
 
+  const getPhtDateString = (targetDate: Date = new Date()) => {
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).formatToParts(targetDate);
+      const y = parts.find(p => p.type === 'year')?.value;
+      const m = parts.find(p => p.type === 'month')?.value;
+      const d = parts.find(p => p.type === 'day')?.value;
+      if (y && m && d) return `${y}-${m}-${d}`;
+    } catch {
+      // Fallback to local date
+    }
+    return format(targetDate, 'yyyy-MM-dd');
+  };
+
   // Helper to determine if current time is within 8:00 AM to 3:00 PM (15:59)
-  // Supports Philippine Standard Time (PHT, Asia/Manila, UTC+8) and local browser time
+  // Supports Philippine Standard Time (PHT, Asia/Manila, UTC+8) and local browser time safely on iOS Safari
   const getTaskInWindowState = (targetDate: Date = new Date()) => {
     let phtHour = targetDate.getHours();
     let phtMinutes = targetDate.getMinutes();
     try {
       const parts = new Intl.DateTimeFormat('en-US', {
         timeZone: 'Asia/Manila',
-        hour12: false,
-        hour: 'numeric',
-        minute: 'numeric'
+        hourCycle: 'h23',
+        hour: '2-digit',
+        minute: '2-digit'
       }).formatToParts(targetDate);
-      phtHour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10) % 24;
-      phtMinutes = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+      const parsedH = parseInt(parts.find(p => p.type === 'hour')?.value || '', 10);
+      const parsedM = parseInt(parts.find(p => p.type === 'minute')?.value || '', 10);
+      if (!Number.isNaN(parsedH)) phtHour = parsedH % 24;
+      if (!Number.isNaN(parsedM)) phtMinutes = parsedM;
     } catch {
       phtHour = targetDate.getHours();
       phtMinutes = targetDate.getMinutes();
@@ -4931,8 +4952,8 @@ function AttendanceModule({ user }: { user: UserProfile }) {
       isAllowed,
       isBefore,
       isAfter,
-      hour: isPhtValid ? phtHour : localHour,
-      minutes: isPhtValid ? phtMinutes : localMinutes,
+      hour: isPhtValid ? phtHour : phtHour || localHour,
+      minutes: isPhtValid ? phtMinutes : phtMinutes || localMinutes,
       isPhtValid,
       isLocalValid
     };
@@ -4952,11 +4973,15 @@ function AttendanceModule({ user }: { user: UserProfile }) {
     // Always listen to current user's personal attendance so todayRecord & personal stats are 100% reliable
     const qPersonal = query(collection(db, 'attendance'), where('userId', '==', user.id));
     const unsubPersonal = onSnapshot(qPersonal, (snapshot) => {
-      const myData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AttendanceRecord[];
+      const myData = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }) as AttendanceRecord)
+        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
       setUserRecords(myData);
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const todayRec = myData.find(r => r.date === today);
-      setTodayRecord(todayRec || null);
+      const localToday = format(new Date(), 'yyyy-MM-dd');
+      const phtToday = getPhtDateString(new Date());
+      const todaysMatches = myData.filter(r => r.date === localToday || r.date === phtToday);
+      const todayRec = todaysMatches.find(r => !r.timeOut) || todaysMatches[0] || null;
+      setTodayRecord(todayRec);
     }, (err) => {
       console.warn("Failed to listen to personal attendance:", err);
     });
@@ -4994,7 +5019,7 @@ function AttendanceModule({ user }: { user: UserProfile }) {
     }
 
     setIsSubmittingAction(true);
-    const today = format(checkNow, 'yyyy-MM-dd');
+    const today = getPhtDateString(checkNow);
     const timeStr = format(checkNow, 'HH:mm:ss');
 
     const isSaturday = checkNow.getDay() === 6;
@@ -5029,8 +5054,9 @@ function AttendanceModule({ user }: { user: UserProfile }) {
       setShowTimeInModal(false);
       setItineraryInput('');
       setPlannedTasksInput('');
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'attendance');
+    } catch (err: any) {
+      console.error('Task In with itinerary failed:', err);
+      toast.error(err?.message || "Task In failed. Please check your connection and try again.");
     } finally {
       setIsSubmittingAction(false);
     }
@@ -5038,11 +5064,10 @@ function AttendanceModule({ user }: { user: UserProfile }) {
 
   const handleTimeAction = async (type: 'in' | 'out') => {
     if (isSubmittingAction) return;
-    const now = new Date();
-    const today = format(now, 'yyyy-MM-dd');
-    const timeStr = format(now, 'HH:mm:ss');
-    const hour = now.getHours();
-    const minutes = now.getMinutes();
+    const checkNow = new Date();
+    const today = getPhtDateString(checkNow);
+    const timeStr = format(checkNow, 'HH:mm:ss');
+    const win = getTaskInWindowState(checkNow);
     
     try {
       if (type === 'in') {
@@ -5052,7 +5077,6 @@ function AttendanceModule({ user }: { user: UserProfile }) {
         }
 
         // Validate 8:00 AM to 3:00 PM window
-        const win = getTaskInWindowState(now);
         if (!win.isAllowed) {
           toast.error("Task In is only allowed between 8:00 AM and 3:00 PM");
           return;
@@ -5065,7 +5089,7 @@ function AttendanceModule({ user }: { user: UserProfile }) {
         }
 
         setIsSubmittingAction(true);
-        const isSaturday = now.getDay() === 6;
+        const isSaturday = checkNow.getDay() === 6;
         let status: 'LATE' | 'ON TIME' = 'ON TIME';
         
         if (isSaturday) {
@@ -5089,11 +5113,12 @@ function AttendanceModule({ user }: { user: UserProfile }) {
             timeOut: null,
             status,
             tasks: '',
-            createdAt: now.toISOString()
+            createdAt: checkNow.toISOString()
           });
           toast.success("Task In recorded successfully");
-        } catch (err) {
-          handleFirestoreError(err, OperationType.CREATE, 'attendance');
+        } catch (err: any) {
+          console.error('Task In failed:', err);
+          toast.error(err?.message || "Task In failed. Please try again.");
         } finally {
           setIsSubmittingAction(false);
         }
@@ -5107,7 +5132,8 @@ function AttendanceModule({ user }: { user: UserProfile }) {
           return;
         }
         
-        if (hour > 18 || (hour === 18 && minutes >= 30)) {
+        const afterCutoff = win.hour > 18 || (win.hour === 18 && win.minutes >= 30);
+        if (afterCutoff) {
           toast.error("End Task is disabled after 6:30 PM");
           return;
         }
@@ -5121,27 +5147,28 @@ function AttendanceModule({ user }: { user: UserProfile }) {
   };
 
   const confirmTimeOut = async () => {
-    if (!taskLog.trim()) {
+    const trimmedLog = taskLog.trim();
+    if (!trimmedLog) {
       toast.error("Please fill in your task log before ending task");
       return;
     }
-    if (!todayRecord) return;
+    if (!todayRecord || isSubmittingTask) return;
 
     setIsSubmittingTask(true);
-    const now = new Date();
-    const timeStr = format(now, 'HH:mm:ss');
+    const submitNow = new Date();
+    const timeStr = format(submitNow, 'HH:mm:ss');
 
     try {
       await updateDoc(doc(db, 'attendance', todayRecord.id), {
         timeOut: timeStr,
-        tasks: taskLog
+        tasks: trimmedLog
       });
       toast.success("End Task recorded successfully");
       setShowTaskLog(false);
       setTaskLog('');
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `attendance/${todayRecord.id}`);
-      toast.error("End Task failed");
+    } catch (err: any) {
+      console.error('End Task update failed:', err);
+      toast.error(err?.message || "End Task failed. Please check your connection and try again.");
     } finally {
       setIsSubmittingTask(false);
     }
@@ -5203,14 +5230,13 @@ function AttendanceModule({ user }: { user: UserProfile }) {
 
       {!isAdmin && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
-          <motion.div
-            whileHover={{ scale: 1.01 }}
+          <div
             className={cn(
-              "h-40 sm:h-48 rounded-2xl sm:rounded-3xl p-5 sm:p-8 flex flex-col justify-between relative overflow-hidden transition-all shadow-xl",
+              "min-h-[10.5rem] sm:h-48 rounded-2xl sm:rounded-3xl p-5 sm:p-8 flex flex-col justify-between relative overflow-hidden transition-all shadow-xl",
               todayRecord ? "bg-emerald-900/10 border-2 border-emerald-500/20" : "bg-black text-white"
             )}
           >
-             <div className="z-10">
+             <div className="z-10 relative">
                 <div className="flex items-center justify-between">
                   <p className="text-[10px] font-black uppercase tracking-widest opacity-60">
                     {isCoordinator ? "CI Coordinator Duty Entry" : "Entry Activity"}
@@ -5221,7 +5247,7 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                     {todayRecord ? "Task In" : "Ready to Start"}
                 </h3>
              </div>
-             <div className="z-10 flex items-center justify-between">
+             <div className="z-10 relative flex items-center justify-between gap-2">
                 {todayRecord?.timeIn ? (
                   <div>
                     <span className="text-xl sm:text-2xl font-mono text-emerald-600 font-black">{todayRecord.timeIn}</span>
@@ -5230,9 +5256,10 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                 ) : (
                   <div className="flex flex-col gap-1">
                     <button 
+                      type="button"
                       onClick={() => handleTimeAction('in')}
                       disabled={isSubmittingAction || !isTaskInAllowed}
-                      className="bg-white text-black px-4 sm:px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="bg-white text-black px-5 sm:px-6 min-h-[44px] py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation cursor-pointer"
                     >
                       {isSubmittingAction ? "Processing..." : isBeforeTaskInWindow ? "Opens at 8:00 AM" : isAfterTaskInWindow ? "Closed (3:00 PM Cutoff)" : "Task In Now"}
                     </button>
@@ -5243,43 +5270,53 @@ function AttendanceModule({ user }: { user: UserProfile }) {
                     )}
                   </div>
                 )}
-                <TrendingUp size={24} className="opacity-20 translate-x-4 sm:size-8" />
+                <TrendingUp size={24} className="opacity-20 translate-x-2 sm:size-8 pointer-events-none shrink-0" />
              </div>
-             <Fingerprint className="absolute -right-8 -bottom-8 w-32 sm:w-48 h-32 sm:h-48 opacity-5" />
-          </motion.div>
+             <Fingerprint className="absolute -right-8 -bottom-8 w-32 sm:w-48 h-32 sm:h-48 opacity-5 pointer-events-none" />
+          </div>
 
-          <motion.div
-            whileHover={{ scale: 1.01 }}
+          <div
             className={cn(
-              "h-40 sm:h-48 rounded-2xl sm:rounded-3xl p-5 sm:p-8 flex flex-col justify-between relative overflow-hidden transition-all shadow-xl",
+              "min-h-[10.5rem] sm:h-48 rounded-2xl sm:rounded-3xl p-5 sm:p-8 flex flex-col justify-between relative overflow-hidden transition-all shadow-xl",
               (todayRecord?.timeOut) ? "bg-indigo-900/10 border-2 border-indigo-500/20" : "bg-linear-to-br from-indigo-700 to-purple-800 text-white"
             )}
           >
-             <div className="z-10">
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Exit Activity</p>
+             <div className="z-10 relative">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Exit Activity</p>
+                  <span className={cn("text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full", todayRecord?.timeOut ? "bg-indigo-200/60 text-indigo-800" : "bg-white/10 text-white/80")}>Until 6:30 PM</span>
+                </div>
                 <h3 className={cn("text-xl sm:text-2xl md:text-4xl font-black uppercase tracking-tighter mt-1 truncate", todayRecord?.timeOut ? "text-indigo-900" : "text-white")}>
                     {todayRecord?.timeOut ? "End Task" : "Duty in Progress"}
                 </h3>
              </div>
-             <div className="z-10 flex items-center justify-between">
+             <div className="z-10 relative flex items-center justify-between gap-2">
                 {todayRecord?.timeOut ? (
                   <div>
                     <span className="text-xl sm:text-2xl font-mono text-indigo-600 font-black">{todayRecord.timeOut}</span>
                     <p className="text-[8px] font-bold text-indigo-700 uppercase tracking-widest mt-0.5">End Task Recorded</p>
                   </div>
                 ) : (
-                  <button 
-                    onClick={() => handleTimeAction('out')}
-                    disabled={!todayRecord || isAfterCutoff}
-                    className="bg-white text-indigo-900 px-4 sm:px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50"
-                  >
-                    {isAfterCutoff ? "Cutoff Reached" : "End Task Now"}
-                  </button>
+                  <div className="flex flex-col gap-1">
+                    <button 
+                      type="button"
+                      onClick={() => handleTimeAction('out')}
+                      disabled={!todayRecord || isAfterCutoff}
+                      className="bg-white text-indigo-900 px-5 sm:px-6 min-h-[44px] py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation cursor-pointer"
+                    >
+                      {!todayRecord ? "Task In First" : isAfterCutoff ? "Cutoff Reached" : "End Task Now"}
+                    </button>
+                    {!todayRecord && (
+                      <span className="text-[8px] text-indigo-200 font-bold uppercase tracking-wider">
+                        Complete Task In before ending duty
+                      </span>
+                    )}
+                  </div>
                 )}
-                <Clock size={24} className="opacity-20 translate-x-4 sm:size-8" />
+                <Clock size={24} className="opacity-20 translate-x-2 sm:size-8 pointer-events-none shrink-0" />
              </div>
-             <Timer className="absolute -right-8 -bottom-8 w-32 sm:w-48 h-32 sm:h-48 opacity-5" />
-          </motion.div>
+             <Timer className="absolute -right-8 -bottom-8 w-32 sm:w-48 h-32 sm:h-48 opacity-5 pointer-events-none" />
+          </div>
         </div>
       )}
 
@@ -5495,164 +5532,188 @@ function AttendanceModule({ user }: { user: UserProfile }) {
         )}
       </div>
 
-       {/* Task In Planner Modal */}
-      <AnimatePresence>
-        {showTimeInModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto no-scrollbar">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-emerald-950/40 backdrop-blur-sm -z-10"
-            />
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-[calc(100%-1rem)] sm:max-w-sm relative z-10 p-5 sm:p-8 max-h-[85vh] sm:max-h-none overflow-y-auto no-scrollbar my-auto"
-            >
-              <div className="text-center space-y-3 sm:space-y-4 mb-4 sm:mb-6">
-                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-emerald-50 rounded-xl sm:rounded-2xl flex items-center justify-center mx-auto border border-emerald-55">
-                   <Calendar size={24} className="text-emerald-600 sm:size-8" />
-                </div>
-                <h3 className="text-lg sm:text-2xl font-black text-emerald-900 uppercase tracking-tighter leading-tight">
-                  {user.role === 'supervisor' ? 'Supervisor' : user.role === 'coordinator' ? 'Coordinator' : 'Officer'} Task In Planner
-                </h3>
-                <p className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest">Provide your itinerary and tasks before recording Task In (8:00 AM – 3:00 PM)</p>
-              </div>
-
-              <div className="space-y-4">
-                {(user.role === 'coordinator' || user.role === 'supervisor') && (
-                  <div className="space-y-1.5 p-3 rounded-xl bg-emerald-50/70 border border-emerald-100 text-left">
-                    <p className="text-[8px] font-black uppercase tracking-widest text-emerald-800">
-                      ⚡ Quick Coordinator Templates:
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setItineraryInput("Central Branch Office - Operations & Credit Review Center");
-                          setPlannedTasksInput("Audit CI field reports, coordinate loan assignments, process verification approvals & review credit ratings");
-                        }}
-                        className="px-2.5 py-1 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[9px] font-bold text-left transition-colors shadow-2xs"
-                      >
-                        🏢 Office Coordination & CI Review
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setItineraryInput("Field Supervision Route: Assigned client locations & barangay verification visits");
-                          setPlannedTasksInput("Conduct supervisor spot-checks, validate borrower premises, and monitor CI officers in the field");
-                        }}
-                        className="px-2.5 py-1 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[9px] font-bold text-left transition-colors shadow-2xs"
-                      >
-                        🚗 Field Route & Spot-Check
-                      </button>
-                    </div>
+      {/* Task In Planner Modal (Portaled to document.body for iOS/mobile z-index & keyboard safety) */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showTimeInModal && (
+            <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-3 pt-6 sm:p-4 overflow-y-auto overscroll-contain">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => {
+                  setShowTimeInModal(false);
+                  setItineraryInput('');
+                  setPlannedTasksInput('');
+                }}
+                className="fixed inset-0 bg-emerald-950/50 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 12 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 12 }}
+                className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-[calc(100%-0.5rem)] sm:max-w-sm relative z-10 p-5 sm:p-8 max-h-[88dvh] overflow-y-auto no-scrollbar my-auto"
+              >
+                <div className="text-center space-y-2.5 sm:space-y-4 mb-4 sm:mb-6">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-emerald-50 rounded-xl sm:rounded-2xl flex items-center justify-center mx-auto border border-emerald-55">
+                     <Calendar size={24} className="text-emerald-600 sm:size-8" />
                   </div>
-                )}
+                  <h3 className="text-lg sm:text-2xl font-black text-emerald-900 uppercase tracking-tighter leading-tight">
+                    {user.role === 'supervisor' ? 'Supervisor' : user.role === 'coordinator' ? 'Coordinator' : 'Officer'} Task In Planner
+                  </h3>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Provide your itinerary and tasks before recording Task In (8:00 AM – 3:00 PM)</p>
+                </div>
 
-                <div className="space-y-1 text-left">
-                  <label className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-gray-400">Daily Itinerary / Routing <span className="text-red-500 font-bold">*</span></label>
+                <div className="space-y-4">
+                  {(user.role === 'coordinator' || user.role === 'supervisor') && (
+                    <div className="space-y-1.5 p-3 rounded-xl bg-emerald-50/70 border border-emerald-100 text-left">
+                      <p className="text-[8px] font-black uppercase tracking-widest text-emerald-800">
+                        ⚡ Quick Coordinator Templates:
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setItineraryInput("Central Branch Office - Operations & Credit Review Center");
+                            setPlannedTasksInput("Audit CI field reports, coordinate loan assignments, process verification approvals & review credit ratings");
+                          }}
+                          className="px-2.5 py-1.5 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[10px] font-bold text-left transition-colors shadow-2xs touch-manipulation cursor-pointer"
+                        >
+                          🏢 Office Coordination & CI Review
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setItineraryInput("Field Supervision Route: Assigned client locations & barangay verification visits");
+                            setPlannedTasksInput("Conduct supervisor spot-checks, validate borrower premises, and monitor CI officers in the field");
+                          }}
+                          className="px-2.5 py-1.5 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[10px] font-bold text-left transition-colors shadow-2xs touch-manipulation cursor-pointer"
+                        >
+                          🚗 Field Route & Spot-Check
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-1 text-left">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-gray-400">Daily Itinerary / Routing <span className="text-red-500 font-bold">*</span></label>
+                    <textarea
+                      value={itineraryInput}
+                      onChange={(e) => setItineraryInput(e.target.value)}
+                      placeholder="E.G., Field visit to Calamba, Laguna; Client verification at Brgy. Canlubang..."
+                      className="w-full h-24 bg-gray-50 border-2 border-emerald-55 rounded-xl sm:rounded-2xl p-3 text-base sm:text-xs font-bold text-gray-700 focus:border-emerald-500 focus:outline-none transition-all resize-none"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1 text-left">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-gray-400">Tasks / Day Goals <span className="text-red-500 font-bold">*</span></label>
+                    <textarea
+                      value={plannedTasksInput}
+                      onChange={(e) => setPlannedTasksInput(e.target.value)}
+                      placeholder="E.G., Complete 3 client credit assessments; Submit cashflow reports by 4 PM..."
+                      className="w-full h-24 bg-gray-50 border-2 border-emerald-55 rounded-xl sm:rounded-2xl p-3 text-base sm:text-xs font-bold text-gray-700 focus:border-emerald-500 focus:outline-none transition-all resize-none"
+                      required
+                    />
+                  </div>
+
+                  <div className="flex gap-3 sm:gap-4 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowTimeInModal(false);
+                        setItineraryInput('');
+                        setPlannedTasksInput('');
+                      }}
+                      className="flex-1 min-h-[44px] sm:h-12 border border-gray-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-gray-50 transition-colors touch-manipulation cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={confirmTimeIn}
+                      disabled={isSubmittingAction || !itineraryInput.trim() || !plannedTasksInput.trim()}
+                      className="flex-1 min-h-[44px] sm:h-12 bg-emerald-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-950/20 active:scale-95 transition-all disabled:opacity-50 touch-manipulation cursor-pointer"
+                    >
+                      {isSubmittingAction ? "Recording..." : "Verify & Task In"}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* Task Log / End Task Modal (Portaled to document.body for iOS Safari keyboard & viewport reliability) */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showTaskLog && (
+            <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-3 pt-6 sm:p-4 overflow-y-auto overscroll-contain">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => {
+                  if (!isSubmittingTask) setShowTaskLog(false);
+                }}
+                className="fixed inset-0 bg-emerald-950/50 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 12 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 12 }}
+                className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-md relative z-10 p-5 sm:p-8 max-h-[88dvh] overflow-y-auto my-auto pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
+              >
+                <div className="text-center space-y-2.5 sm:space-y-4 mb-4 sm:mb-6">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto">
+                     <ClipboardList size={26} className="text-emerald-600 sm:size-8" />
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-black text-emerald-900 uppercase tracking-tighter">Task Log Required</h3>
+                  <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Please summarize your activities today before ending task</p>
+                </div>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    confirmTimeOut();
+                  }}
+                  className="space-y-4"
+                >
                   <textarea
-                    value={itineraryInput}
-                    onChange={(e) => setItineraryInput(e.target.value)}
-                    placeholder="E.G., Field visit to Calamba, Laguna; Client verification at Brgy. Canlubang..."
-                    className="w-full h-20 sm:h-24 bg-gray-50 border-2 border-emerald-55 rounded-xl sm:rounded-2xl p-3 text-xs font-bold text-gray-700 focus:border-emerald-500 focus:outline-none transition-all resize-none"
+                    value={taskLog}
+                    onChange={(e) => setTaskLog(e.target.value)}
+                    placeholder="What have you accomplished today?..."
+                    rows={5}
+                    className="w-full h-32 sm:h-40 bg-gray-50 border-2 border-emerald-100 rounded-2xl p-3.5 sm:p-4 text-base sm:text-xs font-bold text-gray-800 focus:border-emerald-500 focus:outline-none transition-all resize-none"
                     required
                   />
-                </div>
 
-                <div className="space-y-1 text-left">
-                  <label className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-gray-400">Tasks / Day Goals <span className="text-red-500 font-bold">*</span></label>
-                  <textarea
-                    value={plannedTasksInput}
-                    onChange={(e) => setPlannedTasksInput(e.target.value)}
-                    placeholder="E.G., Complete 3 client credit assessments; Submit cashflow reports by 4 PM..."
-                    className="w-full h-20 sm:h-24 bg-gray-50 border-2 border-emerald-55 rounded-xl sm:rounded-2xl p-3 text-xs font-bold text-gray-700 focus:border-emerald-500 focus:outline-none transition-all resize-none"
-                    required
-                  />
-                </div>
-
-                <div className="flex gap-3 sm:gap-4 pt-2">
-                  <button
-                    onClick={() => {
-                      setShowTimeInModal(false);
-                      setItineraryInput('');
-                      setPlannedTasksInput('');
-                    }}
-                    className="flex-1 h-10 sm:h-12 border border-gray-100 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={confirmTimeIn}
-                    disabled={isSubmittingAction || !itineraryInput.trim() || !plannedTasksInput.trim()}
-                    className="flex-1 h-10 sm:h-12 bg-emerald-800 text-white rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-950/20 active:scale-95 transition-all disabled:opacity-50"
-                  >
-                    {isSubmittingAction ? "Recording..." : "Verify & Task In"}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Task Log Modal */}
-      <AnimatePresence>
-        {showTaskLog && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowTaskLog(false)}
-              className="absolute inset-0 bg-emerald-950/40 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative z-10 p-8"
-            >
-              <div className="text-center space-y-4 mb-8">
-                <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto">
-                   <ClipboardList size={32} className="text-emerald-600" />
-                </div>
-                <h3 className="text-2xl font-black text-emerald-900 uppercase tracking-tighter">Task Log Required</h3>
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Please summarize your activities today before ending task</p>
-              </div>
-
-              <div className="space-y-4">
-                <textarea
-                  value={taskLog}
-                  onChange={(e) => setTaskLog(e.target.value)}
-                  placeholder="What have you accomplished today?..."
-                  className="w-full h-40 bg-gray-50 border-2 border-emerald-50 rounded-2xl p-4 text-xs font-bold focus:border-emerald-500 focus:outline-none transition-all resize-none"
-                  autoFocus
-                />
-
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => setShowTaskLog(false)}
-                    className="flex-1 h-12 border-2 border-gray-100 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={confirmTimeOut}
-                    disabled={isSubmittingTask || !taskLog.trim()}
-                    className="flex-1 h-12 bg-emerald-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-950/20 active:scale-95 transition-all disabled:opacity-50"
-                  >
-                    {isSubmittingTask ? "Processing..." : "Complete & End Task"}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                  <div className="flex gap-3 sm:gap-4 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowTaskLog(false)}
+                      disabled={isSubmittingTask}
+                      className="flex-1 min-h-[48px] border-2 border-gray-200 rounded-xl text-[11px] sm:text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-gray-50 transition-colors touch-manipulation cursor-pointer disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmittingTask || !taskLog.trim()}
+                      className="flex-1 min-h-[48px] bg-emerald-800 hover:bg-emerald-700 text-white rounded-xl text-[11px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-950/20 active:scale-95 transition-all disabled:opacity-50 touch-manipulation cursor-pointer"
+                    >
+                      {isSubmittingTask ? "Processing..." : "Complete & End Task"}
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* Coordinator Remarks Modal */}
       <AnimatePresence>
